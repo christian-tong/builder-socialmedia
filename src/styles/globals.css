@@ -133,3 +133,13 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* 🔧 Scroll invisible pero funcional */
+.scroll-smooth-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.scroll-smooth-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
