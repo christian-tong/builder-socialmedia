@@ -1,6 +1,8 @@
 // src\store\useNodeConfigStore.ts
 
 import { create } from "zustand";
+import { exportToJsonFile, importFromJsonFile } from "@/lib/jsonExportImport";
+import { toast } from "sonner";
 
 interface NodeConfig {
   id: string;
@@ -12,6 +14,8 @@ interface NodeConfigState {
   selectedNode: NodeConfig | null;
   setSelectedNode: (node: NodeConfig | null) => void;
   updateNodeData: (id: string, newData: Record<string, any>) => void;
+  exportConfig: () => void;
+  importConfig: (file: File) => Promise<void>;
 }
 
 export const useNodeConfigStore = create<NodeConfigState>((set, get) => ({
@@ -28,6 +32,29 @@ export const useNodeConfigStore = create<NodeConfigState>((set, get) => ({
           data: { ...current.data, ...newData },
         },
       });
+    }
+  },
+
+  // 📤 Exportar configuración (modularizado)
+  exportConfig: () => {
+    const state = get().selectedNode;
+    if (!state) {
+      toast.warning("⚠️ No hay nodo seleccionado para exportar.");
+      return;
+    }
+    exportToJsonFile(state, "builderSocialMedia");
+    toast.success("✅ Configuración exportada correctamente");
+  },
+
+  // 📥 Importar configuración (modularizado)
+  importConfig: async (file: File) => {
+    const data = await importFromJsonFile<NodeConfig>(file);
+    if (data && data.id && data.data) {
+      set({ selectedNode: data });
+      console.log("✅ Configuración importada:", data);
+      toast.success("✅ Configuración importada correctamente");
+    } else {
+      toast.error("❌ Archivo JSON inválido o formato no compatible.");
     }
   },
 }));
