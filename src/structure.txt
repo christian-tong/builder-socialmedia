@@ -1,0 +1,82 @@
+Listado de rutas de carpetas
+El número de serie del volumen es 0A55-6B00
+D:.
+¦   structure.txt
+¦   
++---components
+¦   +---flow
+¦   ¦       FlowCanvas.tsx
+¦   ¦       FlowSidebar.tsx
+¦   ¦       FlowStylePanel.tsx
+¦   ¦       FlowToolbar.tsx
+¦   ¦       NodeConfigSidebar.tsx
+¦   ¦       
+¦   +---forms
+¦   ¦       FormSimpleTextNode.tsx
+¦   ¦       FormStartNode.tsx
+¦   ¦       
+¦   +---layout
+¦   ¦       Footer.tsx
+¦   ¦       Header.tsx
+¦   ¦       MainLayout.tsx
+¦   ¦       Sidebar.tsx
+¦   ¦       SidebarRight.tsx
+¦   ¦       
+¦   +---nodes
+¦   ¦       BaseNode.tsx
+¦   ¦       DecisionNode.tsx
+¦   ¦       DerivateNode.tsx
+¦   ¦       EndNode.tsx
+¦   ¦       MenuNode.tsx
+¦   ¦       SimpleTextNode.tsx
+¦   ¦       StartNode.tsx
+¦   ¦       TextNode.tsx
+¦   ¦       TimeConditionNode.tsx
+¦   ¦       
+¦   +---shared
+¦   ¦       ColorPicker.tsx
+¦   ¦       DraggableWrapper.tsx
+¦   ¦       Icon.tsx
+¦   ¦       LogoWimprove.tsx
+¦   ¦       
+¦   +---ui
+¦           button.tsx
+¦           card.tsx
+¦           input.tsx
+¦           label.tsx
+¦           sheet.tsx
+¦           
++---config
+¦       nodesConfig.ts
+¦       nodesForms.ts
+¦       
++---hooks
+¦       useFlow.ts
+¦       useKeyboard.ts
+¦       useKeyboardShortcut.ts
+¦       useNodeValidation.ts
+¦       useTheme.ts
+¦       
++---lib
+¦       utils.ts
+¦       
++---pages
+¦   ¦   index.tsx
+¦   ¦   _app.tsx
+¦   ¦   _document.tsx
+¦   ¦   
+¦   +---api
+¦           hello.ts
+¦           
++---store
+¦       useFlowStyleStore.ts
+¦       useNodeConfigStore.ts
+¦       useSidebarStore.ts
+¦       useThemeStore.ts
+¦       
++---styles
+¦       globals.css
+¦       
++---types
+        flow.ts
+        
