@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import ReactFlow, {
   ReactFlowProvider,
   Background,
@@ -10,10 +10,12 @@ import ReactFlow, {
   Controls,
   MiniMap,
   addEdge,
-  useEdgesState,
-  useNodesState,
+  applyNodeChanges,
+  applyEdgeChanges,
   Node,
   Edge,
+  NodeChange,
+  EdgeChange,
   useReactFlow,
 } from "reactflow";
 import "reactflow/dist/style.css";
@@ -24,23 +26,19 @@ import { useThemeStore } from "@/store/useThemeStore";
 import { useFlowStyleStore } from "@/store/useFlowStyleStore";
 import { NodeConfigSidebar } from "./NodeConfigSidebar";
 import { FlowStylePanel } from "./FlowStylePanel";
+import { useFlowStore } from "@/store/useFlowStore";
 
-/* =============================================
- * 🌊 FlowCanvas — Wrapper que monta el Provider
- * ============================================= */
 export default function FlowCanvas() {
   const { theme } = useThemeStore();
 
   return (
     <div className="flex w-full h-full overflow-hidden relative">
       <FlowSidebar />
-
       <div
         className={`flex-1 h-full transition-colors duration-500 ${
           theme === "dark" ? "bg-[#0d0d0f]" : "bg-[#f7f7f8]"
         }`}
       >
-        {/* ✅ Aquí envolvemos el Canvas interno */}
         <ReactFlowProvider>
           <FlowCanvasInner />
         </ReactFlowProvider>
@@ -51,41 +49,58 @@ export default function FlowCanvas() {
   );
 }
 
-/* =============================================
- * 🧩 FlowCanvasInner — Lógica real del lienzo
- * ============================================= */
 function FlowCanvasInner() {
   const { theme } = useThemeStore();
   const { backgroundType, edgeType } = useFlowStyleStore();
+  const { nodes, edges, setNodes, setEdges } = useFlowStore();
+  const { project, fitView } = useReactFlow();
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([
-    {
-      id: "1",
-      type: "startNode",
-      position: { x: 250, y: 100 },
-      data: { label: "Inicio del flujo", message: "Bienvenido al flujo" },
-    },
-  ]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [isConfirmedLeave, setIsConfirmedLeave] = useState(false);
 
-  const { project } = useReactFlow(); // ✅ ahora sí dentro del Provider
+  // 🧠 Crear nodo inicial si no hay ninguno
+  useEffect(() => {
+    if (nodes.length === 0) {
+      setNodes([
+        {
+          id: "1",
+          type: "startNode",
+          position: { x: 250, y: 100 },
+          data: { label: "Inicio del flujo", message: "Bienvenido al flujo" },
+        },
+      ]);
+    }
+  }, [nodes, setNodes]);
 
-  // 🔗 Conexión de nodos
-  const onConnect = useCallback(
-    (connection: any) =>
-      setEdges((eds) => addEdge({ ...connection, type: edgeType }, eds)),
-    [edgeType, setEdges]
-  );
-
-  // 🔁 Actualiza tipo de edges cuando cambia la configuración
+  // 🔁 Actualizar tipo de edges al cambiar estilo global
   useEffect(() => {
     setEdges((eds) =>
-      eds.map((edge: Edge) => ({
+      eds.map((edge) => ({
         ...edge,
         type: edgeType,
       }))
     );
   }, [edgeType, setEdges]);
+
+  // 🧩 Eventos controlados de React Flow
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) =>
+      setNodes((nds) => applyNodeChanges(changes, nds)),
+    [setNodes]
+  );
+
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) =>
+      setEdges((eds) => applyEdgeChanges(changes, eds)),
+    [setEdges]
+  );
+
+  // 🔗 Conexión entre nodos
+  const onConnect = useCallback(
+    (connection: any) =>
+      setEdges((eds) => addEdge({ ...connection, type: edgeType }, eds)),
+    [edgeType, setEdges]
+  );
 
   // 🪄 Drag & Drop
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -99,16 +114,12 @@ function FlowCanvasInner() {
       const type = event.dataTransfer.getData("application/reactflow");
       if (!type) return;
 
-      const reactFlowBounds = (
-        event.target as HTMLElement
-      ).getBoundingClientRect();
-
+      const bounds = (event.target as HTMLElement).getBoundingClientRect();
       const position = project({
-        x: event.clientX - reactFlowBounds.left,
-        y: event.clientY - reactFlowBounds.top,
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
       });
 
-      // 📦 Detección simple de colisión
       const COLLISION_RADIUS = 100;
       const OFFSET_X = 180;
       const OFFSET_Y = 120;
@@ -124,13 +135,13 @@ function FlowCanvasInner() {
         : position;
 
       const newNode: Node = {
-        id: `${+new Date()}`,
+        id: `${Date.now()}`,
         type,
         position: finalPosition,
         data: { label: `${type} node`, message: "" },
       };
 
-      setNodes((nds) => nds.concat(newNode));
+      setNodes((nds) => [...nds, newNode]);
     },
     [nodes, setNodes, project]
   );
@@ -143,9 +154,45 @@ function FlowCanvasInner() {
       ? BackgroundVariant.Lines
       : BackgroundVariant.Cross;
 
+  // 🧭 Autoajuste tras importar
+  useEffect(() => {
+    if (nodes.length > 1) {
+      setTimeout(() => fitView(), 200);
+    }
+  }, [nodes, fitView]);
+
+  // ⚠️ Mostrar modal visual antes de cerrar / recargar
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (isConfirmedLeave) return; // ya aceptó salir
+      if (nodes.length > 0 || edges.length > 0) {
+        event.preventDefault();
+        event.returnValue = ""; // evita cierre inmediato
+        setShowLeaveModal(true);
+        return "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [nodes, edges, isConfirmedLeave]);
+
+  // ✅ Confirmar salida del modal visual
+  const handleConfirmLeave = () => {
+    setIsConfirmedLeave(true);
+    setShowLeaveModal(false);
+    window.location.reload(); // o router.push('/dashboard')
+  };
+
+  // ❌ Cancelar salida
+  const handleCancelLeave = () => {
+    setShowLeaveModal(false);
+  };
+
   return (
     <>
       <FlowStylePanel />
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -156,9 +203,6 @@ function FlowCanvasInner() {
         onDrop={onDrop}
         onDragOver={onDragOver}
         fitView
-        panOnScroll
-        zoomOnScroll
-        zoomOnPinch
         className="w-full h-full"
       >
         <Background
