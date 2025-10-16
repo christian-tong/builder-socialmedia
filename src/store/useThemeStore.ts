@@ -1,7 +1,5 @@
 // src\store\useThemeStore.ts
 
-"use client";
-
 /**
  * 🌓 useThemeStore — Store global para el manejo del modo oscuro / claro
  * ================================================================

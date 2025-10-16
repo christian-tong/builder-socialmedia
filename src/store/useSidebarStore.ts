@@ -1,7 +1,5 @@
 // src\store\useSidebarStore.ts
 
-"use client";
-
 /**
  * 🧭 useSidebarStore — Store global del sidebar
  * ============================================================
