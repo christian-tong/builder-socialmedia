@@ -1,43 +1,62 @@
-// src\components\flow\FlowCanvas.tsx
+// src/components/flow/FlowCanvas.tsx
+
 "use client";
 
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import ReactFlow, {
   ReactFlowProvider,
   Background,
+  BackgroundVariant,
   Controls,
   MiniMap,
   addEdge,
   useEdgesState,
   useNodesState,
   Node,
+  Edge,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
-import { TextNode } from "../nodes/TextNode";
+import { nodeTypes } from "@/config/nodesConfig";
 import FlowSidebar from "./FlowSidebar";
 import { useThemeStore } from "@/store/useThemeStore";
-
-const nodeTypes = { text: TextNode };
+import { useFlowStyleStore } from "@/store/useFlowStyleStore";
+import { NodeConfigSidebar } from "./NodeConfigSidebar";
+import { FlowStylePanel } from "./FlowStylePanel";
 
 export default function FlowCanvas() {
   const { theme } = useThemeStore();
+  const { backgroundType, edgeType } = useFlowStyleStore();
 
   const [nodes, setNodes, onNodesChange] = useNodesState([
     {
       id: "1",
-      type: "text",
+      type: "startNode",
       position: { x: 250, y: 100 },
-      data: { label: "Nodo inicial" },
+      data: { label: "Inicio del flujo", message: "Bienvenido al flujo" },
     },
   ]);
+
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
+  // 🔗 Cuando se conectan nodos nuevos, usar el tipo actual
   const onConnect = useCallback(
-    (connection: any) => setEdges((eds) => addEdge(connection, eds)),
-    []
+    (connection: any) =>
+      setEdges((eds) => addEdge({ ...connection, type: edgeType }, eds)),
+    [edgeType, setEdges]
   );
 
+  // 🪄 Efecto que actualiza todos los edges existentes al cambiar el tipo
+  useEffect(() => {
+    setEdges((eds) =>
+      eds.map((edge: Edge) => ({
+        ...edge,
+        type: edgeType,
+      }))
+    );
+  }, [edgeType, setEdges]);
+
+  // 🎯 Drag & Drop de nodos
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
@@ -49,25 +68,28 @@ export default function FlowCanvas() {
       const type = event.dataTransfer.getData("application/reactflow");
       if (!type) return;
 
-      const position = {
-        x: event.clientX - 260,
-        y: event.clientY - 60,
-      };
-
+      const position = { x: event.clientX - 260, y: event.clientY - 60 };
       const newNode: Node = {
         id: `${+new Date()}`,
         type,
         position,
-        data: { label: `${type} node` },
+        data: { label: `${type} node`, message: "" },
       };
-
       setNodes((nds) => nds.concat(newNode));
     },
     [setNodes]
   );
 
+  // 🎨 Fondo dinámico
+  const bgVariant =
+    backgroundType === "dots"
+      ? BackgroundVariant.Dots
+      : backgroundType === "lines"
+      ? BackgroundVariant.Lines
+      : BackgroundVariant.Cross;
+
   return (
-    <div className="flex w-full h-full overflow-hidden">
+    <div className="flex w-full h-full overflow-hidden relative">
       <FlowSidebar />
 
       <div
@@ -76,29 +98,29 @@ export default function FlowCanvas() {
         }`}
       >
         <ReactFlowProvider>
+          <FlowStylePanel />
           <ReactFlow
             nodes={nodes}
             edges={edges}
+            nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onDrop={onDrop}
             onDragOver={onDragOver}
-            nodeTypes={nodeTypes}
             fitView
             panOnScroll
             zoomOnScroll
             zoomOnPinch
-            attributionPosition="bottom-left"
+            edgeTypes={{}}
             className="w-full h-full"
           >
             <Background
-              variant="dots"
+              variant={bgVariant}
               gap={12}
               size={1}
               color={theme === "dark" ? "#333" : "#bbb"}
             />
-
             <MiniMap
               position="bottom-left"
               nodeColor={() => (theme === "dark" ? "#6366f1" : "#3b82f6")}
@@ -109,21 +131,11 @@ export default function FlowCanvas() {
               }
               className={theme === "dark" ? "!bg-[#111113]" : "!bg-[#f0f0f0]"}
             />
-
-            <Controls
-              position="bottom-right"
-              style={{
-                background: theme === "dark" ? "#1f1f21" : "#ffffff",
-                border: `1px solid ${theme === "dark" ? "#333" : "#ddd"}`,
-                borderRadius: 8,
-                boxShadow:
-                  theme === "dark"
-                    ? "0 0 8px rgba(255,255,255,0.05)"
-                    : "0 0 8px rgba(0,0,0,0.1)",
-              }}
-            />
+            <Controls />
           </ReactFlow>
         </ReactFlowProvider>
+
+        <NodeConfigSidebar />
       </div>
     </div>
   );

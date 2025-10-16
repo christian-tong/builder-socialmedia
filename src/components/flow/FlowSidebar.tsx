@@ -3,11 +3,11 @@
 "use client";
 
 import React from "react";
-import { FileText } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { useTheme } from "@/hooks/useTheme";
 import { useSidebarStore } from "@/store/useSidebarStore";
 import { cn } from "@/lib/utils";
+import { nodeRegistry } from "@/config/nodesConfig";
 
 /**
  * 🔹 FlowSidebar — Sidebar especializado para el editor de flujos
@@ -16,8 +16,6 @@ import { cn } from "@/lib/utils";
  * - Incluye un título con efecto suave de aparición
  * - Evita deformación de texto y salto visual
  */
-
-const nodeList = [{ type: "text", label: "Text Node", icon: FileText }];
 
 export default function FlowSidebar() {
   const { isDark } = useTheme();
@@ -54,7 +52,7 @@ export default function FlowSidebar() {
 
       {/* 🧩 Lista de nodos */}
       <div className="flex flex-col gap-2">
-        {nodeList.map(({ type, label, icon: Icon }) => (
+        {nodeRegistry.map(({ type, label, icon: Icon }) => (
           <div
             key={type}
             draggable
