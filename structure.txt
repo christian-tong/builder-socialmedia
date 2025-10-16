@@ -1,0 +1,72 @@
+Listado de rutas de carpetas
+El n�mero de serie del volumen es 0A55-6B00
+D:.
+�   .gitignore
+�   bun.lock
+�   components.json
+�   eslint.config.mjs
+�   next-env.d.ts
+�   next.config.ts
+�   package.json
+�   postcss.config.mjs
+�   README.md
+�   structure.txt
+�   tsconfig.json
+�               
++---public
+�       favicon.ico
+�       file.svg
+�       globe.svg
+�       next.svg
+�       vercel.svg
+�       window.svg
+�       
++---src
+    +---components
+    �   +---flow
+    �   �       FlowCanvas.tsx
+    �   �       FlowSidebar.tsx
+    �   �       FlowToolbar.tsx
+    �   �       
+    �   +---layout
+    �   �       Header.tsx
+    �   �       MainLayout.tsx
+    �   �       Sidebar.tsx
+    �   �       
+    �   +---nodes
+    �   �       BaseNode.tsx
+    �   �       DecisionNode.tsx
+    �   �       TextNode.tsx
+    �   �       
+    �   +---shared
+    �   �       ColorPicker.tsx
+    �   �       DraggableWrapper.tsx
+    �   �       Icon.tsx
+    �   �       
+    �   +---ui
+    �           button.tsx
+    �           card.tsx
+    �           
+    +---hooks
+    �       useFlow.ts
+    �       useKeyboard.ts
+    �       useNodeValidation.ts
+    �       useTheme.ts
+    �       
+    +---lib
+    �       utils.ts
+    �       
+    +---pages
+    �   �   index.tsx
+    �   �   _app.tsx
+    �   �   _document.tsx
+    �   �   
+    �   +---api
+    �           hello.ts
+    �           
+    +---styles
+    �       globals.css
+    �       
+    +---types
+            flow.ts
+            
