@@ -124,7 +124,13 @@ export function NodeConfigSidebar() {
                 ? "bg-indigo-600 hover:bg-indigo-700 text-white"
                 : "bg-indigo-500 hover:bg-indigo-600 text-white"
             )}
-            onClick={() => setSelectedNode(null)}
+            onClick={() => {
+              const { saveNodeDataToFlow } = useNodeConfigStore.getState();
+              saveNodeDataToFlow();
+
+              // ✅ Cerrar sidebar
+              setSelectedNode(null);
+            }}
           >
             Guardar cambios
           </Button>

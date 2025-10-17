@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { exportToJsonFile, importFromJsonFile } from "@/lib/jsonExportImport";
 import { toast } from "sonner";
+import { useFlowStore } from "./useFlowStore";
 
 interface NodeConfig {
   id: string;
@@ -14,6 +15,7 @@ interface NodeConfigState {
   selectedNode: NodeConfig | null;
   setSelectedNode: (node: NodeConfig | null) => void;
   updateNodeData: (id: string, newData: Record<string, any>) => void;
+  saveNodeDataToFlow: () => void;
   exportConfig: () => void;
   importConfig: (file: File) => Promise<void>;
 }
@@ -35,7 +37,23 @@ export const useNodeConfigStore = create<NodeConfigState>((set, get) => ({
     }
   },
 
-  // 📤 Exportar configuración (modularizado)
+  // 💾 Guardar datos del nodo en el flujo global
+  saveNodeDataToFlow: () => {
+    const { selectedNode } = get();
+    if (!selectedNode) return;
+
+    const { id, data } = selectedNode;
+    const { nodes, setNodes } = useFlowStore.getState();
+
+    const updated = nodes.map((node) =>
+      node.id === id ? { ...node, data: { ...node.data, ...data } } : node
+    );
+
+    setNodes(updated);
+    toast.success("💾 Cambios guardados en el flujo");
+  },
+
+  // 📤 Exportar configuración
   exportConfig: () => {
     const state = get().selectedNode;
     if (!state) {
@@ -46,7 +64,7 @@ export const useNodeConfigStore = create<NodeConfigState>((set, get) => ({
     toast.success("✅ Configuración exportada correctamente");
   },
 
-  // 📥 Importar configuración (modularizado)
+  // 📥 Importar configuración
   importConfig: async (file: File) => {
     const data = await importFromJsonFile<NodeConfig>(file);
     if (data && data.id && data.data) {

@@ -1,3 +1,5 @@
+// src\config\nodesForms.ts
+
 import FormSimpleTextNode from "@/components/forms/FormSimpleTextNode";
 import FormStartNode from "@/components/forms/FormStartNode";
 
