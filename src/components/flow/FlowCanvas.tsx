@@ -1,5 +1,4 @@
 // src/components/flow/FlowCanvas.tsx
-
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -24,9 +23,11 @@ import { nodeTypes } from "@/config/nodesConfig";
 import FlowSidebar from "./FlowSidebar";
 import { useThemeStore } from "@/store/useThemeStore";
 import { useFlowStyleStore } from "@/store/useFlowStyleStore";
+import { useFlowStore } from "@/store/useFlowStore";
 import { NodeConfigSidebar } from "./NodeConfigSidebar";
 import { FlowStylePanel } from "./FlowStylePanel";
-import { useFlowStore } from "@/store/useFlowStore";
+import { useFlowOrientationStore } from "@/store/useFlowOrientationStore";
+import { applyAutoLayout } from "@/lib/autoLayout";
 
 export default function FlowCanvas() {
   const { theme } = useThemeStore();
@@ -53,6 +54,7 @@ function FlowCanvasInner() {
   const { theme } = useThemeStore();
   const { backgroundType, edgeType } = useFlowStyleStore();
   const { nodes, edges, setNodes, setEdges } = useFlowStore();
+  const { orientation } = useFlowOrientationStore();
   const { project, fitView } = useReactFlow();
 
   const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -81,6 +83,15 @@ function FlowCanvasInner() {
       }))
     );
   }, [edgeType, setEdges]);
+
+  // 🧭 Reordenar nodos automáticamente al cambiar orientación
+  useEffect(() => {
+    if (nodes.length > 0) {
+      const layouted = applyAutoLayout(nodes, edges, orientation);
+      setNodes(layouted);
+      setTimeout(() => fitView({ padding: 0.2 }), 300);
+    }
+  }, [orientation]);
 
   // 🧩 Eventos controlados de React Flow
   const onNodesChange = useCallback(

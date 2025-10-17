@@ -7,9 +7,14 @@ import { Handle, Position } from "reactflow";
 import { PlayCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useNodeConfigStore } from "@/store/useNodeConfigStore";
+import { useFlowOrientationStore } from "@/store/useFlowOrientationStore";
 
 export function StartNode({ id, data }: any) {
   const { setSelectedNode } = useNodeConfigStore();
+  const { orientation } = useFlowOrientationStore();
+
+  const handlePosition =
+    orientation === "vertical" ? Position.Bottom : Position.Right;
 
   return (
     <Card
@@ -20,9 +25,10 @@ export function StartNode({ id, data }: any) {
         <PlayCircle className="w-4 h-4" />
         <span className="text-sm font-medium">{data.label}</span>
       </div>
+
       <Handle
         type="source"
-        position={Position.Bottom}
+        position={handlePosition}
         className="!bg-emerald-400"
       />
     </Card>
