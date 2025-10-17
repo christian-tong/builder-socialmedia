@@ -1,14 +1,17 @@
 // src\config\nodesForms.ts
 
-// src/config/nodesForms.ts
 import FormDerivateNode from "@/components/forms/FormDerivateNode";
 import FormSimpleTextNode from "@/components/forms/FormSimpleTextNode";
 import FormStartNode from "@/components/forms/FormStartNode";
 import FormTimeConditionNode from "@/components/forms/FormTimeConditionNode";
 import FormEndNode from "@/components/forms/FormEndNode";
+import FormMenuNodePrincipal from "@/components/forms/FormMenuNodePrincipal";
+import FormMenuNodeSecundario from "@/components/forms/FormMenuNodeSecundario";
 
 export const nodeFormRegistry: Record<string, any> = {
   startNode: FormStartNode,
+  menuNodePrincipal: FormMenuNodePrincipal,
+  menuNodeSecundario: FormMenuNodeSecundario,
   simpleTextNode: FormSimpleTextNode,
   derivateNode: FormDerivateNode,
   timeConditionNode: FormTimeConditionNode,

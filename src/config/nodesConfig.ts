@@ -6,6 +6,8 @@ import {
   Clock,
   UserCircle2,
   Power,
+  ListTree,
+  ListChecks,
 } from "lucide-react";
 
 import { StartNode } from "@/components/nodes/StartNode";
@@ -13,7 +15,8 @@ import { SimpleTextNode } from "@/components/nodes/SimpleTextNode";
 import TimeConditionNode from "@/components/nodes/TimeConditionNode";
 import DerivateNode from "@/components/nodes/DerivateNode";
 import EndNode from "@/components/nodes/EndNode";
-import { MenuNode } from "@/components/nodes/MenuNode";
+import MenuNodePrincipal from "@/components/nodes/MenuNodePrincipal";
+import MenuNodeSecundario from "@/components/nodes/MenuNodeSecundario";
 
 // =============================================================
 // 🔒 Extiende el namespace global (para cachear nodeTypes)
@@ -33,7 +36,18 @@ export const nodeRegistry = [
     icon: PlayCircle,
     component: StartNode,
   },
-  { type: "menuNode", label: "Menú", icon: FileText, component: MenuNode },
+  {
+    type: "menuNodePrincipal",
+    label: "Menú Principal",
+    icon: ListTree,
+    component: MenuNodePrincipal,
+  },
+  {
+    type: "menuNodeSecundario",
+    label: "Menú Secundario",
+    icon: ListChecks,
+    component: MenuNodeSecundario,
+  },
   {
     type: "timeConditionNode",
     label: "Condición Tiempo",
