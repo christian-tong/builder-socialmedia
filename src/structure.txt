@@ -6,14 +6,18 @@ D:.
 +---components
 ¦   +---flow
 ¦   ¦       FlowCanvas.tsx
+¦   ¦       FlowCanvasInner.tsx
 ¦   ¦       FlowSidebar.tsx
 ¦   ¦       FlowStylePanel.tsx
 ¦   ¦       FlowToolbar.tsx
 ¦   ¦       NodeConfigSidebar.tsx
 ¦   ¦       
 ¦   +---forms
+¦   ¦       FormDerivateNode.tsx
+¦   ¦       FormEndNode.tsx
 ¦   ¦       FormSimpleTextNode.tsx
 ¦   ¦       FormStartNode.tsx
+¦   ¦       FormTimeConditionNode.tsx
 ¦   ¦       
 ¦   +---layout
 ¦   ¦       Footer.tsx
@@ -34,18 +38,22 @@ D:.
 ¦   ¦       TimeConditionNode.tsx
 ¦   ¦       
 ¦   +---shared
+¦   ¦       BeforeUnloadModal.tsx
 ¦   ¦       ColorPicker.tsx
 ¦   ¦       DraggableWrapper.tsx
 ¦   ¦       GenerateJsonModal.tsx
 ¦   ¦       Icon.tsx
+¦   ¦       ImportJsonModal.tsx
 ¦   ¦       LogoWimprove.tsx
 ¦   ¦       
 ¦   +---ui
+¦           badge.tsx
 ¦           button.tsx
 ¦           card.tsx
 ¦           dialog.tsx
 ¦           input.tsx
 ¦           label.tsx
+¦           select.tsx
 ¦           sheet.tsx
 ¦           sonner.tsx
 ¦           textarea.tsx
@@ -53,15 +61,20 @@ D:.
 +---config
 ¦       nodesConfig.ts
 ¦       nodesForms.ts
+¦       nodeTemplates.ts
 ¦       
 +---hooks
-¦       useFlow.ts
+¦       useBeforeUnloadConfirm.ts
+¦       useBeforeUnloadWarning.ts
+¦       useFlowHandlers.ts
 ¦       useKeyboard.ts
 ¦       useKeyboardShortcut.ts
 ¦       useNodeValidation.ts
 ¦       useTheme.ts
 ¦       
 +---lib
+¦       autoLayout.ts
+¦       jsonExportImport.ts
 ¦       utils.ts
 ¦       
 +---pages
@@ -72,7 +85,20 @@ D:.
 ¦   +---api
 ¦           hello.ts
 ¦           
++---services
+¦   ¦   apiBase.ts
+¦   ¦   skillService.ts
+¦   ¦   
+¦   +---mocks
+¦   ¦       skillsData.ts
+¦   ¦       
+¦   +---utils
+¦           alertHandler.ts
+¦           errorHandler.ts
+¦           
 +---store
+¦       useFlowOrientationStore.ts
+¦       useFlowStore.ts
 ¦       useFlowStyleStore.ts
 ¦       useNodeConfigStore.ts
 ¦       useSidebarStore.ts
@@ -82,5 +108,8 @@ D:.
 ¦       globals.css
 ¦       
 +---types
-        flow.ts
+¦       flow.ts
+¦       
++---utils
+        generateNodeId.ts
         

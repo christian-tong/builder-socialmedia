@@ -1,5 +1,4 @@
 // src\hooks\useFlowHandlers.ts
-
 "use client";
 
 import { useCallback, useEffect } from "react";
@@ -18,11 +17,11 @@ import { useFlowStore } from "@/store/useFlowStore";
 import { useFlowStyleStore } from "@/store/useFlowStyleStore";
 import { useFlowOrientationStore } from "@/store/useFlowOrientationStore";
 import { applyAutoLayout } from "@/lib/autoLayout";
-import { generateSimpleTextId } from "@/utils/generateNodeId";
+import { getNodeTemplate } from "@/config/nodeTemplates";
 import { useBeforeUnloadConfirm } from "./useBeforeUnloadConfirm";
 
 /**
- * 🧠 useFlowHandlers — Encapsula toda la lógica del Flow
+ * 🧠 useFlowHandlers — Lógica principal del Flow
  * -------------------------------------------------------
  * - Maneja eventos de nodos, edges y conexiones
  * - Crea nodos dinámicos por drag & drop
@@ -95,6 +94,7 @@ export function useFlowHandlers() {
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+
       const type = e.dataTransfer.getData("application/reactflow");
       if (!type) return;
 
@@ -118,17 +118,14 @@ export function useFlowHandlers() {
         ? { x: position.x + OFFSET_X, y: position.y + OFFSET_Y }
         : position;
 
-      const newId =
-        type === "simpleTextNode" ? generateSimpleTextId() : `${Date.now()}`;
+      // 📦 Obtener plantilla del tipo correspondiente
+      const { id, data } = getNodeTemplate(type);
 
       const newNode: Node = {
-        id: newId,
+        id,
         type,
         position: finalPosition,
-        data: {
-          label: newId,
-          message: "",
-        },
+        data,
       };
 
       setNodes((prev) => [...prev, newNode]);

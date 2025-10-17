@@ -36,7 +36,7 @@ export const nodeRegistry = [
   { type: "menuNode", label: "Menú", icon: FileText, component: MenuNode },
   {
     type: "timeConditionNode",
-    label: "Condición",
+    label: "Condición Tiempo",
     icon: Clock,
     component: TimeConditionNode,
   },
