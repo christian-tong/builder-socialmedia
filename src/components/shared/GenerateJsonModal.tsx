@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,38 +15,47 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useTheme } from "@/hooks/useTheme";
+import { useFlowStore } from "@/store/useFlowStore";
+import { generateConversationJson } from "@/lib/jsonFlowGenerator";
 
 /**
- * 🧩 GenerateJsonModal — Modal reutilizable para mostrar o copiar JSON
+ * 🧩 GenerateJsonModal — Modal para generar y copiar JSON conversacional
  * --------------------------------------------------------------------
- * - Adaptado a tema claro/oscuro.
- * - Controlado por props open / onOpenChange.
- * - Incluye área editable y botón de copiar.
- * - Usa Sonner para feedback visual.
+ * - Usa los nodos y edges del flujo actual (useFlowStore)
+ * - Genera JSON procesado (no el formato de ReactFlow)
+ * - Permite copiar al portapapeles
  */
 export function GenerateJsonModal({
   open,
   onOpenChange,
-  initialJson,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialJson?: object;
 }) {
   const { isDark } = useTheme();
-  const [jsonText, setJsonText] = useState(
-    JSON.stringify(
-      initialJson || { example: "Aquí irá el JSON generado del flujo" },
-      null,
-      2
-    )
-  );
+  const { nodes, edges } = useFlowStore();
+  const [jsonText, setJsonText] = useState<string>("");
 
+  /** 🧠 Genera el JSON automáticamente al abrir el modal */
+  useEffect(() => {
+    if (open && nodes.length > 0) {
+      try {
+        const json = generateConversationJson(nodes, edges);
+        const jsonStr = JSON.stringify(json, null, 2);
+        setJsonText(jsonStr);
+      } catch (err) {
+        console.error("Error generando JSON:", err);
+        toast.error("❌ Error al generar el JSON del flujo");
+      }
+    }
+  }, [open, nodes, edges]);
+
+  /** 📋 Copiar JSON al portapapeles */
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(jsonText);
-      toast.success("JSON copiado al portapapeles", {
-        description: "Puedes pegarlo en tu editor o Postman.",
+      toast.success("✅ JSON copiado al portapapeles", {
+        description: "Ya puedes pegarlo en tu editor o Postman.",
       });
       onOpenChange(false);
     } catch (error) {
@@ -54,11 +63,18 @@ export function GenerateJsonModal({
     }
   };
 
+  /** 🔁 Regenerar JSON manualmente (por si se editó el flujo abierto) */
+  const handleRegenerate = () => {
+    const json = generateConversationJson(nodes, edges);
+    setJsonText(JSON.stringify(json, null, 2));
+    toast.info("🔄 JSON actualizado");
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "sm:max-w-[600px] transition-colors",
+          "sm:max-w-[700px] transition-colors",
           isDark
             ? "bg-[#141416] text-gray-200 border-gray-800"
             : "bg-white text-gray-800 border-gray-200"
@@ -66,7 +82,7 @@ export function GenerateJsonModal({
       >
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
-            Generar JSON del flujo
+            Generar JSON Conversacional
           </DialogTitle>
         </DialogHeader>
 
@@ -74,14 +90,27 @@ export function GenerateJsonModal({
           value={jsonText}
           onChange={(e) => setJsonText(e.target.value)}
           className={cn(
-            "min-h-[300px] font-mono text-sm resize-none transition-colors",
+            "min-h-[360px] font-mono text-sm resize-none transition-colors",
             isDark
               ? "bg-[#1c1c1e] border-gray-700 text-gray-100 focus-visible:ring-indigo-600"
               : "bg-gray-50 border-gray-300 text-gray-800 focus-visible:ring-indigo-500"
           )}
         />
 
-        <DialogFooter className="mt-4">
+        <DialogFooter className="mt-4 flex flex-col sm:flex-row gap-2 justify-between">
+          <Button
+            onClick={handleRegenerate}
+            variant="outline"
+            className={cn(
+              "w-full sm:w-auto",
+              isDark
+                ? "border-indigo-600 text-indigo-400 hover:bg-indigo-950"
+                : "border-indigo-500 text-indigo-600 hover:bg-indigo-50"
+            )}
+          >
+            🔄 Actualizar JSON
+          </Button>
+
           <Button
             onClick={handleCopy}
             className={cn(
