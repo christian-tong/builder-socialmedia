@@ -1,6 +1,6 @@
 // src/services/utils/alertHandler.ts
 
-import { toast } from "sonner";
+import { toast } from 'sonner'
 
 /**
  * 🔔 alertHandler — Utilidad central para mostrar mensajes al usuario
@@ -10,19 +10,19 @@ import { toast } from "sonner";
  */
 
 export const alertHandler = {
-  success: (message: string) => {
-    toast.success(`✅ ${message}`);
-  },
+    success: (message: string) => {
+        toast.success(`✅ ${message}`)
+    },
 
-  error: (message: string) => {
-    toast.error(`❌ ${message}`);
-  },
+    error: (message: string) => {
+        toast.error(`❌ ${message}`)
+    },
 
-  info: (message: string) => {
-    toast(message, { description: "ℹ️ Información" });
-  },
+    info: (message: string) => {
+        toast(message, { description: 'ℹ️ Información' })
+    },
 
-  loading: (message: string) => {
-    toast.loading(message);
-  },
-};
+    loading: (message: string) => {
+        toast.loading(message)
+    },
+}

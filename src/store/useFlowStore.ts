@@ -1,72 +1,86 @@
 // src\store\useFlowStore.ts
-import { create } from "zustand";
-import { Node, Edge } from "reactflow";
-import { exportToJsonFile, importFromJsonFile } from "@/lib/jsonExportImport";
-import { toast } from "sonner";
+import { create } from 'zustand'
+import { Node, Edge } from 'reactflow'
+import { exportToJsonFile, importFromJsonFile } from '@/lib/jsonExportImport'
+import { convertWiContactToFlow } from '@/lib/jsonImporterWiContact'
+import { toast } from 'sonner'
 
 interface FlowState {
-  nodes: Node[];
-  edges: Edge[];
-  setNodes: (nodes: Node[] | ((prev: Node[]) => Node[])) => void;
-  setEdges: (edges: Edge[] | ((prev: Edge[]) => Edge[])) => void;
-  exportFlow: () => void;
-  importFlow: (file: File) => Promise<{ nodes: Node[]; edges: Edge[] } | null>;
-  getConnectedNodes: (id: string) => { prev: Node[]; next: Node[] };
+    nodes: Node[]
+    edges: Edge[]
+    setNodes: (nodes: Node[] | ((prev: Node[]) => Node[])) => void
+    setEdges: (edges: Edge[] | ((prev: Edge[]) => Edge[])) => void
+    exportFlow: () => void
+    importFlow: (file: File) => Promise<{ nodes: Node[]; edges: Edge[] } | null>
+    getConnectedNodes: (id: string) => { prev: Node[]; next: Node[] }
 }
 
 export const useFlowStore = create<FlowState>((set, get) => ({
-  nodes: [],
-  edges: [],
+    nodes: [],
+    edges: [],
 
-  // 🧩 Setters flexibles
-  setNodes: (updater) =>
-    set((state) => ({
-      nodes: typeof updater === "function" ? updater(state.nodes) : updater,
-    })),
+    setNodes: (updater) =>
+        set((state) => ({
+            nodes:
+                typeof updater === 'function' ? updater(state.nodes) : updater,
+        })),
 
-  setEdges: (updater) =>
-    set((state) => ({
-      edges: typeof updater === "function" ? updater(state.edges) : updater,
-    })),
+    setEdges: (updater) =>
+        set((state) => ({
+            edges:
+                typeof updater === 'function' ? updater(state.edges) : updater,
+        })),
 
-  // 📤 Exportar flujo completo
-  exportFlow: () => {
-    const { nodes, edges } = get();
-    if (!nodes || nodes.length === 0) {
-      toast.warning("⚠️ No hay nodos en el flujo para exportar.");
-      return;
-    }
-    exportToJsonFile({ nodes, edges }, "builderSocialMedia");
-    toast.success("✅ Flujo exportado correctamente");
-  },
+    exportFlow: () => {
+        const { nodes, edges } = get()
+        if (!nodes || nodes.length === 0) {
+            toast.warning('⚠️ No hay nodos en el flujo para exportar.')
+            return
+        }
+        exportToJsonFile({ nodes, edges }, 'builderSocialMedia')
+        toast.success('✅ Flujo exportado correctamente')
+    },
 
-  // 📥 Importar flujo completo
-  importFlow: async (file: File) => {
-    const data = await importFromJsonFile<{ nodes: Node[]; edges: Edge[] }>(
-      file
-    );
+    importFlow: async (file: File) => {
+        try {
+            const parsed = await importFromJsonFile<any>(file)
+            if (!parsed) return null
 
-    if (!data?.nodes || !Array.isArray(data.nodes)) {
-      toast.error("❌ Archivo JSON inválido o sin nodos válidos.");
-      return null;
-    }
+            // 🧩 Caso 1: Formato ReactFlow
+            if (parsed.nodes && Array.isArray(parsed.nodes)) {
+                set({ nodes: parsed.nodes, edges: parsed.edges || [] })
+                toast.success('✅ Flujo importado (React Flow)')
+                return { nodes: parsed.nodes, edges: parsed.edges || [] }
+            }
 
-    set({ nodes: data.nodes, edges: data.edges || [] });
-    console.log("✅ Flujo importado correctamente:", data);
-    toast.success("✅ Flujo importado correctamente");
-    return data;
-  },
+            // 🧩 Caso 2: Formato WiContact
+            if (parsed.process?.steps) {
+                const { nodes, edges } = convertWiContactToFlow(parsed)
+                set({ nodes, edges })
+                toast.success('✅ Flujo importado (WiContact)')
+                return { nodes, edges }
+            }
 
-  // 🔗 Obtener nodos conectados (anteriores y siguientes)
-  getConnectedNodes: (id: string) => {
-    const { nodes, edges } = get();
+            toast.error('❌ El archivo no contiene un formato compatible.')
+            return null
+        } catch (err) {
+            console.error('❌ Error al importar flujo:', err)
+            toast.error('❌ No se pudo leer el archivo JSON o está corrupto.')
+            return null
+        }
+    },
 
-    const prevIds = edges.filter((e) => e.target === id).map((e) => e.source);
-    const nextIds = edges.filter((e) => e.source === id).map((e) => e.target);
-
-    const prev = nodes.filter((n) => prevIds.includes(n.id));
-    const next = nodes.filter((n) => nextIds.includes(n.id));
-
-    return { prev, next };
-  },
-}));
+    getConnectedNodes: (id: string) => {
+        const { nodes, edges } = get()
+        const prevIds = edges
+            .filter((e) => e.target === id)
+            .map((e) => e.source)
+        const nextIds = edges
+            .filter((e) => e.source === id)
+            .map((e) => e.target)
+        return {
+            prev: nodes.filter((n) => prevIds.includes(n.id)),
+            next: nodes.filter((n) => nextIds.includes(n.id)),
+        }
+    },
+}))
