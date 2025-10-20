@@ -9,12 +9,13 @@ D:.
 ¦   ¦       FlowCanvasInner.tsx
 ¦   ¦       FlowSidebar.tsx
 ¦   ¦       FlowStylePanel.tsx
-¦   ¦       FlowToolbar.tsx
 ¦   ¦       NodeConfigSidebar.tsx
 ¦   ¦       
 ¦   +---forms
 ¦   ¦       FormDerivateNode.tsx
 ¦   ¦       FormEndNode.tsx
+¦   ¦       FormMenuNodePrincipal.tsx
+¦   ¦       FormMenuNodeSecundario.tsx
 ¦   ¦       FormSimpleTextNode.tsx
 ¦   ¦       FormStartNode.tsx
 ¦   ¦       FormTimeConditionNode.tsx
@@ -27,14 +28,12 @@ D:.
 ¦   ¦       SidebarRight.tsx
 ¦   ¦       
 ¦   +---nodes
-¦   ¦       BaseNode.tsx
-¦   ¦       DecisionNode.tsx
 ¦   ¦       DerivateNode.tsx
 ¦   ¦       EndNode.tsx
-¦   ¦       MenuNode.tsx
+¦   ¦       MenuNodePrincipal.tsx
+¦   ¦       MenuNodeSecundario.tsx
 ¦   ¦       SimpleTextNode.tsx
 ¦   ¦       StartNode.tsx
-¦   ¦       TextNode.tsx
 ¦   ¦       TimeConditionNode.tsx
 ¦   ¦       
 ¦   +---shared
@@ -47,12 +46,14 @@ D:.
 ¦   ¦       LogoWimprove.tsx
 ¦   ¦       
 ¦   +---ui
+¦           accordion.tsx
 ¦           badge.tsx
 ¦           button.tsx
 ¦           card.tsx
 ¦           dialog.tsx
 ¦           input.tsx
 ¦           label.tsx
+¦           scroll-area.tsx
 ¦           select.tsx
 ¦           sheet.tsx
 ¦           sonner.tsx
@@ -75,6 +76,8 @@ D:.
 +---lib
 ¦       autoLayout.ts
 ¦       jsonExportImport.ts
+¦       jsonFlowGenerator.ts
+¦       jsonImporterWiContact.ts
 ¦       utils.ts
 ¦       
 +---pages

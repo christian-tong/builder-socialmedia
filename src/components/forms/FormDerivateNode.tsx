@@ -1,4 +1,5 @@
 // src\components\forms\FormDerivateNode.tsx
+
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
@@ -16,13 +17,20 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { getSkills, Skill } from '@/services/skillService'
+import {
+    Accordion,
+    AccordionItem,
+    AccordionTrigger,
+    AccordionContent,
+} from '@/components/ui/accordion'
+import { ChevronDown } from 'lucide-react'
 
 /**
  * 🟨 FormDerivateNode
  * --------------------------------------------------
  * - Muestra y edita skill + mensajes
- * - Ahora incluye "Nodo anterior" y "Nodo siguiente"
- * - Con tipado estricto y auto-resize de textareas
+ * - Incluye acordeones de "Nodo anterior" y "Nodo siguiente"
+ * - Usa el mismo estilo de los formularios de menú
  */
 export default function FormDerivateNode({
     id,
@@ -34,10 +42,9 @@ export default function FormDerivateNode({
     const { updateNodeData } = useNodeConfigStore()
     const { getConnectedNodes, edges, nodes } = useFlowStore()
 
-    // 🔹 Estado local
     const [skills, setSkills] = useState<Skill[]>([])
-    const [prevLabel, setPrevLabel] = useState<string>('—')
-    const [nextLabel, setNextLabel] = useState<string>('—')
+    const [prevNodes, setPrevNodes] = useState<string[]>([])
+    const [nextNodes, setNextNodes] = useState<string[]>([])
 
     // 🔹 Refs de textareas
     const timeoutRef = useRef<HTMLTextAreaElement | null>(null)
@@ -49,19 +56,11 @@ export default function FormDerivateNode({
         getSkills().then(setSkills)
     }, [])
 
-    // 🔁 Actualizar lista de nodos conectados
+    // 🔁 Actualizar nodos conectados
     useEffect(() => {
         const { prev, next } = getConnectedNodes(id)
-        setPrevLabel(
-            prev.length > 0
-                ? prev.map((n) => n.data?.label || n.id).join(', ')
-                : '—'
-        )
-        setNextLabel(
-            next.length > 0
-                ? next.map((n) => n.data?.label || n.id).join(', ')
-                : '—'
-        )
+        setPrevNodes(prev.map((n) => n.data?.label || n.id))
+        setNextNodes(next.map((n) => n.data?.label || n.id))
     }, [edges, nodes, id, getConnectedNodes])
 
     // 🧠 Auto-ajuste de altura
@@ -78,11 +77,61 @@ export default function FormDerivateNode({
         autoResize(inboundRef)
     }, [data])
 
+    // 📋 Acordeón reutilizable
+    const renderNodeList = (
+        title: string,
+        nodesList: string[],
+        accent: string
+    ) => {
+        const visible = nodesList.slice(0, 1)
+        const hidden = nodesList.slice(1)
+
+        return (
+            <div className="flex flex-col gap-2">
+                <Label className={`text-sm font-medium ${accent}`}>
+                    {title}
+                </Label>
+
+                {nodesList.length === 0 ? (
+                    <p className="text-xs text-gray-500 italic">
+                        Ninguno conectado
+                    </p>
+                ) : (
+                    <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="list">
+                            <AccordionTrigger className="flex justify-between rounded-md bg-gray-100 px-3 py-2 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                                {visible[0]}
+                                {hidden.length > 0 && (
+                                    <span className="flex items-center gap-1 text-[10px] opacity-70">
+                                        {`+${hidden.length} más`}{' '}
+                                        <ChevronDown className="h-3 w-3" />
+                                    </span>
+                                )}
+                            </AccordionTrigger>
+                            {hidden.length > 0 && (
+                                <AccordionContent className="mt-1 space-y-1 rounded-md bg-gray-50 px-3 py-2 font-mono text-xs dark:bg-gray-900">
+                                    {hidden.map((n, i) => (
+                                        <div
+                                            key={i}
+                                            className="rounded px-2 py-1 transition hover:bg-gray-200 dark:hover:bg-gray-800"
+                                        >
+                                            {n}
+                                        </div>
+                                    ))}
+                                </AccordionContent>
+                            )}
+                        </AccordionItem>
+                    </Accordion>
+                )}
+            </div>
+        )
+    }
+
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
             {/* 🏷️ Encabezado */}
-            <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">
+            <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
+                <Label className="text-sm font-semibold text-amber-600 dark:text-amber-300">
                     Configuración de Derivación
                 </Label>
                 <Badge
@@ -93,23 +142,18 @@ export default function FormDerivateNode({
                 </Badge>
             </div>
 
-            {/* 🔹 Nodos conectados */}
-            <div className="flex flex-col gap-2">
-                <Label className="text-sm font-medium">Nodo anterior</Label>
-                <Input
-                    value={prevLabel}
-                    readOnly
-                    className="bg-gray-100 font-mono text-xs dark:bg-gray-800"
-                />
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <Label className="text-sm font-medium">Nodo siguiente</Label>
-                <Input
-                    value={nextLabel}
-                    readOnly
-                    className="bg-gray-100 font-mono text-xs dark:bg-gray-800"
-                />
+            {/* 🔗 Nodos conectados con acordeón */}
+            <div className="flex flex-col gap-3">
+                {renderNodeList(
+                    'Nodo anterior',
+                    prevNodes,
+                    'text-amber-700 dark:text-amber-300'
+                )}
+                {renderNodeList(
+                    'Nodo siguiente',
+                    nextNodes,
+                    'text-amber-700 dark:text-amber-300'
+                )}
             </div>
 
             {/* 🎯 Skill destino */}

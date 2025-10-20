@@ -15,10 +15,16 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useFlowStore } from '@/store/useFlowStore'
+import {
+    Accordion,
+    AccordionItem,
+    AccordionTrigger,
+    AccordionContent,
+} from '@/components/ui/accordion'
+import { ChevronDown } from 'lucide-react'
 
 /**
- * Mapeo de días válidos para generar los códigos ISO cortos:
- * mon, tue, wed, thu, fri, sat, sun
+ * 🕓 Días válidos ISO cortos: mon, tue, wed, thu, fri, sat, sun
  */
 const DAYS = [
     { value: 'mon', label: 'Lunes' },
@@ -33,9 +39,9 @@ const DAYS = [
 /**
  * 🕓 FormTimeConditionNode
  * --------------------------------------------------
- * - Permite definir un rango de días y horario (inicio-fin)
- * - Genera automáticamente una condición tipo: mon-fri,09:00-19:00
- * - Muestra también el nodo anterior y siguiente (solo lectura)
+ * - Permite definir rango de días y horario (inicio-fin)
+ * - Genera condición: mon-fri,09:00-19:00
+ * - Usa acordeones para mostrar nodo anterior y siguiente
  */
 export default function FormTimeConditionNode({
     id,
@@ -47,10 +53,10 @@ export default function FormTimeConditionNode({
     const { updateNodeData } = useNodeConfigStore()
     const { getConnectedNodes, edges, nodes } = useFlowStore()
 
-    const [prevLabel, setPrevLabel] = useState<string>('—')
-    const [nextLabel, setNextLabel] = useState<string>('—')
+    const [prevNodes, setPrevNodes] = useState<string[]>([])
+    const [nextNodes, setNextNodes] = useState<string[]>([])
 
-    // 🧩 Actualiza automáticamente la condición textual
+    // 🧩 Genera condición automáticamente
     useEffect(() => {
         if (data.dayStart && data.dayEnd && data.startTime && data.endTime) {
             const condition = `${data.dayStart}-${data.dayEnd},${data.startTime}-${data.endTime}`
@@ -65,26 +71,69 @@ export default function FormTimeConditionNode({
         updateNodeData,
     ])
 
-    // 🔁 Observa edges y actualiza conexiones
+    // 🔁 Detectar nodos conectados
     useEffect(() => {
         const { prev, next } = getConnectedNodes(id)
-        setPrevLabel(
-            prev.length > 0
-                ? prev.map((n) => n.data?.label || n.id).join(', ')
-                : '—'
-        )
-        setNextLabel(
-            next.length > 0
-                ? next.map((n) => n.data?.label || n.id).join(', ')
-                : '—'
-        )
+        setPrevNodes(prev.map((n) => n.data?.label || n.id))
+        setNextNodes(next.map((n) => n.data?.label || n.id))
     }, [edges, nodes, id, getConnectedNodes])
+
+    // 📋 Render acordeón
+    const renderNodeList = (
+        title: string,
+        nodesList: string[],
+        accent: string
+    ) => {
+        const visible = nodesList.slice(0, 1)
+        const hidden = nodesList.slice(1)
+
+        return (
+            <div className="flex flex-col gap-2">
+                <Label className={`text-sm font-medium ${accent}`}>
+                    {title}
+                </Label>
+
+                {nodesList.length === 0 ? (
+                    <p className="text-xs text-gray-500 italic">
+                        Ninguno conectado
+                    </p>
+                ) : (
+                    <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="list">
+                            <AccordionTrigger className="flex justify-between rounded-md bg-gray-100 px-3 py-2 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                                {visible[0]}
+                                {hidden.length > 0 && (
+                                    <span className="flex items-center gap-1 text-[10px] opacity-70">
+                                        {`+${hidden.length} más`}{' '}
+                                        <ChevronDown className="h-3 w-3" />
+                                    </span>
+                                )}
+                            </AccordionTrigger>
+
+                            {hidden.length > 0 && (
+                                <AccordionContent className="mt-1 space-y-1 rounded-md bg-gray-50 px-3 py-2 font-mono text-xs dark:bg-gray-900">
+                                    {hidden.map((n, i) => (
+                                        <div
+                                            key={i}
+                                            className="rounded px-2 py-1 transition hover:bg-gray-200 dark:hover:bg-gray-800"
+                                        >
+                                            {n}
+                                        </div>
+                                    ))}
+                                </AccordionContent>
+                            )}
+                        </AccordionItem>
+                    </Accordion>
+                )}
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col gap-5">
             {/* 🔹 Encabezado */}
-            <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">
+            <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
+                <Label className="text-sm font-semibold text-sky-600 dark:text-sky-300">
                     Condición de Tiempo
                 </Label>
                 <Badge
@@ -95,23 +144,18 @@ export default function FormTimeConditionNode({
                 </Badge>
             </div>
 
-            {/* 🔗 Nodos conectados */}
-            <div className="flex flex-col gap-2">
-                <Label className="text-sm font-medium">Nodo anterior</Label>
-                <Input
-                    value={prevLabel}
-                    readOnly
-                    className="bg-gray-100 font-mono text-xs dark:bg-gray-800"
-                />
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <Label className="text-sm font-medium">Nodo siguiente</Label>
-                <Input
-                    value={nextLabel}
-                    readOnly
-                    className="bg-gray-100 font-mono text-xs dark:bg-gray-800"
-                />
+            {/* 🔗 Nodos conectados con acordeón */}
+            <div className="flex flex-col gap-3">
+                {renderNodeList(
+                    'Nodo anterior',
+                    prevNodes,
+                    'text-sky-700 dark:text-sky-300'
+                )}
+                {renderNodeList(
+                    'Nodo siguiente',
+                    nextNodes,
+                    'text-sky-700 dark:text-sky-300'
+                )}
             </div>
 
             {/* 🔹 Rango de días */}

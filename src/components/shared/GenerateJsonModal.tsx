@@ -1,5 +1,4 @@
 // src\components\shared\GenerateJsonModal.tsx
-
 'use client'
 
 import React, { useState, useEffect } from 'react'
@@ -21,9 +20,9 @@ import { generateConversationJson } from '@/lib/jsonFlowGenerator'
 /**
  * 🧩 GenerateJsonModal — Modal para generar y copiar JSON conversacional
  * --------------------------------------------------------------------
- * - Usa los nodos y edges del flujo actual (useFlowStore)
- * - Genera JSON procesado (no el formato de ReactFlow)
- * - Permite copiar al portapapeles
+ * - Genera JSON procesado (no formato ReactFlow)
+ * - Copiable al portapapeles
+ * - Altura máxima 60vh con scroll interno
  */
 export function GenerateJsonModal({
     open,
@@ -63,7 +62,7 @@ export function GenerateJsonModal({
         }
     }
 
-    /** 🔁 Regenerar JSON manualmente (por si se editó el flujo abierto) */
+    /** 🔁 Regenerar JSON manualmente */
     const handleRegenerate = () => {
         const json = generateConversationJson(nodes, edges)
         setJsonText(JSON.stringify(json, null, 2))
@@ -74,38 +73,42 @@ export function GenerateJsonModal({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
                 className={cn(
-                    'transition-colors sm:max-w-[700px]',
+                    // 🔹 Estilos principales del modal
+                    'flex max-h-[60vh] flex-col transition-colors sm:max-w-[900px]',
                     isDark
                         ? 'border-gray-800 bg-[#141416] text-gray-200'
                         : 'border-gray-200 bg-white text-gray-800'
                 )}
             >
-                <DialogHeader>
+                <DialogHeader className="shrink-0">
                     <DialogTitle className="text-lg font-semibold">
                         Generar JSON Conversacional
                     </DialogTitle>
                 </DialogHeader>
 
-                <Textarea
-                    value={jsonText}
-                    onChange={(e) => setJsonText(e.target.value)}
-                    className={cn(
-                        'min-h-[360px] resize-none font-mono text-sm transition-colors',
-                        isDark
-                            ? 'border-gray-700 bg-[#1c1c1e] text-gray-100 focus-visible:ring-indigo-600'
-                            : 'border-gray-300 bg-gray-50 text-gray-800 focus-visible:ring-indigo-500'
-                    )}
-                />
+                {/* Contenedor del Textarea con scroll */}
+                <div className="flex-1 overflow-auto">
+                    <Textarea
+                        value={jsonText}
+                        onChange={(e) => setJsonText(e.target.value)}
+                        className={cn(
+                            'h-full min-h-[300px] w-full resize-none font-mono text-sm',
+                            isDark
+                                ? 'border-gray-700 bg-[#1c1c1e] text-gray-100 focus-visible:ring-indigo-600'
+                                : 'border-gray-300 bg-gray-50 text-gray-800 focus-visible:ring-indigo-500'
+                        )}
+                    />
+                </div>
 
-                <DialogFooter className="mt-4 flex flex-col justify-between gap-2 sm:flex-row">
+                <DialogFooter className="mt-4 flex shrink-0 flex-col justify-between gap-2 sm:flex-row">
                     <Button
                         onClick={handleRegenerate}
                         variant="outline"
                         className={cn(
-                            'w-full sm:w-auto',
+                            'w-full text-white sm:w-auto',
                             isDark
-                                ? 'border-indigo-600 text-indigo-400 hover:bg-indigo-950'
-                                : 'border-indigo-500 text-indigo-600 hover:bg-indigo-50'
+                                ? 'bg-blue-600 hover:bg-blue-700'
+                                : 'bg-blue-500 hover:bg-blue-600'
                         )}
                     >
                         🔄 Actualizar JSON

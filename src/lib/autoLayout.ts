@@ -1,4 +1,5 @@
 // src\lib\autoLayout.ts
+
 import dagre from 'dagre'
 import { Node, Edge, Position } from 'reactflow'
 
@@ -21,10 +22,10 @@ export function applyAutoLayout(
     dagreGraph.setDefaultEdgeLabel(() => ({}))
 
     // 🔧 Parámetros ajustables
-    const NODE_WIDTH = 200
-    const NODE_HEIGHT = 90
+    const NODE_WIDTH = 220
+    const NODE_HEIGHT = 100
     const NODE_SEP = 80 // separación entre nodos del mismo nivel
-    const RANK_SEP = 140 // separación entre niveles
+    const RANK_SEP = 160 // separación entre niveles
 
     dagreGraph.setGraph({
         rankdir: isHorizontal ? 'LR' : 'TB', // Left→Right o Top→Bottom
@@ -86,6 +87,10 @@ export function applyAutoLayout(
         position: {
             x: n.position.x + offsetX,
             y: n.position.y + offsetY,
+        },
+        style: {
+            ...n.style,
+            transition: 'all 0.4s ease', // ✨ Animación suave al reposicionar
         },
     }))
 }

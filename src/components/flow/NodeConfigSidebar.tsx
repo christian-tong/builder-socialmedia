@@ -4,7 +4,6 @@
 
 import React from 'react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { useTheme } from '@/hooks/useTheme'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { SidebarRight } from '@/components/layout/SidebarRight'
@@ -14,13 +13,15 @@ import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 /**
  * ⚙️ NodeConfigSidebar
  * -------------------------------------------------------
- * - Mantiene animaciones igual que el Sidebar izquierdo.
- * - NO se desmonta al cerrar (permite transiciones reales).
+ * - Panel de configuración del nodo.
+ * - Mantiene transiciones suaves.
  * - Cierra con tecla Escape.
+ * - Botón Guardar fijo en el footer (controlado por SidebarRight).
  */
 export function NodeConfigSidebar() {
     const { isDark } = useTheme()
-    const { selectedNode, setSelectedNode } = useNodeConfigStore()
+    const { selectedNode, setSelectedNode, saveNodeDataToFlow } =
+        useNodeConfigStore()
     const isOpen = !!selectedNode
 
     // 🎹 Cerrar con tecla Escape
@@ -32,21 +33,26 @@ export function NodeConfigSidebar() {
     const { id, type, data } = selectedNode ?? {}
     const FormComponent = type ? nodeFormRegistry[type] : null
 
+    // 💾 Guardar cambios y cerrar
+    const handleSave = () => {
+        saveNodeDataToFlow()
+        setSelectedNode(null)
+    }
+
     return (
-        <SidebarRight isOpen={isOpen}>
-            {/* 🧱 Wrapper con transición fluida */}
+        <SidebarRight isOpen={isOpen} onSave={handleSave}>
             <div
                 className={cn(
-                    'flex h-full transform flex-col transition-all duration-500 ease-in-out',
+                    'flex h-full flex-col transition-all duration-500 ease-in-out',
                     isOpen
                         ? 'translate-x-0 opacity-100 delay-150'
                         : 'pointer-events-none translate-x-3 opacity-0 delay-0'
                 )}
             >
-                {/* 🧱 Header animado */}
+                {/* 🧱 Header */}
                 <div
                     className={cn(
-                        'mb-4 flex origin-right transform items-center justify-between transition-all duration-500 ease-in-out',
+                        'mb-4 flex items-center justify-between transition-all duration-500 ease-in-out',
                         isOpen
                             ? 'translate-x-0 scale-100 opacity-100 delay-200'
                             : 'translate-x-2 scale-95 opacity-0 delay-0'
@@ -78,7 +84,7 @@ export function NodeConfigSidebar() {
                 {type && (
                     <p
                         className={cn(
-                            'mb-4 transform text-xs transition-all duration-500 ease-in-out',
+                            'mb-4 text-xs transition-all duration-500 ease-in-out',
                             isOpen
                                 ? 'translate-x-0 opacity-100 delay-300'
                                 : 'translate-x-2 opacity-0 delay-0',
@@ -89,9 +95,10 @@ export function NodeConfigSidebar() {
                     </p>
                 )}
 
+                {/* 🧩 Contenido del formulario */}
                 <div
                     className={cn(
-                        'flex-1 transform transition-all duration-500 ease-in-out',
+                        'flex-1 transition-all duration-500 ease-in-out',
                         isOpen
                             ? 'translate-x-0 opacity-100 delay-400'
                             : 'translate-x-2 opacity-0 delay-0'
@@ -105,37 +112,9 @@ export function NodeConfigSidebar() {
                         </p>
                     )}
                 </div>
-
-                {/* 💾 Botón animado */}
-                <div
-                    className={cn(
-                        'transform transition-all duration-500 ease-in-out',
-                        isOpen
-                            ? 'translate-y-0 opacity-100 delay-500'
-                            : 'translate-y-2 opacity-0 delay-0'
-                    )}
-                >
-                    <Button
-                        disabled={!isOpen}
-                        className={cn(
-                            'mt-6 w-full transition-all',
-                            isDark
-                                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                : 'bg-indigo-500 text-white hover:bg-indigo-600'
-                        )}
-                        onClick={() => {
-                            const { saveNodeDataToFlow } =
-                                useNodeConfigStore.getState()
-                            saveNodeDataToFlow()
-
-                            // ✅ Cerrar sidebar
-                            setSelectedNode(null)
-                        }}
-                    >
-                        Guardar cambios
-                    </Button>
-                </div>
             </div>
         </SidebarRight>
     )
 }
+
+export default NodeConfigSidebar

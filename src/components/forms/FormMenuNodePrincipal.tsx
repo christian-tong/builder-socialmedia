@@ -2,11 +2,12 @@
 
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useFlowStore } from '@/store/useFlowStore'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,7 +23,7 @@ import { Plus, Trash2, ChevronDown } from 'lucide-react'
  * --------------------------------------------------
  * - Permite agregar / quitar opciones (mínimo 1)
  * - Muestra nodos anteriores y siguientes como listas expandibles
- * - Visualización elegante con ShadCN Accordion
+ * - Campo "Mensaje inicial" ahora es Textarea con auto-resize
  */
 export default function FormMenuNodePrincipal({
     id,
@@ -38,6 +39,7 @@ export default function FormMenuNodePrincipal({
     const [prevNodes, setPrevNodes] = useState<string[]>([])
     const [nextNodes, setNextNodes] = useState<string[]>([])
 
+    const messageRef = useRef<HTMLTextAreaElement | null>(null)
     const options = data.options || []
 
     // 🔁 Detectar nodos anterior y siguiente
@@ -62,6 +64,18 @@ export default function FormMenuNodePrincipal({
         })
         setConnections(conns)
     }, [edges, nodes, id, options.length])
+
+    // 🧠 Auto-ajuste de altura
+    const autoResize = () => {
+        const el = messageRef.current
+        if (!el) return
+        el.style.height = 'auto'
+        el.style.height = Math.min(el.scrollHeight, 400) + 'px'
+    }
+
+    useEffect(() => {
+        autoResize()
+    }, [data.message])
 
     // ➕ Agregar nueva opción
     const handleAddOption = () => {
@@ -97,7 +111,7 @@ export default function FormMenuNodePrincipal({
         nodesList: string[],
         accent: string
     ) => {
-        const visible = nodesList.slice(0, 1) // primer valor visible
+        const visible = nodesList.slice(0, 1)
         const hidden = nodesList.slice(1)
 
         return (
@@ -183,16 +197,18 @@ export default function FormMenuNodePrincipal({
                 />
             </div>
 
-            {/* 📨 Mensaje inicial */}
+            {/* 📨 Mensaje inicial (Textarea con auto-resize) */}
             <div className="flex flex-col gap-1">
                 <Label className="text-sm font-medium">Mensaje inicial</Label>
-                <Input
+                <Textarea
+                    ref={messageRef}
                     value={data.message || ''}
                     placeholder="Texto que verá el usuario..."
-                    onChange={(e) =>
+                    onChange={(e) => {
                         updateNodeData(id, { message: e.target.value })
-                    }
-                    className="text-sm dark:bg-gray-900/50"
+                        autoResize()
+                    }}
+                    className="min-h-[80px] text-sm dark:bg-gray-900/50"
                 />
             </div>
 

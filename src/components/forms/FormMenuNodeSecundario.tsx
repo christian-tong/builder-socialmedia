@@ -2,20 +2,27 @@
 
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useFlowStore } from '@/store/useFlowStore'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Plus, Trash2 } from 'lucide-react'
+import {
+    Accordion,
+    AccordionItem,
+    AccordionTrigger,
+    AccordionContent,
+} from '@/components/ui/accordion'
+import { Plus, Trash2, ChevronDown } from 'lucide-react'
+import { Textarea } from '../ui/textarea'
 
 /**
  * 🧾 FormMenuNodeSecundario
  * --------------------------------------------------
  * - Permite editar título, variable y mensaje.
- * - Muestra nodos anterior / siguiente.
+ * - Muestra nodos anterior / siguiente con acordeón.
  * - Lista las opciones y sus nodos destino.
  */
 export default function FormMenuNodeSecundario({
@@ -29,24 +36,29 @@ export default function FormMenuNodeSecundario({
     const { getConnectedNodes, edges, nodes } = useFlowStore()
 
     const [connections, setConnections] = useState<Record<number, string>>({})
-    const [prevLabel, setPrevLabel] = useState<string>('—')
-    const [nextLabel, setNextLabel] = useState<string>('—')
+    const [prevNodes, setPrevNodes] = useState<string[]>([])
+    const [nextNodes, setNextNodes] = useState<string[]>([])
 
     const options = data.options || []
+
+    const messageRef = useRef<HTMLTextAreaElement | null>(null)
+
+    const autoResize = () => {
+        const el = messageRef.current
+        if (!el) return
+        el.style.height = 'auto'
+        el.style.height = Math.min(el.scrollHeight, 400) + 'px'
+    }
+
+    useEffect(() => {
+        autoResize()
+    }, [data.message])
 
     // 🔁 Detectar nodos conectados anterior y siguiente
     useEffect(() => {
         const { prev, next } = getConnectedNodes(id)
-        setPrevLabel(
-            prev.length
-                ? prev.map((n) => n.data?.label || n.id).join(', ')
-                : '—'
-        )
-        setNextLabel(
-            next.length
-                ? next.map((n) => n.data?.label || n.id).join(', ')
-                : '—'
-        )
+        setPrevNodes(prev.map((n) => n.data?.label || n.id))
+        setNextNodes(next.map((n) => n.data?.label || n.id))
     }, [edges, nodes, id, getConnectedNodes])
 
     // 🔄 Actualizar conexiones de cada opción
@@ -93,6 +105,56 @@ export default function FormMenuNodeSecundario({
         updateNodeData(id, { options: newOptions })
     }
 
+    // 📋 Renderiza la lista de nodos (igual que en el principal)
+    const renderNodeList = (
+        title: string,
+        nodesList: string[],
+        accent: string
+    ) => {
+        const visible = nodesList.slice(0, 1)
+        const hidden = nodesList.slice(1)
+
+        return (
+            <div className="flex flex-col gap-2">
+                <Label className={`text-sm font-medium ${accent}`}>
+                    {title}
+                </Label>
+
+                {nodesList.length === 0 ? (
+                    <p className="text-xs text-gray-500 italic">
+                        Ninguno conectado
+                    </p>
+                ) : (
+                    <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="list">
+                            <AccordionTrigger className="flex justify-between rounded-md bg-gray-100 px-3 py-2 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                                {visible[0]}
+                                {hidden.length > 0 && (
+                                    <span className="flex items-center gap-1 text-[10px] opacity-70">
+                                        {`+${hidden.length} más`}{' '}
+                                        <ChevronDown className="h-3 w-3" />
+                                    </span>
+                                )}
+                            </AccordionTrigger>
+                            {hidden.length > 0 && (
+                                <AccordionContent className="mt-1 space-y-1 rounded-md bg-gray-50 px-3 py-2 font-mono text-xs dark:bg-gray-900">
+                                    {hidden.map((n, i) => (
+                                        <div
+                                            key={i}
+                                            className="rounded px-2 py-1 transition hover:bg-gray-200 dark:hover:bg-gray-800"
+                                        >
+                                            {n}
+                                        </div>
+                                    ))}
+                                </AccordionContent>
+                            )}
+                        </AccordionItem>
+                    </Accordion>
+                )}
+            </div>
+        )
+    }
+
     return (
         <div className="flex flex-col gap-5">
             {/* 🏷️ Encabezado */}
@@ -108,23 +170,18 @@ export default function FormMenuNodeSecundario({
                 </Badge>
             </div>
 
-            {/* 🔗 Nodos conectados */}
-            <div className="flex flex-col gap-2">
-                <Label className="text-sm font-medium">Nodo anterior</Label>
-                <Input
-                    value={prevLabel}
-                    readOnly
-                    className="bg-gray-100 font-mono text-xs dark:bg-gray-800"
-                />
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <Label className="text-sm font-medium">Nodo siguiente</Label>
-                <Input
-                    value={nextLabel}
-                    readOnly
-                    className="bg-gray-100 font-mono text-xs dark:bg-gray-800"
-                />
+            {/* 🔗 Nodos conectados con acordeón */}
+            <div className="flex flex-col gap-3">
+                {renderNodeList(
+                    'Nodo anterior',
+                    prevNodes,
+                    'text-sky-700 dark:text-sky-300'
+                )}
+                {renderNodeList(
+                    'Nodo siguiente',
+                    nextNodes,
+                    'text-sky-700 dark:text-sky-300'
+                )}
             </div>
 
             {/* 🔹 Variable */}
@@ -143,13 +200,15 @@ export default function FormMenuNodeSecundario({
             {/* 📨 Mensaje inicial */}
             <div className="flex flex-col gap-1">
                 <Label className="text-sm font-medium">Mensaje inicial</Label>
-                <Input
+                <Textarea
+                    ref={messageRef}
                     value={data.message || ''}
                     placeholder="Texto que verá el usuario..."
-                    onChange={(e) =>
+                    onChange={(e) => {
                         updateNodeData(id, { message: e.target.value })
-                    }
-                    className="text-sm dark:bg-gray-900/50"
+                        autoResize()
+                    }}
+                    className="min-h-[80px] text-sm dark:bg-gray-900/50"
                 />
             </div>
 
@@ -202,18 +261,6 @@ export default function FormMenuNodeSecundario({
                                 }
                                 placeholder="Título visible"
                                 className="flex-1 text-sm dark:bg-gray-900/50"
-                            />
-                            <Input
-                                value={opt.postbackText}
-                                onChange={(e) =>
-                                    handleUpdateOption(
-                                        index,
-                                        'postbackText',
-                                        e.target.value
-                                    )
-                                }
-                                placeholder="Valor"
-                                className="w-24 text-center text-sm dark:bg-gray-900/50"
                             />
                         </div>
 
