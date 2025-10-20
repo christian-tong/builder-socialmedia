@@ -1,19 +1,21 @@
 // src\components\nodes\MenuNodePrincipal.tsx
-
 'use client'
 
 import React from 'react'
 import { Handle, Position } from 'reactflow'
+import { motion } from 'framer-motion'
 import { ListTree } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 
 /**
- * 💜 MenuNodePrincipal — versión extendida con control de flujo
- * -------------------------------------------------------------
- * - Ahora incluye 3 salidas de control fijas: 🟢 onTrue | 🟡 onFalse | 🔴 onError
- * - Cada handle tiene posición independiente.
+ * 🟣 MenuNodePrincipal
+ * ----------------------------------------------------
+ * - Nodo principal de tipo menú
+ * - Muestra opciones y variables
+ * - Incluye animación fluida (entrada + movimiento)
+ * - Compatible con Framer Motion v11+
  */
 const MenuNodePrincipal = ({ id, data }: any) => {
     const { setSelectedNode } = useNodeConfigStore()
@@ -21,7 +23,6 @@ const MenuNodePrincipal = ({ id, data }: any) => {
 
     const targetPosition =
         orientation === 'vertical' ? Position.Top : Position.Left
-
     const options = data.options || []
 
     const handleBase: React.CSSProperties = {
@@ -34,119 +35,130 @@ const MenuNodePrincipal = ({ id, data }: any) => {
     }
 
     return (
-        <Card
-            onClick={(e) => {
-                e.stopPropagation()
-                setSelectedNode({ id, type: 'menuNodePrincipal', data })
+        <motion.div
+            layout
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{
+                type: 'spring',
+                stiffness: 70,
+                damping: 12,
+                mass: 0.8,
             }}
-            data-id={id}
-            className="relative cursor-pointer overflow-visible rounded-xl border border-violet-800 bg-violet-600 text-white shadow-md transition-transform duration-200 select-none hover:scale-[1.01] dark:bg-violet-700"
         >
-            {/* 🔹 Encabezado */}
-            <div className="px-3 pt-1.5 pb-1">
-                <div className="flex items-center gap-2 leading-none">
-                    <ListTree className="h-4 w-4" />
-                    <span className="text-sm font-semibold">
-                        {data.label || 'Menú Principal'}
-                    </span>
-                </div>
-                {data.variable && (
-                    <p className="mt-0.5 font-mono text-[11px] opacity-90">
-                        Var: {data.variable}
-                    </p>
-                )}
-            </div>
-
-            {/* 📨 Mensaje (opcional) */}
-            {data.message && (
-                <div className="mx-3 my-1 rounded-md border border-violet-500/40 bg-violet-800/40 px-2.5 py-1 text-[11px] text-violet-100 italic">
-                    {data.message}
-                </div>
-            )}
-
-            {/* 🎯 Handle de entrada */}
-            <Handle
-                type="target"
-                position={targetPosition}
-                style={{
-                    top: orientation === 'vertical' ? '-5px' : '50%',
-                    left: orientation === 'vertical' ? '50%' : '-5px',
-                    transform:
-                        orientation === 'vertical'
-                            ? 'translateX(-50%)'
-                            : 'translateY(-50%)',
+            <Card
+                onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedNode({ id, type: 'menuNodePrincipal', data })
                 }}
-                className="h-[10px] w-[10px] rounded-full !bg-violet-300 shadow-sm"
-            />
-
-            {/* 🔸 Opciones (costado derecho) */}
-            <div className="mt-0.5 flex flex-col">
-                {options.map((opt: any, index: number) => (
-                    <div
-                        key={index}
-                        className="relative flex items-center justify-between border-t border-violet-700/50 bg-violet-700/40 px-3 py-[6px] text-[12px] transition-colors hover:bg-violet-700/60"
-                    >
-                        <div className="flex items-center gap-2">
-                            <span className="font-bold">{index + 1}:</span>
-                            <span className="truncate">
-                                {opt.title || `Opción ${index + 1}`}
-                            </span>
-                        </div>
-
-                        {/* Handle de salida para cada opción */}
-                        <Handle
-                            id={`option-${index}`}
-                            type="source"
-                            position={Position.Right}
-                            style={{
-                                top: '50%',
-                                right: '-5px',
-                                transform: 'translateY(-50%)',
-                            }}
-                            className="h-[10px] w-[10px] rounded-full !bg-white shadow-sm"
-                        />
+                data-id={id}
+                data-animated={data.__animated ? 'true' : 'false'}
+                className="relative w-full max-w-[240px] cursor-pointer overflow-visible rounded-xl border border-violet-800 bg-violet-600 text-white shadow-md transition-all duration-300 ease-out hover:scale-[1.02] hover:shadow-lg dark:bg-violet-700"
+            >
+                {/* 🔹 Encabezado */}
+                <div className="px-3 pt-1.5 pb-1 text-center">
+                    <div className="flex items-center justify-center gap-2 leading-none">
+                        <ListTree className="h-4 w-4 flex-shrink-0" />
+                        <span className="text-sm font-semibold break-words">
+                            {data.label || 'Menú Principal'}
+                        </span>
                     </div>
-                ))}
-            </div>
+                    {data.variable && (
+                        <p className="mt-0.5 font-mono text-[11px] break-words opacity-90">
+                            Var: {data.variable}
+                        </p>
+                    )}
+                </div>
 
-            {/* 🟢🟡🔴 Handles de control (fijos, separados horizontalmente) */}
-            <Handle
-                type="source"
-                id="onTrue"
-                position={Position.Bottom}
-                title="onTrue"
-                style={{
-                    ...handleBase,
-                    background: '#16a34a',
-                    bottom: '-6px',
-                    left: '25%',
-                }}
-            />
-            <Handle
-                type="source"
-                id="onFalse"
-                position={Position.Bottom}
-                title="onFalse"
-                style={{
-                    ...handleBase,
-                    background: '#f59e0b',
-                    bottom: '-6px',
-                    left: '50%',
-                }}
-            />
-            <Handle
-                type="source"
-                id="onError"
-                position={Position.Bottom}
-                title="onError"
-                style={{
-                    ...handleBase,
-                    background: '#dc2626',
-                    bottom: '-6px',
-                    left: '75%',
-                }}
-            />
-        </Card>
+                {/* 📨 Mensaje */}
+                {data.message && (
+                    <div className="mx-3 my-1 rounded-md border border-violet-500/40 bg-violet-800/40 px-2.5 py-1 text-[11px] break-words text-violet-100 italic">
+                        {data.message}
+                    </div>
+                )}
+
+                {/* 🎯 Handle de entrada */}
+                <Handle
+                    type="target"
+                    position={targetPosition}
+                    style={{
+                        top: orientation === 'vertical' ? '-5px' : '50%',
+                        left: orientation === 'vertical' ? '50%' : '-5px',
+                        transform:
+                            orientation === 'vertical'
+                                ? 'translateX(-50%)'
+                                : 'translateY(-50%)',
+                    }}
+                    className="h-[10px] w-[10px] rounded-full !bg-violet-300 shadow-sm"
+                />
+
+                {/* 🔸 Opciones */}
+                <div className="mt-0.5 flex flex-col">
+                    {options.map((opt: any, index: number) => (
+                        <div
+                            key={index}
+                            className="relative flex items-center justify-between border-t border-violet-700/50 bg-violet-700/40 px-3 py-[6px] text-[12px] transition-colors hover:bg-violet-700/60"
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold">{index + 1}:</span>
+                                <span className="truncate">
+                                    {opt.title || `Opción ${index + 1}`}
+                                </span>
+                            </div>
+                            <Handle
+                                id={`option-${index}`}
+                                type="source"
+                                position={Position.Right}
+                                style={{
+                                    top: '50%',
+                                    right: '-5px',
+                                    transform: 'translateY(-50%)',
+                                }}
+                                className="h-[10px] w-[10px] rounded-full !bg-white shadow-sm"
+                            />
+                        </div>
+                    ))}
+                </div>
+
+                {/* 🟢🟡🔴 Handles de control */}
+                <Handle
+                    type="source"
+                    id="onTrue"
+                    position={Position.Bottom}
+                    title="onTrue"
+                    style={{
+                        ...handleBase,
+                        background: '#16a34a',
+                        bottom: '-6px',
+                        left: '25%',
+                    }}
+                />
+                <Handle
+                    type="source"
+                    id="onFalse"
+                    position={Position.Bottom}
+                    title="onFalse"
+                    style={{
+                        ...handleBase,
+                        background: '#f59e0b',
+                        bottom: '-6px',
+                        left: '50%',
+                    }}
+                />
+                <Handle
+                    type="source"
+                    id="onError"
+                    position={Position.Bottom}
+                    title="onError"
+                    style={{
+                        ...handleBase,
+                        background: '#dc2626',
+                        bottom: '-6px',
+                        left: '75%',
+                    }}
+                />
+            </Card>
+        </motion.div>
     )
 }
 

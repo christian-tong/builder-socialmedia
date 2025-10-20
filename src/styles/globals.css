@@ -148,3 +148,15 @@ body {
 [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb:hover {
     background-color: rgb(99 102 241 / 0.7);
 }
+
+.react-flow__node {
+    transition:
+        transform 0.6s cubic-bezier(0.25, 1, 0.5, 1),
+        box-shadow 0.3s ease;
+}
+
+.react-flow__node[data-animated='true'],
+.react-flow__node:hover {
+    transform: scale(1.02);
+    box-shadow: 0 0 10px rgba(0, 180, 255, 0.3);
+}

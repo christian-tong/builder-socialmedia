@@ -2,7 +2,7 @@
 
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { Label } from '@/components/ui/label'
 import {
     Select,
@@ -14,17 +14,14 @@ import {
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
-import { useFlowStore } from '@/store/useFlowStore'
+import { useNodeConnections } from '@/hooks/useNodeConnections'
 import {
-    Accordion,
-    AccordionItem,
-    AccordionTrigger,
-    AccordionContent,
-} from '@/components/ui/accordion'
-import { ChevronDown } from 'lucide-react'
+    NodeConnectionsAccordion,
+    NodeSelectionAccordion,
+} from '@/components/shared/NodeConnectionsAccordion'
 
 /**
- * 🕓 Días válidos ISO cortos: mon, tue, wed, thu, fri, sat, sun
+ * 🕓 Días válidos ISO cortos
  */
 const DAYS = [
     { value: 'mon', label: 'Lunes' },
@@ -39,9 +36,9 @@ const DAYS = [
 /**
  * 🕓 FormTimeConditionNode
  * --------------------------------------------------
- * - Permite definir rango de días y horario (inicio-fin)
- * - Genera condición: mon-fri,09:00-19:00
- * - Usa acordeones para mostrar nodo anterior y siguiente
+ * - Define días y horas de condición
+ * - Usa lógica modular de conexiones
+ * - Mismo estilo que el resto de formularios
  */
 export default function FormTimeConditionNode({
     id,
@@ -51,12 +48,17 @@ export default function FormTimeConditionNode({
     data: Record<string, any>
 }) {
     const { updateNodeData } = useNodeConfigStore()
-    const { getConnectedNodes, edges, nodes } = useFlowStore()
 
-    const [prevNodes, setPrevNodes] = useState<string[]>([])
-    const [nextNodes, setNextNodes] = useState<string[]>([])
+    // 🧠 Hook centralizado de conexiones
+    const {
+        prevNodes,
+        nextNodes,
+        availableNodes,
+        hasConnection,
+        toggleConnection,
+    } = useNodeConnections(id)
 
-    // 🧩 Genera condición automáticamente
+    // 🧩 Genera la condición automática (ej: mon-fri,09:00-18:00)
     useEffect(() => {
         if (data.dayStart && data.dayEnd && data.startTime && data.endTime) {
             const condition = `${data.dayStart}-${data.dayEnd},${data.startTime}-${data.endTime}`
@@ -70,64 +72,6 @@ export default function FormTimeConditionNode({
         id,
         updateNodeData,
     ])
-
-    // 🔁 Detectar nodos conectados
-    useEffect(() => {
-        const { prev, next } = getConnectedNodes(id)
-        setPrevNodes(prev.map((n) => n.data?.label || n.id))
-        setNextNodes(next.map((n) => n.data?.label || n.id))
-    }, [edges, nodes, id, getConnectedNodes])
-
-    // 📋 Render acordeón
-    const renderNodeList = (
-        title: string,
-        nodesList: string[],
-        accent: string
-    ) => {
-        const visible = nodesList.slice(0, 1)
-        const hidden = nodesList.slice(1)
-
-        return (
-            <div className="flex flex-col gap-2">
-                <Label className={`text-sm font-medium ${accent}`}>
-                    {title}
-                </Label>
-
-                {nodesList.length === 0 ? (
-                    <p className="text-xs text-gray-500 italic">
-                        Ninguno conectado
-                    </p>
-                ) : (
-                    <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="list">
-                            <AccordionTrigger className="flex justify-between rounded-md bg-gray-100 px-3 py-2 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                                {visible[0]}
-                                {hidden.length > 0 && (
-                                    <span className="flex items-center gap-1 text-[10px] opacity-70">
-                                        {`+${hidden.length} más`}{' '}
-                                        <ChevronDown className="h-3 w-3" />
-                                    </span>
-                                )}
-                            </AccordionTrigger>
-
-                            {hidden.length > 0 && (
-                                <AccordionContent className="mt-1 space-y-1 rounded-md bg-gray-50 px-3 py-2 font-mono text-xs dark:bg-gray-900">
-                                    {hidden.map((n, i) => (
-                                        <div
-                                            key={i}
-                                            className="rounded px-2 py-1 transition hover:bg-gray-200 dark:hover:bg-gray-800"
-                                        >
-                                            {n}
-                                        </div>
-                                    ))}
-                                </AccordionContent>
-                            )}
-                        </AccordionItem>
-                    </Accordion>
-                )}
-            </div>
-        )
-    }
 
     return (
         <div className="flex flex-col gap-5">
@@ -144,25 +88,33 @@ export default function FormTimeConditionNode({
                 </Badge>
             </div>
 
-            {/* 🔗 Nodos conectados con acordeón */}
+            {/* 🔗 Acordeones de conexiones */}
             <div className="flex flex-col gap-3">
-                {renderNodeList(
-                    'Nodo anterior',
-                    prevNodes,
-                    'text-sky-700 dark:text-sky-300'
-                )}
-                {renderNodeList(
-                    'Nodo siguiente',
-                    nextNodes,
-                    'text-sky-700 dark:text-sky-300'
-                )}
+                <NodeConnectionsAccordion
+                    title="Nodo anterior"
+                    nodesList={prevNodes}
+                    accentColor="text-sky-700 dark:text-sky-300"
+                />
+                <NodeConnectionsAccordion
+                    title="Nodo siguiente"
+                    nodesList={nextNodes}
+                    accentColor="text-sky-700 dark:text-sky-300"
+                />
             </div>
+
+            {/* ⚡ Conectar o desconectar nodos */}
+            <NodeSelectionAccordion
+                title="Conectar o desconectar nodos"
+                availableNodes={availableNodes}
+                hasConnection={hasConnection}
+                toggleConnection={toggleConnection}
+                accentColor="text-sky-700 dark:text-sky-300"
+            />
 
             {/* 🔹 Rango de días */}
             <div className="flex flex-col gap-2">
                 <Label className="text-sm font-medium">Rango de días</Label>
                 <div className="flex items-center gap-2">
-                    {/* Día inicio */}
                     <Select
                         value={data.dayStart || ''}
                         onValueChange={(val) =>
@@ -183,7 +135,6 @@ export default function FormTimeConditionNode({
 
                     <span className="text-xs text-gray-500">a</span>
 
-                    {/* Día fin */}
                     <Select
                         value={data.dayEnd || ''}
                         onValueChange={(val) =>
@@ -225,7 +176,6 @@ export default function FormTimeConditionNode({
                             className="mt-1 text-sm dark:bg-gray-900/50"
                         />
                     </div>
-
                     <div className="flex-1">
                         <Label className="text-xs text-gray-500 dark:text-gray-400">
                             Hasta

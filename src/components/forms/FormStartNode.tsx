@@ -2,19 +2,23 @@
 
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { useNodeConfigStore } from '@/store/useNodeConfigStore'
-import { useFlowStore } from '@/store/useFlowStore'
+import React from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { useNodeConfigStore } from '@/store/useNodeConfigStore'
+import {
+    NodeConnectionsAccordion,
+    NodeSelectionAccordion,
+} from '@/components/shared/NodeConnectionsAccordion'
+import { useNodeConnections } from '@/hooks/useNodeConnections'
 
 /**
  * 🟢 FormStartNode
  * --------------------------------------------------
- * - Nodo inicial del flujo
- * - Permite editar título y descripción
- * - Muestra nodo siguiente (normalmente uno solo)
+ * - Usa lógica modular de conexiones (useNodeConnections)
+ * - Reutiliza acordeones visuales y funcionales
+ * - Código más limpio, mantenible y reutilizable
  */
 export default function FormStartNode({
     id,
@@ -24,26 +28,23 @@ export default function FormStartNode({
     data: Record<string, any>
 }) {
     const { updateNodeData } = useNodeConfigStore()
-    const { getConnectedNodes, edges, nodes } = useFlowStore()
 
-    const [nextLabel, setNextLabel] = useState<string>('—')
-
-    // 🔁 Observa los edges para actualizar las conexiones
-    useEffect(() => {
-        const { next } = getConnectedNodes(id)
-
-        setNextLabel(
-            next.length
-                ? next.map((n) => n.data?.label || n.id).join(', ')
-                : '—'
-        )
-    }, [edges, nodes, id, getConnectedNodes])
+    // 🧠 Hook centralizado de conexiones
+    const {
+        prevNodes,
+        nextNodes,
+        availableNodes,
+        hasConnection,
+        toggleConnection,
+    } = useNodeConnections(id)
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
             {/* 🏷️ Encabezado */}
-            <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Nodo de Inicio</Label>
+            <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
+                <Label className="text-sm font-semibold text-green-600 dark:text-green-300">
+                    Nodo de Inicio
+                </Label>
                 <Badge
                     variant="outline"
                     className="border-green-300 bg-green-50 px-2 py-0.5 text-[10px] text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300"
@@ -52,17 +53,24 @@ export default function FormStartNode({
                 </Badge>
             </div>
 
-            <div className="flex flex-col gap-2">
-                <Label className="text-sm font-medium">Nodo siguiente</Label>
-                <Input
-                    value={nextLabel}
-                    readOnly
-                    className="bg-gray-100 font-mono text-xs dark:bg-gray-800"
-                />
-            </div>
+            {/* 🔗 Conexiones actuales */}
+            <NodeConnectionsAccordion
+                title="Nodo siguiente"
+                nodesList={nextNodes}
+                accentColor="text-green-700 dark:text-green-300"
+            />
+
+            {/* ⚡ Selección interactiva */}
+            <NodeSelectionAccordion
+                title="Conectar o desconectar nodos"
+                availableNodes={availableNodes}
+                hasConnection={hasConnection}
+                toggleConnection={toggleConnection}
+                accentColor="text-green-700 dark:text-green-300"
+            />
 
             {/* 🧾 Campos editables */}
-            <div className="flex flex-col gap-2">
+            <div className="mt-3 flex flex-col gap-2">
                 <Label className="text-sm font-medium">Título</Label>
                 <Input
                     value={data.label || ''}
