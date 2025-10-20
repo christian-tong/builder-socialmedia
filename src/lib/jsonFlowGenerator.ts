@@ -112,7 +112,6 @@ export function generateConversationJson(
                     action: 'timecondition',
                     onTrue,
                     onFalse,
-                    onError,
                     object: {
                         condition: data?.condition ?? '',
                     },
