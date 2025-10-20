@@ -3,140 +3,182 @@
 import { Node, Edge } from 'reactflow'
 
 /**
- * 🧠 Genera JSON conversacional basado en el flujo actual
- * -------------------------------------------------------
- * Convierte los nodos de React Flow a la estructura
- * final usada por el backend de conversación (WiContact)
+ * 🧠 generateConversationJson
+ * ----------------------------------------------------
+ * Convierte nodos y edges del React Flow en el JSON
+ * estructurado compatible con WiContact (process.steps)
+ * - Crea dinámicamente onTrue / onFalse / onError
+ * - Soporta menús principal/secundario, texto, derivación, tiempo, fin
+ * - Tipado completo y seguro para TypeScript
  */
-export function generateConversationJson(nodes: Node[], edges: Edge[]) {
-    const steps: any[] = []
 
-    // 🧩 Helper para buscar el siguiente nodo conectado
-    const getNextNodeId = (sourceId: string) => {
-        const edge = edges.find((e) => e.source === sourceId)
-        return edge ? edge.target : 'Hangup0000'
+export interface WiStep {
+    id: string
+    action: string
+    onTrue?: string | null
+    onFalse?: string | null
+    onError?: string | null
+    isInteractive?: boolean
+    source?: string
+    interactiveVersion?: number
+    object: Record<string, any>
+}
+
+export interface WiProcess {
+    process: {
+        steps: WiStep[]
     }
+}
 
-    // 🔗 Helper para obtener todos los edges salientes de un nodo
-    const getOutgoingEdges = (sourceId: string) =>
+export function generateConversationJson(
+    nodes: Node<Record<string, any>>[],
+    edges: Edge[]
+): WiProcess {
+    const steps: WiStep[] = []
+
+    // 🔍 Helpers
+    const getOutgoingEdges = (sourceId: string): Edge[] =>
         edges.filter((e) => e.source === sourceId)
+
+    const getConnectedTarget = (
+        edgeList: Edge[],
+        sourceId: string,
+        handleId: string
+    ): string | null => {
+        const edge = edgeList.find(
+            (e) => e.source === sourceId && e.sourceHandle === handleId
+        )
+        return edge?.target ?? null
+    }
 
     // 🧱 Construcción de pasos
     for (const node of nodes) {
         const { id, type, data } = node
-        const nextId = getNextNodeId(id)
+        const outgoing = getOutgoingEdges(id)
+
+        // 🔗 Detectar salidas de control
+        const onTrue = getConnectedTarget(outgoing, id, 'onTrue')
+        const onFalse = getConnectedTarget(outgoing, id, 'onFalse')
+        const onError = getConnectedTarget(outgoing, id, 'onError')
 
         switch (type) {
-            /** 🟢 Texto Simple */
-            case 'simpleTextNode':
+            /** 🟦 Texto Simple */
+            case 'simpleTextNode': {
+                const text = encodeURIComponent(data?.message ?? '')
                 steps.push({
-                    onTrue: nextId,
-                    action: 'simpletext',
                     id,
+                    action: 'simpletext',
+                    onTrue,
                     object: {
-                        groodText: data?.groodText || '',
-                        text: encodeURIComponent(data?.message || ''),
+                        groodText: data?.groodText ?? '',
+                        text,
                     },
                 })
                 break
+            }
 
             /** 🟠 Derivación */
-            case 'derivateNode':
+            case 'derivateNode': {
                 steps.push({
-                    onTrue: nextId,
-                    action: 'derivate',
                     id,
+                    action: 'derivate',
+                    onTrue,
+                    onFalse,
+                    onError,
                     object: {
                         timeoutMessage: encodeURIComponent(
-                            data?.timeoutMessage || ''
+                            data?.timeoutMessage ?? ''
                         ),
                         skill: data?.skill ? Number(data.skill) : 0,
                         queueMessage: encodeURIComponent(
-                            data?.queueMessage || ''
+                            data?.queueMessage ?? ''
                         ),
                         inboundMessage: encodeURIComponent(
-                            data?.inboundMessage || ''
+                            data?.inboundMessage ?? ''
                         ),
                         groodText_queueMessage:
-                            data?.groodText_queueMessage || '',
+                            data?.groodText_queueMessage ?? '',
                         groodText_inboundMessage:
-                            data?.groodText_inboundMessage || '',
+                            data?.groodText_inboundMessage ?? '',
                     },
                 })
                 break
+            }
 
             /** 🕓 Condición de tiempo */
-            case 'timeConditionNode':
+            case 'timeConditionNode': {
                 steps.push({
-                    onTrue: data?.onTrue || null,
-                    onFalse: data?.onFalse || null,
-                    action: 'timecondition',
                     id,
+                    action: 'timecondition',
+                    onTrue,
+                    onFalse,
+                    onError,
                     object: {
-                        condition: data?.condition || '',
+                        condition: data?.condition ?? '',
                     },
                 })
                 break
+            }
 
-            /** 🔵 Menú Secundario */
-            case 'menuNodeSecundario': {
-                const options = data?.options || []
+            /** 🟣 Menú Principal (quick_reply) */
+            case 'menuNodePrincipal': {
+                const options = (data?.options ?? []) as {
+                    postbackText: string
+                    title: string
+                }[]
+
                 const outgoingEdges = getOutgoingEdges(id)
-
-                // 🔹 Mapeamos variables y condiciones según edges
                 const setvariables: Record<string, string> = {}
                 const conditions: Record<string, string> = {}
 
-                options.forEach((opt: any) => {
-                    setvariables[opt.postbackText] = opt.title || ''
+                options.forEach((opt, index) => {
+                    setvariables[opt.postbackText] = opt.title ?? ''
                     const foundEdge = outgoingEdges.find(
-                        (e) => e.sourceHandle === opt.postbackText
+                        (e) => e.sourceHandle === `option-${index}`
                     )
-                    conditions[opt.postbackText] = foundEdge
-                        ? foundEdge.target
-                        : 'Hangup0000'
+                    if (foundEdge?.target)
+                        conditions[opt.postbackText] = foundEdge.target
                 })
 
-                // 🔸 Rango [0-5], etc.
-                const nums = options.map((o: any) => Number(o.postbackText))
-                const min = Math.min(...nums)
-                const max = Math.max(...nums)
-                const conditionRange = `[${min}-${max}]`
+                // Generar rango dinámico tipo [1-3]
+                const numeric = options
+                    .map((o) => Number(o.postbackText))
+                    .filter((n) => !isNaN(n))
+                const min = Math.min(...numeric)
+                const max = Math.max(...numeric)
+                const conditionRange =
+                    numeric.length > 0 ? `[${min}-${max}]` : '[1-1]'
 
                 steps.push({
-                    onTrue: 'SimpleText0098',
-                    onError: 'SimpleText0099',
-                    onFalse: 'SimpleText0098',
-                    isInteractive: true,
-                    action: 'getdatacomplete',
                     id,
+                    action: 'getdatacomplete',
+                    onTrue,
+                    onFalse,
+                    onError,
+                    isInteractive: true,
                     source: 'GetData',
                     interactiveVersion: 4,
                     object: {
                         setvariables,
                         condition: conditionRange,
                         groodText: '',
-                        setvar: data?.variable || 'SEGUNDO_NIVEL',
-                        variable: data?.variable || 'SegundaOpcion',
+                        setvar: data?.variable ?? 'PRIMER_NIVEL',
+                        variable: data?.variable ?? 'PrimeraOpcion',
                         saveHidden: true,
                         interactive: {
-                            globalButtons: [{ type: 'text', title: 'Elegir' }],
-                            type: 'list',
-                            body: encodeURIComponent(data?.message || ''),
-                            items: [
-                                {
-                                    options: options.map((opt: any) => ({
-                                        postbackText: opt.postbackText,
-                                        type: 'text',
-                                        title: encodeURIComponent(
-                                            opt.title || ''
-                                        ),
-                                    })),
-                                    title: 'Elija una opción',
-                                },
-                            ],
+                            options: options.map((opt) => ({
+                                postbackText: opt.postbackText,
+                                type: 'text',
+                                title: encodeURIComponent(opt.title ?? ''),
+                            })),
+                            msgid: 'qr1',
+                            type: 'quick_reply',
+                            content: {
+                                text: encodeURIComponent(data?.message ?? ''),
+                                type: 'text',
+                            },
                         },
-                        alias: data?.variable || 'SegundaOpcion',
+                        alias: data?.variable ?? 'PrimeraOpcion',
                         conditions,
                         iterations: '2',
                         timeOut: '90000',
@@ -145,58 +187,68 @@ export function generateConversationJson(nodes: Node[], edges: Edge[]) {
                 break
             }
 
-            /** 🟣 Menú Principal (idéntico a secundario pero tipo quick_reply) */
-            case 'menuNodePrincipal': {
-                const options = data?.options || []
+            /** 🔵 Menú Secundario (list) */
+            case 'menuNodeSecundario': {
+                const options = (data?.options ?? []) as {
+                    postbackText: string
+                    title: string
+                }[]
+
                 const outgoingEdges = getOutgoingEdges(id)
                 const setvariables: Record<string, string> = {}
                 const conditions: Record<string, string> = {}
 
-                options.forEach((opt: any) => {
-                    setvariables[opt.postbackText] = opt.title || ''
+                options.forEach((opt, index) => {
+                    setvariables[opt.postbackText] = opt.title ?? ''
                     const foundEdge = outgoingEdges.find(
-                        (e) => e.sourceHandle === opt.postbackText
+                        (e) => e.sourceHandle === `option-${index}`
                     )
-                    conditions[opt.postbackText] = foundEdge
-                        ? foundEdge.target
-                        : 'Hangup0000'
+                    if (foundEdge?.target)
+                        conditions[opt.postbackText] = foundEdge.target
                 })
 
-                const nums = options.map((o: any) => Number(o.postbackText))
-                const min = Math.min(...nums)
-                const max = Math.max(...nums)
-                const conditionRange = `[${min}-${max}]`
+                const numeric = options
+                    .map((o) => Number(o.postbackText))
+                    .filter((n) => !isNaN(n))
+                const min = Math.min(...numeric)
+                const max = Math.max(...numeric)
+                const conditionRange =
+                    numeric.length > 0 ? `[${min}-${max}]` : '[1-1]'
 
                 steps.push({
-                    onTrue: 'SimpleText0098',
-                    onError: 'SimpleText0099',
-                    onFalse: 'SimpleText0098',
-                    isInteractive: true,
-                    action: 'getdatacomplete',
                     id,
+                    action: 'getdatacomplete',
+                    onTrue,
+                    onFalse,
+                    onError,
+                    isInteractive: true,
                     source: 'GetData',
                     interactiveVersion: 4,
                     object: {
                         setvariables,
                         condition: conditionRange,
                         groodText: '',
-                        setvar: data?.variable || 'PRIMER_NIVEL',
-                        variable: data?.variable || 'PrimeraOpcion',
+                        setvar: data?.variable ?? 'SEGUNDO_NIVEL',
+                        variable: data?.variable ?? 'SegundaOpcion',
                         saveHidden: true,
                         interactive: {
-                            options: options.map((opt: any) => ({
-                                postbackText: opt.postbackText,
-                                type: 'text',
-                                title: encodeURIComponent(opt.title || ''),
-                            })),
-                            msgid: 'qr1',
-                            type: 'quick_reply',
-                            content: {
-                                text: encodeURIComponent(data?.message || ''),
-                                type: 'text',
-                            },
+                            globalButtons: [{ type: 'text', title: 'Elegir' }],
+                            type: 'list',
+                            body: encodeURIComponent(data?.message ?? ''),
+                            items: [
+                                {
+                                    options: options.map((opt) => ({
+                                        postbackText: opt.postbackText,
+                                        type: 'text',
+                                        title: encodeURIComponent(
+                                            opt.title ?? ''
+                                        ),
+                                    })),
+                                    title: 'Elija una opción',
+                                },
+                            ],
                         },
-                        alias: data?.variable || 'PrimeraOpcion',
+                        alias: data?.variable ?? 'SegundaOpcion',
                         conditions,
                         iterations: '2',
                         timeOut: '90000',
@@ -206,28 +258,32 @@ export function generateConversationJson(nodes: Node[], edges: Edge[]) {
             }
 
             /** 🟥 Fin */
-            case 'endNode':
+            case 'endNode': {
                 steps.push({
-                    action: 'hangup',
                     id,
+                    action: 'hangup',
                     object: {
-                        HangupCause: data?.hangupCause || '',
+                        HangupCause: data?.hangupCause ?? '',
                     },
                 })
                 break
+            }
 
             default:
                 break
         }
     }
 
-    // 🟩 Paso inicial (StartStep)
-    const firstNode = nodes.find((n) => n.type === 'menuNodePrincipal')
+    // 🟢 Nodo inicial automático (StartStep)
+    const firstNode = nodes.find((n) => n.type === 'startNode')
     if (firstNode) {
+        const outgoing = getOutgoingEdges(firstNode.id)
+        const next = outgoing[0]?.target ?? null
+
         steps.unshift({
-            onTrue: firstNode.id,
+            id: firstNode.id,
             action: 'startstep',
-            id: 'StartStepZPmf',
+            onTrue: next,
             object: {},
         })
     }
