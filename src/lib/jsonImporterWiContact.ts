@@ -1,14 +1,15 @@
 // src\lib\jsonImporterWiContact.ts
 
 import { Node, Edge } from 'reactflow'
+
 /**
  * 🔁 Convierte JSON WiContact (process.steps) → { nodes, edges }
  * --------------------------------------------------------------
- * Compatible 100% con los formularios:
- * - FormDerivateNode
- * - FormMenuNodePrincipal / Secundario
- * - FormSimpleTextNode
- * - FormTimeConditionNode
+ * - Mantiene IDs originales
+ * - Crea conexiones de control (onTrue / onFalse / onError)
+ * - Crea conexiones de menú (conditions / options)
+ * - Detecta dinámicamente nodos de cierre (hangup)
+ * - Compatible con tus formularios actuales
  */
 export function convertWiContactToFlow(json: any): {
     nodes: Node[]
@@ -21,9 +22,38 @@ export function convertWiContactToFlow(json: any): {
     const nodes: Node<any>[] = []
     const edges: Edge<any>[] = []
     const conditionMap = new Map<string, Record<string, string>>()
+    const hangupIds = new Set<string>() // ← detecta dinámicamente nodos de cierre
 
+    /**
+     * 🔗 Helper: agrega una conexión (evita duplicados)
+     */
+    const addEdge = (
+        source: string,
+        target: string | undefined,
+        sourceHandle?: string,
+        label?: string
+    ) => {
+        if (!target) return // evita edges sin destino
+        const id = `${source}-${sourceHandle || 'auto'}-${target}`
+        if (edges.some((e) => e.id === id)) return
+        edges.push({
+            id,
+            source,
+            target,
+            sourceHandle,
+            label,
+            type: 'smoothstep',
+        })
+    }
+
+    // ========================
+    // 🧱 PRIMERA PASADA: NODOS
+    // ========================
     for (const step of steps) {
-        const { id, action, object = {}, onTrue, onFalse } = step
+        const { id, action, object = {} } = step
+
+        // 🟥 Detectar nodos de cierre dinámicamente
+        if (action === 'hangup') hangupIds.add(id)
 
         switch (action) {
             // 🟢 Inicio
@@ -34,13 +64,6 @@ export function convertWiContactToFlow(json: any): {
                     position: { x: 0, y: 0 },
                     data: { label: id },
                 })
-                if (onTrue)
-                    edges.push({
-                        id: `${id}-${onTrue}`,
-                        source: id,
-                        target: onTrue,
-                        type: 'smoothstep',
-                    })
                 break
 
             // 🟦 Texto simple
@@ -55,16 +78,9 @@ export function convertWiContactToFlow(json: any): {
                         message: decodeURIComponent(object.text || ''),
                     },
                 })
-                if (onTrue)
-                    edges.push({
-                        id: `${id}-${onTrue}`,
-                        source: id,
-                        target: onTrue,
-                        type: 'smoothstep',
-                    })
                 break
 
-            // 🟨 Derivación (DerivateNode)
+            // 🟨 Derivación
             case 'derivate': {
                 const skill = object.skill ? Number(object.skill) : null
                 nodes.push({
@@ -86,13 +102,6 @@ export function convertWiContactToFlow(json: any): {
                         ),
                     },
                 })
-                if (onTrue)
-                    edges.push({
-                        id: `${id}-${onTrue}`,
-                        source: id,
-                        target: onTrue,
-                        type: 'smoothstep',
-                    })
                 break
             }
 
@@ -102,6 +111,7 @@ export function convertWiContactToFlow(json: any): {
                 const [days, times] = cond.split(',')
                 const [dayStart, dayEnd] = (days || '').split('-')
                 const [startTime, endTime] = (times || '').split('-')
+
                 nodes.push({
                     id,
                     type: 'timeConditionNode',
@@ -115,20 +125,6 @@ export function convertWiContactToFlow(json: any): {
                         endTime: endTime || '',
                     },
                 })
-                if (onTrue)
-                    edges.push({
-                        id: `${id}-true-${onTrue}`,
-                        source: id,
-                        target: onTrue,
-                        type: 'smoothstep',
-                    })
-                if (onFalse)
-                    edges.push({
-                        id: `${id}-false-${onFalse}`,
-                        source: id,
-                        target: onFalse,
-                        type: 'smoothstep',
-                    })
                 break
             }
 
@@ -154,7 +150,6 @@ export function convertWiContactToFlow(json: any): {
 
                 conditionMap.set(id, object.conditions || {})
 
-                // Tipar opciones explícitamente
                 interface MenuOption {
                     postbackText: string
                     title: string
@@ -164,21 +159,17 @@ export function convertWiContactToFlow(json: any): {
                 const options: MenuOption[] =
                     isList && object.interactive?.items
                         ? object.interactive.items[0].options.map(
-                              (opt: any): MenuOption => ({
+                              (opt: any, idx: number): MenuOption => ({
                                   postbackText: opt.postbackText,
                                   title: decodeURIComponent(opt.title || ''),
-                                  next:
-                                      object.conditions?.[opt.postbackText] ||
-                                      'Hangup0000',
+                                  next: object.conditions?.[opt.postbackText],
                               })
                           )
                         : object.interactive?.options?.map(
-                              (opt: any): MenuOption => ({
+                              (opt: any, idx: number): MenuOption => ({
                                   postbackText: opt.postbackText,
                                   title: decodeURIComponent(opt.title || ''),
-                                  next:
-                                      object.conditions?.[opt.postbackText] ||
-                                      'Hangup0000',
+                                  next: object.conditions?.[opt.postbackText],
                               })
                           ) || []
 
@@ -197,20 +188,6 @@ export function convertWiContactToFlow(json: any): {
                         options,
                     },
                 })
-
-                // 🔗 Crear edges por cada opción (con tipado)
-                options.forEach((opt: MenuOption, index: number) => {
-                    if (opt.next && opt.next !== 'Hangup0000') {
-                        const edge: Edge<any> = {
-                            id: `${id}-${opt.postbackText}-${opt.next}`,
-                            source: id,
-                            target: opt.next,
-                            sourceHandle: `option-${index}`,
-                            type: 'smoothstep',
-                        }
-                        edges.push(edge)
-                    }
-                })
                 break
             }
 
@@ -219,22 +196,41 @@ export function convertWiContactToFlow(json: any): {
         }
     }
 
-    // ♻ Reconstruir vínculos “Menú anterior”
+    // ==========================
+    // 🔗 SEGUNDA PASADA: EDGES
+    // ==========================
+    for (const step of steps) {
+        const { id, action, onTrue, onFalse, onError, object = {} } = step
+
+        // Conexiones de control (presentes en todos los tipos)
+        addEdge(id, onTrue, 'onTrue')
+        addEdge(id, onFalse, 'onFalse')
+        addEdge(id, onError, 'onError')
+
+        // Conexiones de menú
+        if (action === 'getdatacomplete') {
+            const conds = object.conditions || {}
+            const isList = object?.interactive?.type === 'list'
+            const options = isList
+                ? object.interactive?.items?.[0]?.options || []
+                : object.interactive?.options || []
+
+            options.forEach((opt: any, index: number) => {
+                const target = conds?.[opt.postbackText]
+                addEdge(id, target, `option-${index}`)
+            })
+        }
+    }
+
+    // ♻ Reconstruir vínculos “Menú anterior” (condición [0])
     for (const [childId, conds] of conditionMap.entries()) {
         const parentId = conds['0']
-        if (parentId && parentId !== 'Hangup0000') {
+        if (parentId) {
             const exists = edges.some(
                 (e) => e.source === childId && e.target === parentId
             )
             if (!exists) {
-                const backEdge: Edge<any> = {
-                    id: `${childId}-back-${parentId}`,
-                    source: childId,
-                    target: parentId,
-                    label: '🔙 Menú anterior',
-                    type: 'smoothstep',
-                }
-                edges.push(backEdge)
+                addEdge(childId, parentId, 'back', '🔙 Menú anterior')
             }
         }
     }
