@@ -15,15 +15,14 @@ import {
     AccordionTrigger,
     AccordionContent,
 } from '@/components/ui/accordion'
-import { Plus, Trash2, ChevronDown } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Settings2 } from 'lucide-react'
 import { Textarea } from '../ui/textarea'
 
 /**
  * 🧾 FormMenuNodeSecundario
  * --------------------------------------------------
- * - Permite editar título, variable y mensaje.
- * - Muestra nodos anterior / siguiente con acordeón.
- * - Lista las opciones y sus nodos destino.
+ * - Panel lateral de configuración del Menú Secundario.
+ * - Controla variables, mensaje, opciones y flujos (onTrue, onFalse, onError).
  */
 export default function FormMenuNodeSecundario({
     id,
@@ -36,11 +35,15 @@ export default function FormMenuNodeSecundario({
     const { getConnectedNodes, edges, nodes } = useFlowStore()
 
     const [connections, setConnections] = useState<Record<number, string>>({})
+    const [flowRefs, setFlowRefs] = useState<{
+        onTrue?: string
+        onFalse?: string
+        onError?: string
+    }>({})
     const [prevNodes, setPrevNodes] = useState<string[]>([])
     const [nextNodes, setNextNodes] = useState<string[]>([])
 
     const options = data.options || []
-
     const messageRef = useRef<HTMLTextAreaElement | null>(null)
 
     const autoResize = () => {
@@ -50,9 +53,20 @@ export default function FormMenuNodeSecundario({
         el.style.height = Math.min(el.scrollHeight, 400) + 'px'
     }
 
+    useEffect(() => autoResize(), [data.message])
+
+    // 🧩 Inicializar valores por defecto
     useEffect(() => {
-        autoResize()
-    }, [data.message])
+        const defaults = {
+            onTrue: data.onTrue,
+            onFalse: data.onFalse,
+            onError: data.onError,
+            iterations: data.iterations || '2',
+            timeOut: data.timeOut || '90000',
+        }
+        updateNodeData(id, { ...defaults })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     // 🔁 Detectar nodos conectados anterior y siguiente
     useEffect(() => {
@@ -61,23 +75,39 @@ export default function FormMenuNodeSecundario({
         setNextNodes(next.map((n) => n.data?.label || n.id))
     }, [edges, nodes, id, getConnectedNodes])
 
-    // 🔄 Actualizar conexiones de cada opción
+    // 🔄 Actualizar conexiones
     useEffect(() => {
         const conns: Record<number, string> = {}
+        const refs: any = { onTrue: '—', onFalse: '—', onError: '—' }
+
         edges.forEach((edge) => {
+            // Opciones
             if (
                 edge.source === id &&
                 edge.sourceHandle?.startsWith('option-')
             ) {
                 const index = parseInt(edge.sourceHandle.split('-')[1], 10)
-                const targetNode = nodes.find((n) => n.id === edge.target)
-                conns[index] = targetNode?.data?.label || targetNode?.id || '—'
+                const target = nodes.find((n) => n.id === edge.target)
+                conns[index] = target?.data?.label || target?.id || '—'
+            }
+
+            // Flujos de control
+            if (edge.source === id && edge.sourceHandle) {
+                const target = nodes.find((n) => n.id === edge.target)
+                if (edge.sourceHandle === 'onTrue')
+                    refs.onTrue = target?.data?.label || target?.id || '—'
+                if (edge.sourceHandle === 'onFalse')
+                    refs.onFalse = target?.data?.label || target?.id || '—'
+                if (edge.sourceHandle === 'onError')
+                    refs.onError = target?.data?.label || target?.id || '—'
             }
         })
+
         setConnections(conns)
+        setFlowRefs(refs)
     }, [edges, nodes, id, options.length])
 
-    // ➕ Agregar opción
+    // ➕ Agregar / eliminar / editar opciones
     const handleAddOption = () => {
         const newOptions = [
             ...options,
@@ -86,14 +116,12 @@ export default function FormMenuNodeSecundario({
         updateNodeData(id, { options: newOptions })
     }
 
-    // 🗑️ Eliminar opción
     const handleRemoveOption = (index: number) => {
         if (options.length <= 1) return
         const newOptions = options.filter((_: any, i: number) => i !== index)
         updateNodeData(id, { options: newOptions })
     }
 
-    // ✏️ Editar campo
     const handleUpdateOption = (
         index: number,
         field: string,
@@ -105,7 +133,7 @@ export default function FormMenuNodeSecundario({
         updateNodeData(id, { options: newOptions })
     }
 
-    // 📋 Renderiza la lista de nodos (igual que en el principal)
+    // 🔹 Render de nodos conectados
     const renderNodeList = (
         title: string,
         nodesList: string[],
@@ -113,13 +141,11 @@ export default function FormMenuNodeSecundario({
     ) => {
         const visible = nodesList.slice(0, 1)
         const hidden = nodesList.slice(1)
-
         return (
             <div className="flex flex-col gap-2">
                 <Label className={`text-sm font-medium ${accent}`}>
                     {title}
                 </Label>
-
                 {nodesList.length === 0 ? (
                     <p className="text-xs text-gray-500 italic">
                         Ninguno conectado
@@ -170,7 +196,7 @@ export default function FormMenuNodeSecundario({
                 </Badge>
             </div>
 
-            {/* 🔗 Nodos conectados con acordeón */}
+            {/* 🔗 Nodos conectados */}
             <div className="flex flex-col gap-3">
                 {renderNodeList(
                     'Nodo anterior',
@@ -212,6 +238,100 @@ export default function FormMenuNodeSecundario({
                 />
             </div>
 
+            {/* ⚙️ Configuración avanzada */}
+            <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="config">
+                    <AccordionTrigger className="flex items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-medium dark:bg-gray-800">
+                        <Settings2 className="h-4 w-4" />
+                        Control de flujo (onTrue / onFalse / onError)
+                    </AccordionTrigger>
+                    <AccordionContent className="mt-2 space-y-4 rounded-md bg-gray-50 p-3 dark:bg-gray-900/40">
+                        {/* 🟢 onTrue */}
+                        <div className="rounded-md border border-green-200 bg-green-50/40 p-3 dark:border-green-900 dark:bg-green-950/30">
+                            <Label className="mb-1 text-xs font-semibold text-green-700 dark:text-green-400">
+                                🟢 onTrue (válido)
+                            </Label>
+                            <Input
+                                readOnly
+                                value={flowRefs.onTrue || '—'}
+                                placeholder="Nodo siguiente al validar correctamente"
+                                className="font-mono text-xs dark:bg-gray-900/50"
+                            />
+                            <p className="text-[10px] text-gray-500 italic dark:text-gray-400">
+                                Nodo siguiente si la condición se cumple (flujo
+                                exitoso).
+                            </p>
+                        </div>
+
+                        {/* 🟡 onFalse */}
+                        <div className="rounded-md border border-amber-200 bg-amber-50/40 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+                            <Label className="mb-1 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                                🟡 onFalse (inválido)
+                            </Label>
+                            <Input
+                                readOnly
+                                value={flowRefs.onFalse || '—'}
+                                placeholder="Nodo siguiente si no coincide"
+                                className="font-mono text-xs dark:bg-gray-900/50"
+                            />
+                            <p className="text-[10px] text-gray-500 italic dark:text-gray-400">
+                                Nodo siguiente si la validación falla (flujo
+                                alterno).
+                            </p>
+                        </div>
+
+                        {/* 🔴 onError */}
+                        <div className="rounded-md border border-red-200 bg-red-50/40 p-3 dark:border-red-900 dark:bg-red-950/30">
+                            <Label className="mb-1 text-xs font-semibold text-red-700 dark:text-red-400">
+                                🔴 onError (timeout / intentos)
+                            </Label>
+                            <Input
+                                readOnly
+                                value={flowRefs.onError || '—'}
+                                placeholder="Nodo siguiente por error o timeout"
+                                className="font-mono text-xs dark:bg-gray-900/50"
+                            />
+                            <p className="text-[10px] text-gray-500 italic dark:text-gray-400">
+                                Nodo siguiente si ocurre un error o expira el
+                                tiempo de espera.
+                            </p>
+                        </div>
+
+                        {/* ⚙️ Extra config */}
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div>
+                                <Label className="text-xs font-semibold">
+                                    iterations
+                                </Label>
+                                <Input
+                                    value={data.iterations || '2'}
+                                    onChange={(e) =>
+                                        updateNodeData(id, {
+                                            iterations: e.target.value,
+                                        })
+                                    }
+                                    className="text-xs dark:bg-gray-900/50"
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-xs font-semibold">
+                                    timeOut (ms)
+                                </Label>
+                                <Input
+                                    value={data.timeOut || '90000'}
+                                    onChange={(e) =>
+                                        updateNodeData(id, {
+                                            timeOut: e.target.value,
+                                        })
+                                    }
+                                    className="text-xs dark:bg-gray-900/50"
+                                />
+                            </div>
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
+
             {/* 🧩 Opciones */}
             <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
@@ -249,20 +369,18 @@ export default function FormMenuNodeSecundario({
                             )}
                         </div>
 
-                        <div className="flex gap-2">
-                            <Input
-                                value={opt.title}
-                                onChange={(e) =>
-                                    handleUpdateOption(
-                                        index,
-                                        'title',
-                                        e.target.value
-                                    )
-                                }
-                                placeholder="Título visible"
-                                className="flex-1 text-sm dark:bg-gray-900/50"
-                            />
-                        </div>
+                        <Input
+                            value={opt.title}
+                            onChange={(e) =>
+                                handleUpdateOption(
+                                    index,
+                                    'title',
+                                    e.target.value
+                                )
+                            }
+                            placeholder="Título visible"
+                            className="flex-1 text-sm dark:bg-gray-900/50"
+                        />
 
                         {/* 🔗 Nodo siguiente por opción */}
                         <div className="mt-1 flex flex-col gap-1">

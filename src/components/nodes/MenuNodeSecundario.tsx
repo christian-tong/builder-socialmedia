@@ -12,18 +12,29 @@ import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 /**
  * 🔵 MenuNodeSecundario
  * -------------------------------------------------------
- * - Variante azul del Menu Principal.
- * - Representa menús secundarios (GetDataCompleteXXXX).
- * - Handles perfectamente alineados al borde.
+ * - Nodo visual que representa un menú secundario.
+ * - 3 salidas de control fijas abajo: 🟢 onTrue | 🟡 onFalse | 🔴 onError
+ * - Cada handle tiene su posición propia y su línea parte correctamente.
+ * - Las opciones salen por el lado derecho.
  */
 const MenuNodeSecundario = ({ id, data }: any) => {
     const { setSelectedNode } = useNodeConfigStore()
     const { orientation } = useFlowOrientationStore()
 
+    // Entrada dinámica (solo cambia arriba o izquierda)
     const targetPosition =
         orientation === 'vertical' ? Position.Top : Position.Left
 
     const options = data.options || []
+
+    const handleBase: React.CSSProperties = {
+        width: 10,
+        height: 10,
+        borderRadius: '50%',
+        zIndex: 15,
+        pointerEvents: 'auto',
+        position: 'absolute', // ✅ importante para posición fija
+    }
 
     return (
         <Card
@@ -49,7 +60,7 @@ const MenuNodeSecundario = ({ id, data }: any) => {
                 )}
             </div>
 
-            {/* 📨 Mensaje (si existe) */}
+            {/* 📨 Mensaje */}
             {data.message && (
                 <div className="mx-3 my-1 rounded-md border border-sky-500/40 bg-sky-800/40 px-2.5 py-1 text-[11px] text-sky-100 italic">
                     {data.message}
@@ -71,7 +82,7 @@ const MenuNodeSecundario = ({ id, data }: any) => {
                 className="h-[10px] w-[10px] rounded-full !bg-sky-300 shadow-sm"
             />
 
-            {/* 🔸 Opciones */}
+            {/* 🔸 Opciones (costado derecho) */}
             <div className="mt-0.5 flex flex-col">
                 {options.map((opt: any, index: number) => (
                     <div
@@ -85,7 +96,6 @@ const MenuNodeSecundario = ({ id, data }: any) => {
                             </span>
                         </div>
 
-                        {/* 🔹 Handle al borde */}
                         <Handle
                             id={`option-${index}`}
                             type="source"
@@ -100,6 +110,44 @@ const MenuNodeSecundario = ({ id, data }: any) => {
                     </div>
                 ))}
             </div>
+
+            {/* 🟢🟡🔴 Handles de control (fijos, separados horizontalmente) */}
+            <Handle
+                type="source"
+                id="onTrue"
+                position={Position.Bottom}
+                title="onTrue"
+                style={{
+                    ...handleBase,
+                    background: '#16a34a',
+                    bottom: '-6px',
+                    left: '25%', // ✅ separa cada handle
+                }}
+            />
+            <Handle
+                type="source"
+                id="onFalse"
+                position={Position.Bottom}
+                title="onFalse"
+                style={{
+                    ...handleBase,
+                    background: '#f59e0b',
+                    bottom: '-6px',
+                    left: '50%',
+                }}
+            />
+            <Handle
+                type="source"
+                id="onError"
+                position={Position.Bottom}
+                title="onError"
+                style={{
+                    ...handleBase,
+                    background: '#dc2626',
+                    bottom: '-6px',
+                    left: '75%',
+                }}
+            />
         </Card>
     )
 }
