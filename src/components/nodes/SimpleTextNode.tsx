@@ -12,9 +12,9 @@ import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
  * 🟦 SimpleTextNode
  * ----------------------------------------------------
  * - Nodo visual de tipo texto simple
- * - Al hacer clic, abre el formulario asociado (FormSimpleTextNode)
- * - Soporta orientación dinámica (vertical / horizontal)
- * - Datos sincronizados vía Zustand (useNodeConfigStore)
+ * - Tiene ancho máximo fijo y altura dinámica
+ * - Soporta orientación vertical/horizontal
+ * - Abre FormSimpleTextNode al hacer clic
  */
 export function SimpleTextNode({ id, data }: any) {
     const { setSelectedNode } = useNodeConfigStore()
@@ -29,25 +29,36 @@ export function SimpleTextNode({ id, data }: any) {
     return (
         <Card
             onClick={(e) => {
-                e.stopPropagation() // ✅ evita propagación al canvas
+                e.stopPropagation()
                 setSelectedNode({ id, type: 'simpleTextNode', data })
             }}
             data-id={id}
-            className="relative cursor-pointer rounded-lg border border-indigo-700 bg-indigo-600 px-3 py-2 text-white shadow-md transition-transform duration-200 select-none hover:scale-[1.02]"
+            className="relative w-full max-w-[220px] cursor-pointer rounded-lg border border-indigo-700 bg-indigo-600 px-3 py-2 text-center text-white shadow-md transition-transform duration-200 select-none hover:scale-[1.02]"
         >
-            <div className="flex flex-col items-center gap-1 text-center">
+            <div className="flex flex-col items-center justify-center gap-1 overflow-hidden">
+                {/* 🔹 Título */}
                 <div className="flex items-center justify-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    <span className="text-sm font-medium">
+                    <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-sm font-medium break-words">
                         {data.label || 'Texto sin título'}
                     </span>
                 </div>
+
+                {/* 🔹 Contenido dinámico */}
                 {data.message && (
-                    <p className="text-[10px] opacity-80">{data.message}</p>
+                    <p
+                        className="mt-1 text-center text-[11px] leading-snug break-words opacity-85"
+                        style={{
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                        }}
+                    >
+                        {data.message}
+                    </p>
                 )}
             </div>
 
-            {/* Handles de conexión */}
+            {/* 🟢🟡🔴 Handles de conexión */}
             <Handle
                 type="target"
                 position={targetPosition}
