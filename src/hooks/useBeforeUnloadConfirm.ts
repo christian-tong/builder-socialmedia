@@ -1,9 +1,9 @@
 // src\hooks\useBeforeUnloadConfirm.ts
 
-"use client";
+'use client'
 
-import { useEffect } from "react";
-import type { Edge, Node } from "reactflow";
+import { useEffect } from 'react'
+import type { Edge, Node } from 'reactflow'
 
 /**
  * ⚠️ useBeforeUnloadConfirm
@@ -12,15 +12,16 @@ import type { Edge, Node } from "reactflow";
  * - Muestra confirmación visual o nativa
  */
 export function useBeforeUnloadConfirm(nodes: Node[], edges: Edge[]) {
-	useEffect(() => {
-		const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-			if (nodes.length > 0 || edges.length > 0) {
-				event.preventDefault();
-				event.returnValue = "";
-			}
-		};
+    useEffect(() => {
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            if (nodes.length > 0 || edges.length > 0) {
+                event.preventDefault()
+                event.returnValue = ''
+            }
+        }
 
-		window.addEventListener("beforeunload", handleBeforeUnload);
-		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-	}, [nodes, edges]);
+        window.addEventListener('beforeunload', handleBeforeUnload)
+        return () =>
+            window.removeEventListener('beforeunload', handleBeforeUnload)
+    }, [nodes, edges])
 }

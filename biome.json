@@ -6,16 +6,18 @@
         "useIgnoreFile": false
     },
     "files": {
-        "ignoreUnknown": false
+        "ignoreUnknown": false,
+        "includes": ["src/**/*"]
     },
     "formatter": {
-        "enabled": true,
-        "indentStyle": "tab"
+        "enabled": false
     },
     "linter": {
         "enabled": true,
         "rules": {
-            "recommended": true
+            "correctness": {
+                "noUnusedImports": "error"
+            }
         }
     },
     "javascript": {

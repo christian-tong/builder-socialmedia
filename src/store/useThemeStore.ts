@@ -45,56 +45,59 @@
  * }
  */
 
-import { create } from "zustand";
+import { create } from 'zustand'
 
 // Tipos permitidos
-type Theme = "light" | "dark";
+type Theme = 'light' | 'dark'
 
 // Estructura del estado global
 interface ThemeState {
-	/** Tema actual de la aplicación ("light" o "dark") */
-	theme: Theme;
+    /** Tema actual de la aplicación ("light" o "dark") */
+    theme: Theme
 
-	/** Alterna entre "light" y "dark" */
-	toggleTheme: () => void;
+    /** Alterna entre "light" y "dark" */
+    toggleTheme: () => void
 
-	/** Fuerza el tema a un valor específico */
-	setTheme: (theme: Theme) => void;
+    /** Fuerza el tema a un valor específico */
+    setTheme: (theme: Theme) => void
 }
 
 /**
  * ✅ Store global del tema con persistencia automática
  */
 export const useThemeStore = create<ThemeState>((set) => ({
-	// Estado inicial: lee de localStorage si existe
-	theme:
-		(typeof window !== "undefined" &&
-			(localStorage.getItem("theme") as Theme)) ||
-		"dark",
+    // Estado inicial: lee de localStorage si existe
+    theme:
+        (typeof window !== 'undefined' &&
+            (localStorage.getItem('theme') as Theme)) ||
+        'dark',
 
-	/**
-	 * Alterna el tema actual (dark <-> light)
-	 */
-	toggleTheme: () =>
-		set((state) => {
-			const newTheme = state.theme === "dark" ? "light" : "dark";
+    /**
+     * Alterna el tema actual (dark <-> light)
+     */
+    toggleTheme: () =>
+        set((state) => {
+            const newTheme = state.theme === 'dark' ? 'light' : 'dark'
 
-			// Aplica la clase global para que Tailwind cambie estilos
-			document.documentElement.classList.toggle("dark", newTheme === "dark");
+            // Aplica la clase global para que Tailwind cambie estilos
+            document.documentElement.classList.toggle(
+                'dark',
+                newTheme === 'dark'
+            )
 
-			// Guarda la preferencia
-			localStorage.setItem("theme", newTheme);
+            // Guarda la preferencia
+            localStorage.setItem('theme', newTheme)
 
-			// Actualiza el estado global
-			return { theme: newTheme };
-		}),
+            // Actualiza el estado global
+            return { theme: newTheme }
+        }),
 
-	/**
-	 * Fuerza un tema específico ("dark" o "light")
-	 */
-	setTheme: (theme: Theme) => {
-		document.documentElement.classList.toggle("dark", theme === "dark");
-		localStorage.setItem("theme", theme);
-		set({ theme });
-	},
-}));
+    /**
+     * Fuerza un tema específico ("dark" o "light")
+     */
+    setTheme: (theme: Theme) => {
+        document.documentElement.classList.toggle('dark', theme === 'dark')
+        localStorage.setItem('theme', theme)
+        set({ theme })
+    },
+}))

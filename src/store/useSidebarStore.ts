@@ -17,23 +17,23 @@
  * const { isOpen, toggleSidebar, openSidebar, closeSidebar } = useSidebarStore();
  */
 
-import { create } from "zustand";
+import { create } from 'zustand'
 
 interface SidebarState {
-	/** Si el sidebar está abierto o cerrado */
-	isOpen: boolean;
-	/** Alterna el estado */
-	toggleSidebar: () => void;
-	/** Fuerza a abrir el sidebar */
-	openSidebar: () => void;
-	/** Fuerza a cerrar el sidebar */
-	closeSidebar: () => void;
+    /** Si el sidebar está abierto o cerrado */
+    isOpen: boolean
+    /** Alterna el estado */
+    toggleSidebar: () => void
+    /** Fuerza a abrir el sidebar */
+    openSidebar: () => void
+    /** Fuerza a cerrar el sidebar */
+    closeSidebar: () => void
 }
 
 export const useSidebarStore = create<SidebarState>((set) => ({
-	isOpen: true,
+    isOpen: true,
 
-	toggleSidebar: () => set((state) => ({ isOpen: !state.isOpen })),
-	openSidebar: () => set({ isOpen: true }),
-	closeSidebar: () => set({ isOpen: false }),
-}));
+    toggleSidebar: () => set((state) => ({ isOpen: !state.isOpen })),
+    openSidebar: () => set({ isOpen: true }),
+    closeSidebar: () => set({ isOpen: false }),
+}))

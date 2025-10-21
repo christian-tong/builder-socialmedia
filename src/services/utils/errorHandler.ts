@@ -7,19 +7,19 @@
  * - Retorna un mensaje legible para el usuario
  */
 export function handleServiceError(error: unknown, context?: string): string {
-	let message = "Error desconocido";
+    let message = 'Error desconocido'
 
-	if (error instanceof Error) {
-		message = error.message;
-	} else if (typeof error === "string") {
-		message = error;
-	}
+    if (error instanceof Error) {
+        message = error.message
+    } else if (typeof error === 'string') {
+        message = error
+    }
 
-	// Log técnico (para consola o futura herramienta de monitoreo)
-	console.error(`❌ [${context || "ServiceError"}]:`, error);
+    // Log técnico (para consola o futura herramienta de monitoreo)
+    console.error(`❌ [${context || 'ServiceError'}]:`, error)
 
-	// Mensaje legible para UI
-	return context
-		? `Ocurrió un error al ${context.toLowerCase()}.`
-		: "Ocurrió un error inesperado.";
+    // Mensaje legible para UI
+    return context
+        ? `Ocurrió un error al ${context.toLowerCase()}.`
+        : 'Ocurrió un error inesperado.'
 }

@@ -1,16 +1,16 @@
 // src\store\useFlowStyleStore.ts
 
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
-type BackgroundType = "dots" | "lines";
-type EdgeType = "default" | "straight" | "step" | "smoothstep";
+type BackgroundType = 'dots' | 'lines'
+type EdgeType = 'default' | 'straight' | 'step' | 'smoothstep'
 
 interface FlowStyleState {
-	backgroundType: BackgroundType;
-	edgeType: EdgeType;
-	setBackgroundType: (type: BackgroundType) => void;
-	setEdgeType: (type: EdgeType) => void;
+    backgroundType: BackgroundType
+    edgeType: EdgeType
+    setBackgroundType: (type: BackgroundType) => void
+    setEdgeType: (type: EdgeType) => void
 }
 
 /**
@@ -18,13 +18,13 @@ interface FlowStyleState {
  * - Persistente con localStorage
  */
 export const useFlowStyleStore = create<FlowStyleState>()(
-	persist(
-		(set) => ({
-			backgroundType: "dots",
-			edgeType: "default",
-			setBackgroundType: (type) => set({ backgroundType: type }),
-			setEdgeType: (type) => set({ edgeType: type }),
-		}),
-		{ name: "flow-style-store" },
-	),
-);
+    persist(
+        (set) => ({
+            backgroundType: 'dots',
+            edgeType: 'default',
+            setBackgroundType: (type) => set({ backgroundType: type }),
+            setEdgeType: (type) => set({ edgeType: type }),
+        }),
+        { name: 'flow-style-store' }
+    )
+)
