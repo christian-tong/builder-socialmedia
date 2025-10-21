@@ -1,10 +1,10 @@
 // src\components\forms\FormMenuNodePrincipal.tsx
 
-'use client'
+"use client";
 
-import React from 'react'
-import { useMenuNodeForm } from '@/hooks/useMenuNodeForm'
-import { MenuNodeFormLayout } from '@/components/shared/MenuNodeFormLayout'
+import React from "react";
+import { MenuNodeFormLayout } from "@/components/shared/MenuNodeFormLayout";
+import { useMenuNodeForm } from "@/hooks/useMenuNodeForm";
 
 /**
  * 🟣 FormMenuNodePrincipal
@@ -14,22 +14,22 @@ import { MenuNodeFormLayout } from '@/components/shared/MenuNodeFormLayout'
  * - Sin duplicar lógica ni efectos locales
  */
 export default function FormMenuNodePrincipal({
-    id,
-    data,
+	id,
+	data,
 }: {
-    id: string
-    data: Record<string, any>
+	id: string;
+	data: Record<string, any>;
 }) {
-    const hook = useMenuNodeForm(id, data)
+	const hook = useMenuNodeForm(id, data);
 
-    return (
-        <MenuNodeFormLayout
-            id={id}
-            data={data}
-            color="violet"
-            variablePlaceholder="Ejemplo: PRIMER_NIVEL"
-            variableLabel="Variable principal"
-            hook={hook}
-        />
-    )
+	return (
+		<MenuNodeFormLayout
+			id={id}
+			data={data}
+			color="violet"
+			variablePlaceholder="Ejemplo: PRIMER_NIVEL"
+			variableLabel="Variable principal"
+			hook={hook}
+		/>
+	);
 }

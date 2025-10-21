@@ -1,10 +1,10 @@
 // src\components\layout\Footer.tsx
 
-'use client'
+"use client";
 
-import React from 'react'
-import { cn } from '@/lib/utils'
-import { useTheme } from '@/hooks/useTheme'
+import React from "react";
+import { useTheme } from "@/hooks/useTheme";
+import { cn } from "@/lib/utils";
 
 /**
  * 🔹 Footer — Pie de página reutilizable
@@ -13,21 +13,21 @@ import { useTheme } from '@/hooks/useTheme'
  * - Adapta sus colores dinámicamente al tema global
  */
 export function Footer() {
-    const { isDark } = useTheme()
-    const year = new Date().getFullYear()
+	const { isDark } = useTheme();
+	const year = new Date().getFullYear();
 
-    return (
-        <footer
-            className={cn(
-                'flex h-6 items-center justify-center border-t text-center text-[11px] transition-colors duration-500',
-                isDark
-                    ? 'border-gray-800 bg-[#141416] text-gray-600'
-                    : 'border-gray-200 bg-white text-gray-500'
-            )}
-        >
-            © {year} Flow Builder — powered by React Flow ⚙️
-        </footer>
-    )
+	return (
+		<footer
+			className={cn(
+				"flex h-6 items-center justify-center border-t text-center text-[11px] transition-colors duration-500",
+				isDark
+					? "border-gray-800 bg-[#141416] text-gray-600"
+					: "border-gray-200 bg-white text-gray-500",
+			)}
+		>
+			© {year} Flow Builder — powered by React Flow ⚙️
+		</footer>
+	);
 }
 
-export default Footer
+export default Footer;

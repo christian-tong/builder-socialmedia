@@ -6,6 +6,7 @@
         "dev": "next dev --turbopack",
         "build": "next build --turbopack",
         "prettier": "bunx prettier . --write",
+        "biome": "bunx biome check --write ./src",
         "start": "next start",
         "lint": "eslint"
     },
@@ -32,6 +33,7 @@
         "zustand": "^5.0.8"
     },
     "devDependencies": {
+        "@biomejs/biome": "^2.2.6",
         "@eslint/eslintrc": "^3",
         "@tailwindcss/postcss": "^4",
         "@types/node": "^20",
