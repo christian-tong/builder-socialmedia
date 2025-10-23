@@ -12,17 +12,16 @@ import { useFlowStore } from '@/store/useFlowStore'
  * 🧠 useNodeConnections
  * ----------------------------------------------------
  * Hook reutilizable para gestionar conexiones de nodos en ReactFlow.
+ * - Conexiones en tiempo real (sin guardar manualmente)
  * - Compatible con `handleId` (onTrue, onFalse, onError, option-x)
- * - Mantiene compatibilidad con conexiones simples
- * - Obtiene nodos previos/siguientes, crea y elimina edges
- * - 🚫 Evita conectar hacia startNode o desde endNode
+ * - Evita duplicar edges y valida conexiones según el tipo de nodo
  */
 export function useNodeConnections(nodeId: string) {
     const { edges, nodes, setEdges, getConnectedNodes } = useFlowStore()
     const [prevNodes, setPrevNodes] = useState<string[]>([])
     const [nextNodes, setNextNodes] = useState<string[]>([])
 
-    // 📊 Calcular nodos disponibles (sin incluir el actual, ni start/end)
+    // 📊 Calcular nodos disponibles (sin incluir el actual ni startNode)
     const availableNodes = useMemo(
         () => nodes.filter((n) => n.id !== nodeId && n.type !== 'startNode'),
         [nodes, nodeId]
@@ -48,7 +47,7 @@ export function useNodeConnections(nodeId: string) {
         )
 
     /**
-     * ⚙️ Crear una conexión (con soporte opcional de handleId)
+     * ⚙️ Crear una conexión en tiempo real
      */
     const createConnection = (targetId: string, handleId?: string) => {
         const sourceNode = nodes.find((n) => n.id === nodeId)
@@ -65,12 +64,8 @@ export function useNodeConnections(nodeId: string) {
         const isValid = validateConnection(connection, nodes)
         if (!isValid) return
 
-        if (hasConnection(targetId, handleId)) {
-            toast.info(
-                `🔗 Ya existe una conexión con ${targetNode.data?.label || targetId}`
-            )
-            return
-        }
+        // ⚠️ Evitar duplicados
+        if (hasConnection(targetId, handleId)) return
 
         const newEdge: Edge = {
             id: `edge-${nodeId}-${targetId}-${Date.now()}-${Math.random()
@@ -82,7 +77,9 @@ export function useNodeConnections(nodeId: string) {
             sourceHandle: handleId ?? null,
         }
 
+        // 🧠 Actualizar estado global instantáneamente
         setEdges((prev) => [...prev, newEdge])
+
         toast.success(
             `✅ Conectado con ${targetNode.data?.label || targetId}${
                 handleId ? ` (${handleId})` : ''
@@ -91,12 +88,10 @@ export function useNodeConnections(nodeId: string) {
     }
 
     /**
-     * ❌ Eliminar una conexión existente
-     * - Si se pasa handleId, elimina solo la de ese handle
+     * ❌ Eliminar una conexión existente en tiempo real
      */
     const removeConnection = (targetId: string, handleId?: string) => {
-        const exists = hasConnection(targetId, handleId)
-        if (!exists) return
+        if (!hasConnection(targetId, handleId)) return
 
         setEdges((prev) =>
             prev.filter(
@@ -115,7 +110,7 @@ export function useNodeConnections(nodeId: string) {
     }
 
     /**
-     * 🔀 Alternar conexión
+     * 🔀 Alternar conexión (útil para toggles o switches)
      */
     const toggleConnection = (
         targetId: string,

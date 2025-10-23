@@ -1,7 +1,8 @@
 // src\components\shared\NodeSelectAccordion.tsx
+
 'use client'
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { ChevronDown } from 'lucide-react'
 import {
     Accordion,
@@ -23,7 +24,6 @@ interface NodeSelectAccordionProps {
     availableNodes: any[]
     selectedId?: string
     onSelect: (id: string) => void
-    /** 🆕 Nuevo: cuando el usuario borra / limpia la selección */
     onUnselect?: () => void
     accentColor?: string
     handleId?: string
@@ -34,45 +34,58 @@ interface NodeSelectAccordionProps {
 /**
  * 🎯 NodeSelectAccordion
  * --------------------------------------------------
- * - Selector visual de un solo nodo destino
- * - Crea o elimina conexiones (edges) en ReactFlow
- * - Compatible con handleId (onTrue / onFalse / option-0…)
+ * - Compatible con `MenuNodeFormLayout` y `VariantOptionAccordion`
+ * - Soporta deselección manual ("Ninguno") y limpieza automática
+ *   cuando el nodo conectado desaparece del canvas.
  */
 export function NodeSelectAccordion({
     title,
     availableNodes,
     selectedId,
     onSelect,
-    onUnselect, // ✅ Nueva prop
+    onUnselect,
     handleId,
     createConnection,
     removeConnection,
     accentColor = 'text-gray-700 dark:text-gray-300',
 }: NodeSelectAccordionProps) {
+    // 🧠 Limpieza automática si el nodo ya no existe
+    useEffect(() => {
+        if (!selectedId) return
+        const stillExists = availableNodes.some((n) => n.id === selectedId)
+        if (!stillExists) {
+            onUnselect?.()
+            onSelect('')
+        }
+    }, [availableNodes, selectedId, onSelect, onUnselect])
+
+    // 📋 Etiqueta visible
     const selectedNodeLabel =
         availableNodes.find((n) => n.id === selectedId)?.data?.label ||
-        selectedId ||
-        '—'
+        (selectedId ? selectedId : '—')
 
+    // ⚙️ Selección de nodo
     const handleSelect = (targetId: string) => {
+        // 🔹 Si selecciona “Ninguno”
         if (targetId === '__none__') {
-            // 🧹 Si selecciona “Ninguno”, limpia conexión
-            onUnselect?.()
             if (removeConnection && selectedId) {
                 removeConnection(selectedId, handleId)
             }
+            onUnselect?.()
+            onSelect('')
             return
         }
 
-        onSelect(targetId)
+        // 🔄 Si cambia de nodo
+        if (removeConnection && selectedId && selectedId !== targetId) {
+            removeConnection(selectedId, handleId)
+        }
 
         if (createConnection && targetId) {
             createConnection(targetId, handleId)
         }
 
-        if (removeConnection && selectedId && selectedId !== targetId) {
-            removeConnection(selectedId, handleId)
-        }
+        onSelect(targetId)
     }
 
     return (
@@ -98,14 +111,15 @@ export function NodeSelectAccordion({
                                 Seleccionar nodo destino
                             </Label>
                             <Select
-                                value={selectedId || ''}
-                                onValueChange={(val) => handleSelect(val)}
+                                value={selectedId || '__none__'}
+                                onValueChange={handleSelect}
                             >
                                 <SelectTrigger className="w-full text-xs dark:bg-gray-900/50">
                                     <SelectValue placeholder="Elegir nodo destino" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem key="none" value="__none__">
+                                    {/* ✅ Opción válida para limpiar selección */}
+                                    <SelectItem value="__none__">
                                         — Ninguno —
                                     </SelectItem>
                                     {availableNodes.map((node) => (

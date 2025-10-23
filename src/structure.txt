@@ -41,6 +41,7 @@ D:.
 ¦   ¦       TimeConditionNode.tsx
 ¦   ¦       
 ¦   +---shared
+¦   ¦       BaseVariantFields.tsx
 ¦   ¦       BeforeUnloadModal.tsx
 ¦   ¦       ColorPicker.tsx
 ¦   ¦       DraggableWrapper.tsx
@@ -51,6 +52,8 @@ D:.
 ¦   ¦       MenuNodeFormLayout.tsx
 ¦   ¦       NodeConnectionsAccordion.tsx
 ¦   ¦       NodeSelectAccordion.tsx
+¦   ¦       useVariantOptions.ts
+¦   ¦       VariantOptionAccordion.tsx
 ¦   ¦       
 ¦   +---ui
 ¦           accordion.tsx
@@ -82,9 +85,12 @@ D:.
 ¦       useKeyboard.ts
 ¦       useKeyboardShortcut.ts
 ¦       useMenuNodeForm.ts
+¦       useMenuNodeOptions.ts
+¦       useMenuNodeSync.ts
 ¦       useNodeConnections.ts
 ¦       useNodeValidation.ts
 ¦       useTheme.ts
+¦       useVariantOptions.ts
 ¦       
 +---lib
 ¦       autoLayout.ts
@@ -131,4 +137,5 @@ D:.
 ¦       
 +---utils
         generateNodeId.ts
+        helpers.ts
         
