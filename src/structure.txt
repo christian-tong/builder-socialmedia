@@ -12,14 +12,19 @@ D:.
 ¦   ¦       NodeConfigSidebar.tsx
 ¦   ¦       
 ¦   +---forms
-¦   ¦       FormDerivateNode.tsx
-¦   ¦       FormEndNode.tsx
-¦   ¦       FormMenuNodePrincipal.tsx
-¦   ¦       FormMenuNodeSecundario.tsx
-¦   ¦       FormSimpleTextNode.tsx
-¦   ¦       FormStartNode.tsx
-¦   ¦       FormTimeConditionNode.tsx
-¦   ¦       
+¦   ¦   ¦   FormDerivateNode.tsx
+¦   ¦   ¦   FormEndNode.tsx
+¦   ¦   ¦   FormMenuNode.tsx
+¦   ¦   ¦   FormSimpleTextNode.tsx
+¦   ¦   ¦   FormStartNode.tsx
+¦   ¦   ¦   FormTimeConditionNode.tsx
+¦   ¦   ¦   
+¦   ¦   +---Variants
+¦   ¦       +---Menu
+¦   ¦               index.ts
+¦   ¦               VariantListForm.tsx
+¦   ¦               VariantQuickReplyForm.tsx
+¦   ¦               
 ¦   +---layout
 ¦   ¦       Footer.tsx
 ¦   ¦       Header.tsx
@@ -30,8 +35,7 @@ D:.
 ¦   +---nodes
 ¦   ¦       DerivateNode.tsx
 ¦   ¦       EndNode.tsx
-¦   ¦       MenuNodePrincipal.tsx
-¦   ¦       MenuNodeSecundario.tsx
+¦   ¦       MenuNode.tsx
 ¦   ¦       SimpleTextNode.tsx
 ¦   ¦       StartNode.tsx
 ¦   ¦       TimeConditionNode.tsx
@@ -44,22 +48,29 @@ D:.
 ¦   ¦       Icon.tsx
 ¦   ¦       ImportJsonModal.tsx
 ¦   ¦       LogoWimprove.tsx
+¦   ¦       MenuNodeFormLayout.tsx
+¦   ¦       NodeConnectionsAccordion.tsx
+¦   ¦       NodeSelectAccordion.tsx
 ¦   ¦       
 ¦   +---ui
 ¦           accordion.tsx
 ¦           badge.tsx
 ¦           button.tsx
 ¦           card.tsx
+¦           checkbox.tsx
 ¦           dialog.tsx
+¦           index.ts
 ¦           input.tsx
 ¦           label.tsx
 ¦           scroll-area.tsx
 ¦           select.tsx
 ¦           sheet.tsx
 ¦           sonner.tsx
+¦           switch.tsx
 ¦           textarea.tsx
 ¦           
 +---config
+¦       getDataVariantsConfig.ts
 ¦       nodesConfig.ts
 ¦       nodesForms.ts
 ¦       nodeTemplates.ts
@@ -70,11 +81,14 @@ D:.
 ¦       useFlowHandlers.ts
 ¦       useKeyboard.ts
 ¦       useKeyboardShortcut.ts
+¦       useMenuNodeForm.ts
+¦       useNodeConnections.ts
 ¦       useNodeValidation.ts
 ¦       useTheme.ts
 ¦       
 +---lib
 ¦       autoLayout.ts
+¦       flowValidations.ts
 ¦       jsonExportImport.ts
 ¦       jsonFlowGenerator.ts
 ¦       jsonImporterWiContact.ts
@@ -111,7 +125,9 @@ D:.
 ¦       globals.css
 ¦       
 +---types
+¦       dagre.d.ts
 ¦       flow.ts
+¦       sj.ts
 ¦       
 +---utils
         generateNodeId.ts

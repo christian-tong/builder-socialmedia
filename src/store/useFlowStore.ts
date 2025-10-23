@@ -12,6 +12,9 @@ interface FlowState {
     edges: Edge[]
     setNodes: (nodes: Node[] | ((prev: Node[]) => Node[])) => void
     setEdges: (edges: Edge[] | ((prev: Edge[]) => Edge[])) => void
+    updateNodeOptions: (id: string, options: any[]) => void
+    updateNodeColor: (id: string, color: string) => void
+    createEdge: (sourceId: string, targetId: string, handleId?: string) => void
     exportFlow: () => void
     importFlow: (file: File) => Promise<{ nodes: Node[]; edges: Edge[] } | null>
     getConnectedNodes: (id: string) => { prev: Node[]; next: Node[] }
@@ -33,6 +36,53 @@ export const useFlowStore = create<FlowState>((set, get) => ({
                 typeof updater === 'function' ? updater(state.edges) : updater,
         })),
 
+    // 🔁 Actualiza las opciones de un nodo en tiempo real
+    updateNodeOptions: (id, options) => {
+        set({
+            nodes: get().nodes.map((node) =>
+                node.id === id
+                    ? { ...node, data: { ...node.data, options } }
+                    : node
+            ),
+        })
+    },
+
+    // 🎨 Cambia el color visual del nodo
+    updateNodeColor: (id, color) => {
+        set({
+            nodes: get().nodes.map((node) =>
+                node.id === id
+                    ? { ...node, data: { ...node.data, colorVariant: color } }
+                    : node
+            ),
+        })
+    },
+
+    // 🔗 Crea un nuevo edge programáticamente
+    createEdge: (sourceId, targetId, handleId = undefined) => {
+        if (!targetId || !sourceId) return
+        const { edges } = get()
+        const exists = edges.some(
+            (e) =>
+                e.source === sourceId &&
+                e.target === targetId &&
+                e.sourceHandle === handleId
+        )
+        if (exists) return
+
+        const newEdge: Edge = {
+            id: `edge-${sourceId}-${targetId}-${handleId || 'default'}`,
+            source: sourceId,
+            target: targetId,
+            sourceHandle: handleId,
+            animated: true,
+            style: { strokeWidth: 2 },
+        }
+
+        set({ edges: [...edges, newEdge] })
+        toast.success(`🔗 Conectado ${sourceId} → ${targetId}`)
+    },
+
     exportFlow: () => {
         const { nodes, edges } = get()
         if (!nodes || nodes.length === 0) {
@@ -50,7 +100,6 @@ export const useFlowStore = create<FlowState>((set, get) => ({
 
             // 🧩 Caso 1: Formato ReactFlow
             if (parsed.nodes && Array.isArray(parsed.nodes)) {
-                // Aplicar auto-layout para evitar solapamientos al importar
                 try {
                     const laidOutNodes = applyAutoLayout(
                         parsed.nodes,
@@ -60,11 +109,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
                     set({ nodes: laidOutNodes, edges: parsed.edges || [] })
                     toast.success('✅ Flujo importado (React Flow)')
                     return { nodes: laidOutNodes, edges: parsed.edges || [] }
-                } catch (err) {
-                    console.warn(
-                        'Auto-layout falló, usando posiciones originales',
-                        err
-                    )
+                } catch {
                     set({ nodes: parsed.nodes, edges: parsed.edges || [] })
                     toast.success('✅ Flujo importado (React Flow)')
                     return { nodes: parsed.nodes, edges: parsed.edges || [] }
@@ -74,17 +119,12 @@ export const useFlowStore = create<FlowState>((set, get) => ({
             // 🧩 Caso 2: Formato WiContact
             if (parsed.process?.steps) {
                 const { nodes, edges } = convertWiContactToFlow(parsed)
-                // Aplicar auto-layout para evitar solapamientos (menus/ends especialmente)
                 try {
                     const laidOut = applyAutoLayout(nodes, edges, 'vertical')
                     set({ nodes: laidOut, edges })
                     toast.success('✅ Flujo importado (WiContact)')
                     return { nodes: laidOut, edges }
-                } catch (err) {
-                    console.warn(
-                        'Auto-layout falló para WiContact, usando posiciones originales',
-                        err
-                    )
+                } catch {
                     set({ nodes, edges })
                     toast.success('✅ Flujo importado (WiContact)')
                     return { nodes, edges }

@@ -11,11 +11,11 @@ import {
 } from 'lucide-react'
 import DerivateNode from '@/components/nodes/DerivateNode'
 import EndNode from '@/components/nodes/EndNode'
-import MenuNodePrincipal from '@/components/nodes/MenuNodePrincipal'
-import MenuNodeSecundario from '@/components/nodes/MenuNodeSecundario'
+import MenuNodePrincipal from '@/components/nodes/MenuNode'
 import { SimpleTextNode } from '@/components/nodes/SimpleTextNode'
 import { StartNode } from '@/components/nodes/StartNode'
 import TimeConditionNode from '@/components/nodes/TimeConditionNode'
+import MenuNode from '@/components/nodes/MenuNode'
 
 // =============================================================
 // 🔒 Extiende el namespace global (para cachear nodeTypes)
@@ -36,17 +36,12 @@ export const nodeRegistry = [
         component: StartNode,
     },
     {
-        type: 'menuNodePrincipal',
-        label: 'Menú Principal',
+        type: 'menuNode',
+        label: 'Menú',
         icon: ListTree,
-        component: MenuNodePrincipal,
+        component: MenuNode,
     },
-    {
-        type: 'menuNodeSecundario',
-        label: 'Menú Secundario',
-        icon: ListChecks,
-        component: MenuNodeSecundario,
-    },
+
     {
         type: 'timeConditionNode',
         label: 'Condición Tiempo',

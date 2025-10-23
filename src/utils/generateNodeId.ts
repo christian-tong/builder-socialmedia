@@ -1,26 +1,15 @@
 // src\utils\generateNodeId.ts
 
-let menuPrincipalCounter = 0
-let menuSecundarioCounter = 0
+let getdatacompleteCounter = 0
 let simpleTextCounter = 0
 let derivateCounter = 0
 let timeConditionCounter = 0
 let endCounter = 0
 
 /** 🟣 Menu Principal */
-export function generateMenuPrincipalId(): string {
-    const id = `GetDataMain${String(menuPrincipalCounter).padStart(4, '0')}`
-    menuPrincipalCounter++
-    return id
-}
-
-/** 🔵 Menu Secundario */
-export function generateMenuSecundarioId(): string {
-    const id = `GetDataComplete${String(menuSecundarioCounter + 1000).padStart(
-        4,
-        '0'
-    )}`
-    menuSecundarioCounter++
+export function getMenuId(): string {
+    const id = `GetDataComplete${String(getdatacompleteCounter).padStart(4, '0')}`
+    getdatacompleteCounter++
     return id
 }
 
@@ -54,8 +43,7 @@ export function generateEndId(): string {
 
 /** 🔁 Reset manual */
 export function resetNodeCounters() {
-    menuPrincipalCounter = 0
-    menuSecundarioCounter = 0
+    getdatacompleteCounter = 0
     simpleTextCounter = 0
     derivateCounter = 0
     timeConditionCounter = 0

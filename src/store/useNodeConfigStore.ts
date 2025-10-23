@@ -15,6 +15,7 @@ interface NodeConfigState {
     selectedNode: NodeConfig | null
     setSelectedNode: (node: NodeConfig | null) => void
     updateNodeData: (id: string, newData: Record<string, any>) => void
+    syncNodeOptions: (id: string, options: any[]) => void
     saveNodeDataToFlow: () => void
     exportConfig: () => void
     importConfig: (file: File) => Promise<void>
@@ -35,6 +36,12 @@ export const useNodeConfigStore = create<NodeConfigState>((set, get) => ({
                 },
             })
         }
+    },
+
+    // 🔁 Sincroniza opciones desde el formulario con el nodo del flujo
+    syncNodeOptions: (id, options) => {
+        const flow = useFlowStore.getState()
+        flow.updateNodeOptions(id, options)
     },
 
     // 💾 Guardar datos del nodo en el flujo global

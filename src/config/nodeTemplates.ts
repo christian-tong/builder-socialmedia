@@ -2,8 +2,7 @@
 import {
     generateDerivateId,
     generateEndId,
-    generateMenuPrincipalId,
-    generateMenuSecundarioId,
+    getMenuId,
     generateSimpleTextId,
     generateTimeConditionId,
 } from '@/utils/generateNodeId'
@@ -31,8 +30,8 @@ export const nodeTemplates: Record<
     },
 
     /** 🟣 Menú Principal */
-    menuNodePrincipal: () => {
-        const id = generateMenuPrincipalId()
+    menuNode: () => {
+        const id = getMenuId()
         return {
             id,
             data: {
@@ -40,23 +39,6 @@ export const nodeTemplates: Record<
                 message: '',
                 variable: '',
                 options: [{ postbackText: '1', title: 'Opción 1', next: '' }],
-            },
-        }
-    },
-
-    /** 🔵 Menú Secundario */
-    menuNodeSecundario: () => {
-        const id = generateMenuSecundarioId()
-        return {
-            id,
-            data: {
-                label: id,
-                message: '',
-                variable: '',
-                options: [
-                    { postbackText: '1', title: 'Opción 1', next: '' },
-                    { postbackText: '0', title: 'Menú anterior', next: '' },
-                ],
             },
         }
     },

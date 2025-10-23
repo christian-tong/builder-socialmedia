@@ -1,8 +1,8 @@
 // src\components\shared\NodeSelectAccordion.tsx
 'use client'
 
-import { ChevronDown } from 'lucide-react'
 import React from 'react'
+import { ChevronDown } from 'lucide-react'
 import {
     Accordion,
     AccordionContent,
@@ -23,8 +23,9 @@ interface NodeSelectAccordionProps {
     availableNodes: any[]
     selectedId?: string
     onSelect: (id: string) => void
+    /** 🆕 Nuevo: cuando el usuario borra / limpia la selección */
+    onUnselect?: () => void
     accentColor?: string
-    /** 🆕 Nuevo: soporte de conexiones con handleId */
     handleId?: string
     createConnection?: (targetId: string, handleId?: string) => void
     removeConnection?: (targetId: string, handleId?: string) => void
@@ -33,35 +34,42 @@ interface NodeSelectAccordionProps {
 /**
  * 🎯 NodeSelectAccordion
  * --------------------------------------------------
- * - Selector simple de un solo nodo destino
- * - Crea visualmente la conexión (edge) en ReactFlow
- * - Compatible con `handleId` (onTrue, onFalse, onError)
+ * - Selector visual de un solo nodo destino
+ * - Crea o elimina conexiones (edges) en ReactFlow
+ * - Compatible con handleId (onTrue / onFalse / option-0…)
  */
 export function NodeSelectAccordion({
     title,
     availableNodes,
     selectedId,
     onSelect,
+    onUnselect, // ✅ Nueva prop
     handleId,
     createConnection,
     removeConnection,
     accentColor = 'text-gray-700 dark:text-gray-300',
 }: NodeSelectAccordionProps) {
-    const selectedNode =
+    const selectedNodeLabel =
         availableNodes.find((n) => n.id === selectedId)?.data?.label ||
         selectedId ||
         '—'
 
     const handleSelect = (targetId: string) => {
-        // 1️⃣ Actualiza la data del nodo
+        if (targetId === '__none__') {
+            // 🧹 Si selecciona “Ninguno”, limpia conexión
+            onUnselect?.()
+            if (removeConnection && selectedId) {
+                removeConnection(selectedId, handleId)
+            }
+            return
+        }
+
         onSelect(targetId)
 
-        // 2️⃣ Crea visualmente la conexión con el handle correcto
         if (createConnection && targetId) {
             createConnection(targetId, handleId)
         }
 
-        // 3️⃣ Elimina la conexión anterior si existía
         if (removeConnection && selectedId && selectedId !== targetId) {
             removeConnection(selectedId, handleId)
         }
@@ -75,7 +83,7 @@ export function NodeSelectAccordion({
                         {title}
                     </span>
                     <span className="font-mono text-[11px] opacity-80">
-                        {selectedNode}
+                        {selectedNodeLabel}
                     </span>
                 </AccordionTrigger>
 
@@ -97,6 +105,9 @@ export function NodeSelectAccordion({
                                     <SelectValue placeholder="Elegir nodo destino" />
                                 </SelectTrigger>
                                 <SelectContent>
+                                    <SelectItem key="none" value="__none__">
+                                        — Ninguno —
+                                    </SelectItem>
                                     {availableNodes.map((node) => (
                                         <SelectItem
                                             key={node.id}
