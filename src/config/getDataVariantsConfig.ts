@@ -1,22 +1,9 @@
 // src\config\getDataVariantsConfig.ts
 
+// src/config/getDataVariantsConfig.ts
 import { WiGetDataVariantMap } from '@/types/sj'
 
-/**
- * 🎛️ getDataVariantsConfig
- * --------------------------------------------------
- * Config central de variantes para nodos `getdatacomplete`
- * Define la estructura base del `object` sin datos predefinidos.
- */
-export const getDataVariantsConfig: Record<
-    WiGetDataVariantMap['variant'],
-    {
-        label: string
-        description: string
-        color: string
-        defaultObject: any
-    }
-> = {
+export const getDataVariantsConfig = {
     /** 🟣 Quick Reply — Menú Principal */
     quick_reply: {
         label: 'Menú principal (Quick Reply)',
@@ -25,6 +12,7 @@ export const getDataVariantsConfig: Record<
         color: 'violet',
         defaultObject: {
             setvariables: {},
+            conditions: {},
             condition: '',
             setvar: 'PRIMER_NIVEL',
             variable: 'PrimeraOpcion',
@@ -55,6 +43,7 @@ export const getDataVariantsConfig: Record<
         color: 'sky',
         defaultObject: {
             setvariables: {},
+            conditions: {},
             condition: '',
             setvar: 'SEGUNDO_NIVEL',
             variable: 'SegundaOpcion',
@@ -79,4 +68,7 @@ export const getDataVariantsConfig: Record<
             },
         },
     },
-}
+} as const
+
+// 🔹 Tipo derivado automáticamente (todas las variantes disponibles)
+export type VariantKey = keyof typeof getDataVariantsConfig

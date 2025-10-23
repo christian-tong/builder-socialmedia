@@ -92,9 +92,9 @@ export function useMenuNodeSync(
         // 🧹 4️⃣ Eliminar edges inválidos del flujo global
         if (removedEdges.length > 0) {
             setEdges((prev) => prev.filter((e) => !removedEdges.includes(e.id)))
-            toast.info('🧹 Edges huérfanos eliminados', {
-                description: `${removedEdges.length} conexiones inválidas fueron removidas automáticamente.`,
-            })
+            // toast.info('🧹 Edges huérfanos eliminados', {
+            //     description: `${removedEdges.length} conexiones inválidas fueron removidas automáticamente.`,
+            // })
         }
 
         // 💾 5️⃣ Guardar cambios en el nodo

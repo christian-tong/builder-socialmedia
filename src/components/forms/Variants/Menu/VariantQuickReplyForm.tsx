@@ -1,17 +1,16 @@
 // src\components\forms\Variants\Menu\VariantQuickReplyForm.tsx
 
+// src/components/forms/Variants/Menu/VariantQuickReplyForm.tsx
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Label, Textarea, Input, Button } from '@/components/ui'
 import { Plus } from 'lucide-react'
 import { useVariantOptionsManager } from '@/hooks/useVariantOptionsManager'
 import { VariantBaseConfigFields } from '@/components/shared/VariantBaseConfigFields'
 import { VariantOptionAccordion } from '@/components/shared/VariantOptionAccordion'
+import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 
-/* ------------------------------------------------------------
-   🔹 Tipos base
------------------------------------------------------------- */
 interface QuickReplyOption {
     postbackText: string
     type: 'text'
@@ -29,14 +28,6 @@ interface QuickReplyObject {
     setvariables?: Record<string, string>
     conditions?: Record<string, string>
     interactive?: Interactive
-    variable?: string
-    alias?: string
-    iterations?: string
-    timeOut?: string
-    condition?: string
-    groodText?: string
-    setvar?: string
-    saveHidden?: boolean
 }
 
 interface VariantQuickReplyFormProps {
@@ -45,35 +36,41 @@ interface VariantQuickReplyFormProps {
     onChange: (path: string, value: unknown) => void
 }
 
-/* ------------------------------------------------------------
-   💬 Quick Reply Form — modularizado
------------------------------------------------------------- */
 export function VariantQuickReplyForm({
     id,
     data,
     onChange,
 }: VariantQuickReplyFormProps) {
+    const { setVariantOptions, setVariantConditions, setVariantType } =
+        useVariantTypeStore()
+
     const interactive = data?.object?.interactive ?? {
         type: 'quick_reply',
         options: [],
     }
 
-    const setvariables = data?.object?.setvariables ?? {}
     const conditions = data?.object?.conditions ?? {}
 
-    // 🧩 Hook que maneja opciones (agregar, actualizar, eliminar)
-    const {
-        options,
-        addOption,
-        removeOption,
-        updateOption,
-        availableNumbers,
-        usedNumbers,
-    } = useVariantOptionsManager(interactive.options, (updated) =>
-        onChange('object.interactive.options', updated)
-    )
+    const { options, addOption, removeOption, updateOption, availableNumbers } =
+        useVariantOptionsManager(interactive.options, (updated) =>
+            onChange('object.interactive.options', updated)
+        )
 
     const [expandedIndex, setExpandedIndex] = useState<number | null>(0)
+
+    // 🧩 Sincroniza con store Zustand
+    useEffect(() => {
+        setVariantType(id, 'quick_reply')
+        setVariantOptions(id, options)
+        setVariantConditions(id, conditions)
+    }, [
+        id,
+        options,
+        conditions,
+        setVariantOptions,
+        setVariantConditions,
+        setVariantType,
+    ])
 
     return (
         <div className="flex flex-col gap-4 border-t pt-3">
@@ -81,7 +78,7 @@ export function VariantQuickReplyForm({
                 💬 Quick Reply — Configuración
             </Label>
 
-            {/* 📨 Texto principal */}
+            {/* Texto principal */}
             <Textarea
                 value={decodeURIComponent(interactive.content?.text || '')}
                 onChange={(e) =>
@@ -94,29 +91,13 @@ export function VariantQuickReplyForm({
                 className="text-sm dark:bg-gray-900/40"
             />
 
-            {/* 🔢 ID del mensaje */}
-            <div className="flex flex-col gap-1">
-                <Label className="text-sm font-medium">
-                    ID del mensaje (msgid)
-                </Label>
-                <Input
-                    value={interactive.msgid || ''}
-                    onChange={(e) =>
-                        onChange('object.interactive.msgid', e.target.value)
-                    }
-                    placeholder="Ej. qr1"
-                    className="text-sm dark:bg-gray-900/40"
-                />
-            </div>
-
-            {/* 🧩 Opciones dinámicas */}
-            <div className="flex flex-col gap-3 rounded-md border border-violet-300/40 bg-violet-50/40 p-3 dark:border-gray-700 dark:bg-gray-900/30">
+            {/* Opciones */}
+            <div className="flex flex-col gap-3 rounded-md border border-violet-300/40 bg-violet-50/40 p-3">
                 <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium text-violet-700 dark:text-violet-300">
                         Opciones ({options.length})
                     </Label>
                     <Button
-                        variant="default"
                         size="sm"
                         onClick={addOption}
                         disabled={availableNumbers.length === 0}
@@ -128,24 +109,20 @@ export function VariantQuickReplyForm({
 
                 {options.map((opt, i) => (
                     <VariantOptionAccordion
-                        key={i}
+                        key={`qr-${id}-${opt.postbackText}`}
                         index={i}
-                        nodeId={id} // ✅ Necesario para useNodeConnections
+                        nodeId={id}
                         option={opt}
                         color="violet"
                         conditions={conditions}
-                        setvariables={setvariables}
-                        usedNumbers={usedNumbers}
-                        expanded={expandedIndex === i}
-                        onExpand={setExpandedIndex}
-                        onUpdate={updateOption} // ✅ Corregido
-                        onRemove={removeOption} // ✅ Corregido
+                        onUpdate={updateOption}
+                        onRemove={removeOption}
                         onChange={onChange}
+                        handlePrefix="qr"
                     />
                 ))}
             </div>
 
-            {/* ⚙️ Campos base comunes */}
             <VariantBaseConfigFields data={data} onChange={onChange} />
         </div>
     )

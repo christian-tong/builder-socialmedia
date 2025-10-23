@@ -2,56 +2,48 @@
 
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect } from 'react'
 import { MenuNodeFormLayout } from '@/components/shared/MenuNodeFormLayout'
 import { useMenuNodeForm } from '@/hooks/useMenuNodeForm'
 import { WiGetDataComplete } from '@/types/sj'
+import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 
-/**
- * 🧠 FormMenuNodeGetDataComplete
- * --------------------------------------------------
- * Formulario unificado para ambos tipos de nodos:
- * - Menú Principal (quick_reply)
- * - Menú Secundario (list)
- *
- * Detecta automáticamente el tipo de interacción y
- * ajusta colores, labels y placeholders dinámicamente.
- */
 export default function FormMenuNode({
-	id,
-	data,
+    id,
+    data,
 }: {
-	id: string
-	data: WiGetDataComplete
+    id: string
+    data: WiGetDataComplete
 }) {
-	const hook = useMenuNodeForm(id, data as any)
+    const hook = useMenuNodeForm(id, data as any)
+    const { setVariantType } = useVariantTypeStore()
 
-	// 🧩 Determinar tipo de comportamiento
-	const variant = useMemo(() => {
-		const interactiveType = data?.object?.interactive?.type
-		if (interactiveType === 'list') return 'list'
-		return 'quick_reply' // default
-	}, [data])
+    const variant = useMemo(() => {
+        const interactiveType = data?.object?.interactive?.type
+        return interactiveType === 'list' ? 'list' : 'quick_reply'
+    }, [data])
 
-	// 🎨 Configuración dinámica según el tipo
-	const color = variant === 'quick_reply' ? 'violet' : 'sky'
-	const variableLabel =
-		variant === 'quick_reply'
-			? 'Variable principal'
-			: 'Variable secundaria'
-	const variablePlaceholder =
-		variant === 'quick_reply'
-			? 'Ejemplo: PRIMER_NIVEL'
-			: 'Ejemplo: SEGUNDO_NIVEL'
+    // 🧠 Guardar el tipo seleccionado en Zustand
+    useEffect(() => {
+        setVariantType(id, variant)
+    }, [id, variant, setVariantType])
 
-	return (
-		<MenuNodeFormLayout
-			id={id}
-			data={data}
-			color={color}
-			variableLabel={variableLabel}
-			variablePlaceholder={variablePlaceholder}
-			hook={hook}
-		/>
-	)
+    const color = variant === 'quick_reply' ? 'violet' : 'sky'
+    const variableLabel =
+        variant === 'quick_reply' ? 'Variable principal' : 'Variable secundaria'
+    const variablePlaceholder =
+        variant === 'quick_reply'
+            ? 'Ejemplo: PRIMER_NIVEL'
+            : 'Ejemplo: SEGUNDO_NIVEL'
+
+    return (
+        <MenuNodeFormLayout
+            id={id}
+            data={data}
+            color={color}
+            variableLabel={variableLabel}
+            variablePlaceholder={variablePlaceholder}
+            hook={hook}
+        />
+    )
 }

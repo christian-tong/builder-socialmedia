@@ -14,6 +14,8 @@ interface Option {
  * Maneja la lógica de agregar, eliminar y actualizar opciones
  * para variantes (QuickReply, List, etc.), incluyendo los
  * números disponibles (0–9) y sincronización con el padre.
+ *
+ * ✅ Corregido: ahora sincroniza automáticamente cuando cambian las opciones del padre.
  */
 export function useVariantOptionsManager(
     initialOptions: Option[] = [],
@@ -22,6 +24,27 @@ export function useVariantOptionsManager(
 ) {
     const [options, setOptions] = useState<Option[]>(initialOptions)
 
+    /**
+     * 🧠 Sincroniza automáticamente si las props externas cambian
+     * (por ejemplo, cuando el nodo se actualiza desde ReactFlow o JSON)
+     */
+    useEffect(() => {
+        const isDifferent =
+            initialOptions.length !== options.length ||
+            initialOptions.some(
+                (opt, i) =>
+                    opt.postbackText !== options[i]?.postbackText ||
+                    opt.title !== options[i]?.title
+            )
+
+        if (isDifferent) {
+            setOptions(initialOptions)
+        }
+    }, [initialOptions])
+
+    /**
+     * 🚀 Inicializa con una opción por defecto si está vacío
+     */
     useEffect(() => {
         if (autoInit && options.length === 0) {
             const defaultOpt = {
@@ -40,6 +63,9 @@ export function useVariantOptionsManager(
         String(i)
     ).filter((n) => !usedNumbers.includes(n))
 
+    /**
+     * ➕ Agregar nueva opción
+     */
     const addOption = () => {
         const next = availableNumbers[0]
         if (!next) return
@@ -53,6 +79,9 @@ export function useVariantOptionsManager(
         onChange(updated)
     }
 
+    /**
+     * 🗑️ Eliminar opción por índice
+     */
     const removeOption = (index: number) => {
         if (options.length === 1) return
         const updated = options.filter((_, i) => i !== index)
@@ -60,6 +89,9 @@ export function useVariantOptionsManager(
         onChange(updated)
     }
 
+    /**
+     * ✏️ Actualizar valor de una opción
+     */
     const updateOption = (
         index: number,
         field: keyof Option,
@@ -71,7 +103,6 @@ export function useVariantOptionsManager(
         onChange(updated)
     }
 
-    // ✅ Ahora incluye usedNumbers en el return
     return {
         options,
         addOption,

@@ -1,9 +1,8 @@
 // src\components\shared\MenuNodeFormLayout.tsx
-
 'use client'
 
 import clsx from 'clsx'
-import { Plus, Settings2, Trash2 } from 'lucide-react'
+import { Settings2 } from 'lucide-react'
 import React, { useEffect } from 'react'
 import { NodeConnectionsAccordion } from '@/components/shared/NodeConnectionsAccordion'
 import { NodeSelectAccordion } from '@/components/shared/NodeSelectAccordion'
@@ -14,10 +13,8 @@ import {
     AccordionTrigger,
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
     Select,
     SelectTrigger,
@@ -34,6 +31,7 @@ import type { WiGetDataVariantMap } from '@/types/sj'
 import type { useMenuNodeForm } from '@/hooks/useMenuNodeForm'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { Switch } from '@/components/ui/switch'
+import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 
 /**
  * 🧩 Estructura base estándar para cada nodo de tipo "getdatacomplete"
@@ -59,10 +57,8 @@ interface MenuNodeFormLayoutProps {
 
 /**
  * 🎨 MenuNodeFormLayout
- * --------------------------------------------------
- * - Usa plantilla base (onTrue, onError, etc.)
- * - Crea una opción por defecto si no existen
- * - Sincroniza inputs, selects, condiciones y conexiones
+ * - Sincroniza tipo de variante con Zustand
+ * - Permite editar opciones, condiciones y flujo de salida
  */
 export function MenuNodeFormLayout({
     id,
@@ -78,19 +74,21 @@ export function MenuNodeFormLayout({
         availableNodes,
         createConnection,
         removeConnection,
-        expandedOptionIndex,
-        setExpandedOptionIndex,
-        connections,
-        options,
-        messageRef,
-        handleAddOption,
-        handleRemoveOption,
-        handleUpdateOption,
     } = hook
 
     const { updateNodeData } = useNodeConfigStore()
-    const variantType = (data?.object?.interactive?.type ||
-        'quick_reply') as WiGetDataVariantMap['variant']
+    const {
+        setVariantType,
+        getVariantType,
+        setVariantAll,
+        setVariantOptions,
+        setVariantConditions,
+    } = useVariantTypeStore()
+
+    const variantType =
+        getVariantType(id) ||
+        ((data?.object?.interactive?.type ||
+            'quick_reply') as WiGetDataVariantMap['variant'])
 
     const colorText = color === 'violet' ? 'text-violet-700' : 'text-sky-700'
     const colorAccent = color === 'violet' ? 'violet' : 'sky'
@@ -110,22 +108,36 @@ export function MenuNodeFormLayout({
         return clone
     }
 
-    /**
-     * 🚀 Inicializa el nodo con la estructura base y al menos una opción
-     */
+    /** 🚀 Inicialización */
     useEffect(() => {
         if (!data || !data.object) {
             const defaultObject =
                 getDataVariantsConfig[variantType]?.defaultObject ||
                 getDataVariantsConfig['quick_reply']?.defaultObject
 
-            updateNodeData(id, {
+            const newData = {
                 ...defaultBaseData,
                 id,
                 object: structuredClone(defaultObject),
+            }
+
+            updateNodeData(id, newData)
+            setVariantAll(id, {
+                type: variantType,
+                options:
+                    (newData.object?.interactive as any)?.options ??
+                    (newData.object?.interactive as any)?.items?.[0]?.options ??
+                    [],
+                conditions: newData.object?.conditions ?? {},
             })
         }
-    }, [data, id, updateNodeData, variantType])
+    }, [data, id, updateNodeData, setVariantAll, variantType])
+
+    /** 🔄 Sincroniza tipo en store cuando cambia */
+    useEffect(() => {
+        if (data?.object?.interactive?.type)
+            setVariantType(id, data.object.interactive.type)
+    }, [id, data?.object?.interactive?.type, setVariantType])
 
     return (
         <div className="flex flex-col gap-6">
@@ -174,6 +186,8 @@ export function MenuNodeFormLayout({
                             id,
                             object: structuredClone(config.defaultObject),
                         })
+                        // 🔁 Guarda también el tipo seleccionado en el store
+                        setVariantType(id, val)
                     }}
                 >
                     <SelectTrigger className="text-sm dark:bg-gray-900/50">
@@ -216,13 +230,13 @@ export function MenuNodeFormLayout({
                                     availableNodes={availableNodes}
                                     selectedId={data[key]}
                                     handleId={key}
-                                    onSelect={(val) =>
+                                    onSelect={(val: string) =>
                                         updateNodeData(id, { [key]: val })
                                     }
-                                    createConnection={(targetId) =>
+                                    createConnection={(targetId: string) =>
                                         createConnection(targetId, key)
                                     }
-                                    removeConnection={(targetId) =>
+                                    removeConnection={(targetId: string) =>
                                         removeConnection(targetId, key)
                                     }
                                     accentColor={`text-${colorAccent}-700 dark:text-${colorAccent}-300`}
@@ -233,9 +247,8 @@ export function MenuNodeFormLayout({
                 </AccordionItem>
             </Accordion>
 
-            {/* ⚙️ Configuración base del nodo */}
+            {/* ⚙️ Configuración base */}
             <div className="grid grid-cols-2 gap-4 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40">
-                {/* 🔘 Switch isInteractive */}
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium">
@@ -243,7 +256,7 @@ export function MenuNodeFormLayout({
                         </Label>
                         <Switch
                             checked={!!data.isInteractive}
-                            onCheckedChange={(val) =>
+                            onCheckedChange={(val: boolean) =>
                                 updateNodeData(id, { isInteractive: val })
                             }
                             className={clsx(
@@ -255,12 +268,10 @@ export function MenuNodeFormLayout({
                         />
                     </div>
                     <p className="text-muted-foreground text-xs italic">
-                        Habilita o deshabilita las respuestas interactivas
-                        (botones/listas).
+                        Habilita o deshabilita las respuestas interactivas.
                     </p>
                 </div>
 
-                {/* 🔢 interactiveVersion */}
                 <div className="flex flex-col gap-1">
                     <Label className="text-sm font-medium">
                         Versión interactiva
@@ -269,7 +280,7 @@ export function MenuNodeFormLayout({
                         type="number"
                         min={1}
                         value={data.interactiveVersion ?? 4}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                             updateNodeData(id, {
                                 interactiveVersion: Number(e.target.value),
                             })
@@ -295,47 +306,62 @@ export function MenuNodeFormLayout({
                     <VariantQuickReplyForm
                         id={id}
                         data={data}
-                        // ✅ Convertimos Node[] → { id, label }[]
                         availableNodes={availableNodes.map((n: any) => ({
                             id: n.id,
                             label: n.data?.label || n.id,
                         }))}
-                        onSelectCondition={(i, targetId) =>
-                            updateNodeData(
-                                id,
-                                setDeepValue(
-                                    data,
-                                    `object.conditions.${data.object.interactive.options[i].postbackText}`,
-                                    targetId
-                                )
+                        onSelectCondition={(i: number, targetId: string) => {
+                            const updated = setDeepValue(
+                                data,
+                                `object.conditions.${data.object.interactive.options[i].postbackText}`,
+                                targetId
                             )
-                        }
-                        onChange={(path, val) =>
-                            updateNodeData(id, setDeepValue(data, path, val))
-                        }
+                            updateNodeData(id, updated)
+                            setVariantConditions(
+                                id,
+                                updated.object.conditions ?? {}
+                            )
+                        }}
+                        onChange={(path: string, val: any) => {
+                            const updated = setDeepValue(data, path, val)
+                            updateNodeData(id, updated)
+                            setVariantOptions(
+                                id,
+                                updated.object.interactive.options ?? []
+                            )
+                        }}
                     />
                 )}
 
                 {variantType === 'list' && (
                     <VariantListForm
+                        id={id}
                         data={data}
                         availableNodes={availableNodes.map((n: any) => ({
                             id: n.id,
                             label: n.data?.label || n.id,
                         }))}
-                        onSelectCondition={(i, targetId) =>
-                            updateNodeData(
-                                id,
-                                setDeepValue(
-                                    data,
-                                    `object.conditions.${data.object.interactive.items[0].options[i].postbackText}`,
-                                    targetId
-                                )
+                        onSelectCondition={(i: number, targetId: string) => {
+                            const updated = setDeepValue(
+                                data,
+                                `object.conditions.${data.object.interactive.items[0].options[i].postbackText}`,
+                                targetId
                             )
-                        }
-                        onChange={(path, val) =>
-                            updateNodeData(id, setDeepValue(data, path, val))
-                        }
+                            updateNodeData(id, updated)
+                            setVariantConditions(
+                                id,
+                                updated.object.conditions ?? {}
+                            )
+                        }}
+                        onChange={(path: string, val: any) => {
+                            const updated = setDeepValue(data, path, val)
+                            updateNodeData(id, updated)
+                            setVariantOptions(
+                                id,
+                                updated.object.interactive.items?.[0]
+                                    ?.options ?? []
+                            )
+                        }}
                     />
                 )}
             </div>

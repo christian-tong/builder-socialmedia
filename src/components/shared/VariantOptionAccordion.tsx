@@ -2,7 +2,7 @@
 
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { Label, Input, Button } from '@/components/ui'
 import {
@@ -41,8 +41,16 @@ interface VariantOptionAccordionProps {
     onUpdate: (index: number, field: keyof VariantOption, value: string) => void
     onRemove: (index: number) => void
     onChange: (path: string, value: unknown) => void
+    handlePrefix?: string
+    canRemove?: boolean // 👈 nueva prop opcional
 }
 
+/**
+ * 🧩 VariantOptionAccordion
+ * - Reutilizable para QuickReply/List.
+ * - ✅ Ya no borra la condición si aún no existe el edge (solo limpia si el nodo destino desaparece).
+ * - 🔁 Reintentos para crear la conexión hasta que el handle esté montado.
+ */
 export function VariantOptionAccordion({
     index,
     nodeId,
@@ -56,6 +64,8 @@ export function VariantOptionAccordion({
     onUpdate,
     onRemove,
     onChange,
+    handlePrefix = 'opt',
+    canRemove = true, // 👈 por defecto se permite eliminar (para QuickReply)
 }: VariantOptionAccordionProps) {
     const accent =
         color === 'sky'
@@ -67,32 +77,98 @@ export function VariantOptionAccordion({
             ? 'border-sky-300/40 bg-sky-50/40 dark:border-gray-700 dark:bg-gray-900/30'
             : 'border-violet-300/40 bg-violet-50/40 dark:border-gray-700 dark:bg-gray-900/30'
 
-    const {
-        availableNodes,
-        hasConnection,
-        createConnection,
-        removeConnection,
-    } = useNodeConnections(nodeId)
+    const { availableNodes, createConnection, removeConnection } =
+        useNodeConnections(nodeId)
 
-    const handleId = `option-${index}`
+    const handleId = `${handlePrefix}-option-${index}-${option.postbackText}`
+    const lastConnectionRef = useRef<number | null>(null)
 
+    // 🧠 Log por render
+    useEffect(() => {
+        console.groupCollapsed(`%c[VOA] Render index=${index}`, 'color:#7c3aed')
+        console.log('nodeId:', nodeId)
+        console.log('option:', option)
+        console.log('handleId:', handleId)
+        console.log('conditions:', conditions)
+        console.log(
+            'selected condition:',
+            conditions?.[option.postbackText] || ''
+        )
+        console.log('availableNodes:', availableNodes)
+        console.groupEnd()
+    })
+
+    /* ------------------------------------------------------------
+       🔍 Validación diferida SÓLO por existencia del nodo
+    ------------------------------------------------------------ */
     useEffect(() => {
         const connectedId = conditions?.[option.postbackText]
         if (!connectedId) return
-        const stillExists = availableNodes.some((n) => n.id === connectedId)
-        const stillConnected = hasConnection(connectedId, handleId)
-        if (!stillExists || !stillConnected) {
-            onChange(`object.conditions.${option.postbackText}`, '')
-        }
-    }, [
-        availableNodes,
-        conditions,
-        option.postbackText,
-        hasConnection,
-        handleId,
-        onChange,
-    ])
 
+        const timer = setTimeout(() => {
+            const stillExists = availableNodes.some((n) => n.id === connectedId)
+
+            console.groupCollapsed(
+                `%c[VOA] validate (existence only) index=${index}`,
+                'color:#2563eb'
+            )
+            console.log('connectedId:', connectedId)
+            console.log('stillExists:', stillExists)
+            console.groupEnd()
+
+            if (!stillExists) {
+                console.warn(
+                    '[VOA] Cleaning condition because target node no longer exists:',
+                    option.postbackText
+                )
+                onChange(`object.conditions.${option.postbackText}`, '')
+            }
+        }, 600)
+
+        return () => clearTimeout(timer)
+    }, [availableNodes, conditions, option.postbackText, onChange, index])
+
+    /* ------------------------------------------------------------
+       🔗 Conexión con reintentos hasta que el handle esté en el DOM
+    ------------------------------------------------------------ */
+    const handleCreateConnection = (targetId: string) => {
+        if (!targetId) return
+        lastConnectionRef.current = Date.now()
+
+        let attempts = 0
+        const maxAttempts = 10
+        const intervalMs = 120
+
+        const tryConnect = () => {
+            attempts += 1
+            const handleEl = document.querySelector(
+                `[data-id="${nodeId}"] [data-handleid="${handleId}"]`
+            )
+
+            if (handleEl) {
+                console.log('[VOA] ✅ handle montado, creando conexión:', {
+                    targetId,
+                    handleId,
+                })
+                createConnection(targetId, handleId)
+                return
+            }
+
+            if (attempts < maxAttempts) {
+                setTimeout(tryConnect, intervalMs)
+            } else {
+                console.warn(
+                    `[VOA] ⚠️ No se encontró el handle ${handleId} tras ${maxAttempts} intentos`
+                )
+            }
+        }
+
+        setTimeout(tryConnect, 0)
+    }
+
+    /* ------------------------------------------------------------
+       🎨 Render
+    ------------------------------------------------------------ */
     return (
         <Accordion
             type="single"
@@ -178,12 +254,10 @@ export function VariantOptionAccordion({
                         </Label>
                         <Input
                             value={setvariables?.[option.postbackText] || ''}
-                            onChange={(e) =>
-                                onChange(
-                                    `object.setvariables.${option.postbackText}`,
-                                    e.target.value
-                                )
-                            }
+                            onChange={(e) => {
+                                const path = `object.setvariables.${option.postbackText}`
+                                onChange(path, e.target.value)
+                            }}
                             placeholder="Ej. 'Baños portátiles'"
                             className="text-sm dark:bg-gray-900/50"
                         />
@@ -196,22 +270,21 @@ export function VariantOptionAccordion({
                         selectedId={conditions?.[option.postbackText] || ''}
                         handleId={handleId}
                         onSelect={(targetId) => {
-                            onChange(
-                                `object.conditions.${option.postbackText}`,
-                                targetId
-                            )
-                            if (targetId) createConnection(targetId, handleId)
-                            else
-                                removeConnection(
-                                    conditions?.[option.postbackText] ?? '',
+                            const path = `object.conditions.${option.postbackText}`
+                            onChange(path, targetId || '')
+
+                            if (targetId) handleCreateConnection(targetId)
+                            else if (conditions?.[option.postbackText])
+                                removeConnection?.(
+                                    conditions[option.postbackText],
                                     handleId
                                 )
                         }}
                         onUnselect={() => {
-                            onChange(
-                                `object.conditions.${option.postbackText}`,
-                                ''
-                            )
+                            const path = `object.conditions.${option.postbackText}`
+                            const prev = conditions?.[option.postbackText]
+                            onChange(path, '')
+                            if (prev) removeConnection?.(prev, handleId)
                         }}
                         createConnection={createConnection}
                         removeConnection={removeConnection}
@@ -219,14 +292,16 @@ export function VariantOptionAccordion({
                     />
 
                     {/* 🗑️ Eliminar opción */}
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onRemove(index)}
-                        className="mt-1 text-xs text-red-500 hover:text-red-700"
-                    >
-                        <Trash2 className="mr-1 h-3 w-3" /> Eliminar opción
-                    </Button>
+                    {canRemove && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onRemove(index)}
+                            className="mt-1 text-xs text-red-500 hover:text-red-700"
+                        >
+                            <Trash2 className="mr-1 h-3 w-3" /> Eliminar opción
+                        </Button>
+                    )}
                 </AccordionContent>
             </AccordionItem>
         </Accordion>

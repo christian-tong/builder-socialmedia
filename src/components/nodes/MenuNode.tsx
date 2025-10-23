@@ -2,18 +2,15 @@
 
 'use client'
 
-import React, { useEffect, useMemo, useRef } from 'react'
+import React from 'react'
 import { motion } from 'framer-motion'
 import { ListTree } from 'lucide-react'
 import { Handle, Position, type NodeProps } from 'reactflow'
 import { Card } from '@/components/ui/card'
 import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
-import { useFlowStore } from '@/store/useFlowStore'
+import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 
-/* ------------------------------------------------------------
-   🎨 Tipos y mapa de colores
------------------------------------------------------------- */
 type VariantType = 'quick_reply' | 'list'
 
 interface ColorStyle {
@@ -41,32 +38,31 @@ const colorMap: Record<VariantType, ColorStyle> = {
     },
 }
 
-/* ------------------------------------------------------------
-   🟣 MenuNode — Nodo principal interactivo
------------------------------------------------------------- */
+/**
+ * 🟣 MenuNode
+ * ------------------------------------------------------
+ * - Renderiza el nodo visualmente
+ * - Lee datos desde useVariantTypeStore (variantType, options, conditions)
+ * - La creación/eliminación de edges dinámicos se maneja globalmente
+ *   por el hook useVariantFlowSync.
+ */
 const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
     const { setSelectedNode } = useNodeConfigStore()
-    const { createEdge, edges } = useFlowStore()
     const { orientation } = useFlowOrientationStore()
+    const { getVariantType, getVariantOptions } = useVariantTypeStore()
 
-    // 🧠 Tipo de variante según tipo de interacción
-    const variantType: VariantType =
-        data?.object?.interactive?.type === 'list' ? 'list' : 'quick_reply'
+    // 🧠 Fuente de verdad: Zustand store
+    const variantType = getVariantType(id)
+    const options = getVariantOptions(id)
 
-    const style = colorMap[variantType]
+    // 🎨 Estilo dinámico por tipo
+    const style = colorMap[variantType as VariantType]
 
-    // 🔢 Obtener opciones seguras
-    const options = useMemo(() => {
-        const opts =
-            data?.object?.interactive?.options ??
-            data?.object?.interactive?.items?.[0]?.options ??
-            []
-        return Array.isArray(opts) ? opts : []
-    }, [data])
-
+    // 🎯 Posición dinámica del handle de entrada
     const targetPosition =
         orientation === 'vertical' ? Position.Top : Position.Left
 
+    // ⚙️ Estilo base de handles
     const handleBase: React.CSSProperties = {
         width: 10,
         height: 10,
@@ -77,48 +73,7 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
     }
 
     /* --------------------------------------------------------
-       🔗 Sincronización visual automática de edges
-       - Evita duplicar conexiones preexistentes
-       - Crea edges solo si el handle no existe aún
-    -------------------------------------------------------- */
-    const creatingRef = useRef(false)
-
-    useEffect(() => {
-        if (creatingRef.current) return
-        creatingRef.current = true
-
-        const conditions = data?.object?.conditions ?? {}
-        if (!conditions || typeof conditions !== 'object') return
-
-        let added = false
-        Object.entries(conditions).forEach(([key, targetId]) => {
-            const handleId = `option-${key}`
-            if (!targetId || typeof targetId !== 'string') return
-
-            const alreadyExists = edges.some(
-                (e) =>
-                    e.source === id &&
-                    e.target === targetId &&
-                    e.sourceHandle === handleId
-            )
-
-            if (!alreadyExists) {
-                createEdge(id, targetId, handleId)
-                added = true
-            }
-        })
-
-        if (added) {
-            setTimeout(() => {
-                creatingRef.current = false
-            }, 100)
-        } else {
-            creatingRef.current = false
-        }
-    }, [data?.object?.conditions, edges, id, createEdge])
-
-    /* --------------------------------------------------------
-       🧩 Renderizado del nodo visual
+       🎨 Render visual del nodo
     -------------------------------------------------------- */
     return (
         <motion.div
@@ -138,14 +93,17 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
                     setSelectedNode({ id, type: 'menuNode', data })
                 }}
                 data-id={id}
-                className={`relative w-full max-w-[240px] cursor-pointer overflow-visible rounded-xl border ${style.border} ${style.bg} text-white shadow-md transition-all duration-300 ease-out hover:scale-[1.02] hover:shadow-lg`}
+                className={`relative w-full max-w-[240px] cursor-pointer overflow-visible rounded-xl border ${style.border} ${style.bg} text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg`}
             >
                 {/* 🔹 Encabezado */}
                 <div className="px-3 pt-1.5 pb-1 text-center">
-                    <div className="flex items-center justify-center gap-2 leading-none">
-                        <ListTree className="h-4 w-4 flex-shrink-0" />
+                    <div className="flex items-center justify-center gap-2">
+                        <ListTree className="h-4 w-4" />
                         <span className="text-sm font-semibold break-words">
-                            {data?.label || 'Menú Principal'}
+                            {data?.label ||
+                                (variantType === 'list'
+                                    ? 'Menú Secundario'
+                                    : 'Menú Principal')}
                         </span>
                     </div>
                     {data?.object?.variable && (
@@ -155,7 +113,7 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
                     )}
                 </div>
 
-                {/* 📨 Mensaje visible */}
+                {/* 📨 Cuerpo del mensaje (solo list muestra body) */}
                 {data?.object?.interactive?.body && (
                     <div className="mx-3 my-1 rounded-md border border-white/30 bg-black/10 px-2.5 py-1 text-[11px] text-white/90 italic">
                         {decodeURIComponent(data.object.interactive.body || '')}
@@ -177,43 +135,40 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
                     className={`h-[10px] w-[10px] rounded-full ${style.handle} shadow-sm`}
                 />
 
-                {/* 🔸 Opciones dinámicas */}
+                {/* 🔸 Opciones dinámicas (handles por cada opción) */}
                 <div className="mt-0.5 flex flex-col">
-                    {options.map(
-                        (
-                            opt: { postbackText?: string; title?: string },
-                            i: number
-                        ) => (
-                            <div
-                                key={opt.postbackText ?? i}
-                                className={`relative flex items-center justify-between border-t border-white/20 ${style.optionBg} px-3 py-[6px] text-[12px] transition-colors ${style.optionHover}`}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <span className="font-bold">
-                                        {opt.postbackText ?? i + 1}:
-                                    </span>
-                                    <span className="truncate">
-                                        {decodeURIComponent(opt.title || '')}
-                                    </span>
-                                </div>
-                                {/* ✅ Handle corregido: usa índice, no postbackText */}
-                                <Handle
-                                    id={`option-${i}`}
-                                    type="source"
-                                    position={Position.Right}
-                                    style={{
-                                        top: '50%',
-                                        right: '-5px',
-                                        transform: 'translateY(-50%)',
-                                    }}
-                                    className="h-[10px] w-[10px] rounded-full !bg-white shadow-sm"
-                                />
+                    {options.map((opt: any, i: number) => (
+                        <div
+                            key={`${id}-opt-${i}`}
+                            className={`relative flex items-center justify-between border-t border-white/20 ${style.optionBg} px-3 py-[6px] text-[12px] ${style.optionHover}`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold">
+                                    {opt.postbackText ?? i}:
+                                </span>
+                                <span>
+                                    {decodeURIComponent(opt.title || '')}
+                                </span>
                             </div>
-                        )
-                    )}
+
+                            {/* 🎯 Handle visual de salida */}
+                            <Handle
+                                id={`option-${i}`}
+                                data-handleid={`option-${i}`}
+                                type="source"
+                                position={Position.Right}
+                                style={{
+                                    top: '50%',
+                                    right: '-5px',
+                                    transform: 'translateY(-50%)',
+                                }}
+                                className={`h-[10px] w-[10px] rounded-full ${style.handle} shadow-sm`}
+                            />
+                        </div>
+                    ))}
                 </div>
 
-                {/* 🟢🟡🔴 Handles de control (onTrue / onFalse / onError) */}
+                {/* 🟢🟡🔴 Handles inferiores */}
                 {[
                     { id: 'onTrue', color: '#16a34a', left: '25%' },
                     { id: 'onFalse', color: '#f59e0b', left: '50%' },
