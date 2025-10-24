@@ -1,15 +1,20 @@
 // src/lib/jsonFlowGenerator.ts
 
 import type { Edge, Node } from 'reactflow'
+import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 
 /**
- * 🧠 generateConversationJson
- * ----------------------------------------------------
- * Convierte nodos y edges del React Flow en el JSON
- * estructurado compatible con WiContact (process.steps)
- * - Crea dinámicamente onTrue / onFalse / onError
- * - Soporta menús principal/secundario, texto, derivación, tiempo, fin
- * - Tipado completo y seguro para TypeScript
+ * 🧠 generateConversationJson (v5 — Orden jerárquico Ambipar)
+ * ------------------------------------------------------------
+ * - Genera el flujo con orden jerárquico específico:
+ *   1️⃣ startstep
+ *   2️⃣ simpletext
+ *   3️⃣ timecondition
+ *   4️⃣ derivate
+ *   5️⃣ getdatacomplete
+ *   6️⃣ hangup
+ * - Asegura fallback de edges sin handle
+ * - Sincroniza variantes interactivas (quick_reply / list)
  */
 
 export interface WiStep {
@@ -34,41 +39,62 @@ export function generateConversationJson(
     nodes: Node<Record<string, any>>[],
     edges: Edge[]
 ): WiProcess {
-    const steps: WiStep[] = []
+    const allSteps: WiStep[] = []
 
-    // 🔍 Helpers
+    // 🧩 Helpers
     const getOutgoingEdges = (sourceId: string): Edge[] =>
         edges.filter((e) => e.source === sourceId)
 
     const getConnectedTarget = (
         edgeList: Edge[],
         sourceId: string,
-        handleId: string
+        handleId?: string
     ): string | null => {
-        const edge = edgeList.find(
-            (e) => e.source === sourceId && e.sourceHandle === handleId
-        )
-        return edge?.target ?? null
+        // 🔹 Buscar edge con handle específico
+        if (handleId) {
+            const match = edgeList.find(
+                (e) => e.source === sourceId && e.sourceHandle === handleId
+            )
+            if (match) return match.target
+        }
+
+        // 🔹 Si no existe, tomar el primero saliente (fallback)
+        const fallback = edgeList.find((e) => e.source === sourceId)
+        return fallback?.target ?? null
     }
 
-    // 🧱 Construcción de pasos
+    // 🔗 Instancia del store
+    const { getVariantOptions, getVariantConditions, getVariantType } =
+        useVariantTypeStore.getState()
+
+    // 🧱 Recorrer todos los nodos y crear pasos
     for (const node of nodes) {
         const { id, type, data } = node
         const outgoing = getOutgoingEdges(id)
-
-        // 🔗 Detectar salidas de control
         const onTrue = getConnectedTarget(outgoing, id, 'onTrue')
         const onFalse = getConnectedTarget(outgoing, id, 'onFalse')
         const onError = getConnectedTarget(outgoing, id, 'onError')
 
         switch (type) {
-            /** 🟦 Texto Simple */
+            /** 🟢 START NODE */
+            case 'startNode': {
+                const next = outgoing[0]?.target ?? null
+                allSteps.push({
+                    id,
+                    action: 'startstep',
+                    onTrue: next,
+                    object: {},
+                })
+                break
+            }
+
+            /** 🟦 SIMPLE TEXT NODE */
             case 'simpleTextNode': {
                 const text = encodeURIComponent(data?.message ?? '')
-                steps.push({
+                allSteps.push({
                     id,
                     action: 'simpletext',
-                    onTrue,
+                    onTrue: onTrue ?? getConnectedTarget(outgoing, id),
                     object: {
                         groodText: data?.groodText ?? '',
                         text,
@@ -77,9 +103,23 @@ export function generateConversationJson(
                 break
             }
 
-            /** 🟠 Derivación */
+            /** 🕓 TIME CONDITION NODE */
+            case 'timeConditionNode': {
+                allSteps.push({
+                    id,
+                    action: 'timecondition',
+                    onTrue,
+                    onFalse,
+                    object: {
+                        condition: data?.condition ?? '',
+                    },
+                })
+                break
+            }
+
+            /** 🟠 DERIVATE NODE */
             case 'derivateNode': {
-                steps.push({
+                allSteps.push({
                     id,
                     action: 'derivate',
                     onTrue,
@@ -105,41 +145,17 @@ export function generateConversationJson(
                 break
             }
 
-            /** 🕓 Condición de tiempo */
-            case 'timeConditionNode': {
-                steps.push({
-                    id,
-                    action: 'timecondition',
-                    onTrue,
-                    onFalse,
-                    object: {
-                        condition: data?.condition ?? '',
-                    },
-                })
-                break
-            }
+            /** 🟣 MENU NODE (getdatacomplete) */
+            case 'menuNode': {
+                const variantType = getVariantType(id)
+                const options = getVariantOptions(id)
+                const conditions = getVariantConditions(id)
 
-            /** 🟣 Menú Principal (quick_reply) */
-            case 'menuNodePrincipal': {
-                const options = (data?.options ?? []) as {
-                    postbackText: string
-                    title: string
-                }[]
-
-                const outgoingEdges = getOutgoingEdges(id)
                 const setvariables: Record<string, string> = {}
-                const conditions: Record<string, string> = {}
-
-                options.forEach((opt, index) => {
+                options.forEach((opt) => {
                     setvariables[opt.postbackText] = opt.title ?? ''
-                    const foundEdge = outgoingEdges.find(
-                        (e) => e.sourceHandle === `option-${index}`
-                    )
-                    if (foundEdge?.target)
-                        conditions[opt.postbackText] = foundEdge.target
                 })
 
-                // Generar rango dinámico tipo [1-3]
                 const numeric = options
                     .map((o) => Number(o.postbackText))
                     .filter((n) => !isNaN(n))
@@ -148,73 +164,60 @@ export function generateConversationJson(
                 const conditionRange =
                     numeric.length > 0 ? `[${min}-${max}]` : '[1-1]'
 
-                steps.push({
-                    id,
-                    action: 'getdatacomplete',
-                    onTrue,
-                    onFalse,
-                    onError,
-                    isInteractive: true,
-                    source: 'GetData',
-                    interactiveVersion: 4,
-                    object: {
-                        setvariables,
-                        condition: conditionRange,
-                        groodText: '',
-                        setvar: data?.variable ?? 'PRIMER_NIVEL',
-                        variable: data?.variable ?? 'PrimeraOpcion',
-                        saveHidden: true,
-                        interactive: {
-                            options: options.map((opt) => ({
-                                postbackText: opt.postbackText,
-                                type: 'text',
-                                title: encodeURIComponent(opt.title ?? ''),
-                            })),
-                            msgid: 'qr1',
-                            type: 'quick_reply',
-                            content: {
-                                text: encodeURIComponent(data?.message ?? ''),
-                                type: 'text',
+                const baseObject: Record<string, any> = {
+                    setvariables,
+                    condition: data?.object?.condition ?? conditionRange,
+                    groodText: data?.object?.groodText ?? '',
+                    setvar: data?.object?.setvar ?? '',
+                    variable:
+                        data?.object?.variable ??
+                        (variantType === 'list'
+                            ? 'SegundaOpcion'
+                            : 'PrimeraOpcion'),
+                    saveHidden: true,
+                    alias:
+                        data?.object?.alias ??
+                        (variantType === 'list'
+                            ? 'SegundaOpcion'
+                            : 'PrimeraOpcion'),
+                    conditions,
+                    iterations: '2',
+                    timeOut: '90000',
+                }
+
+                if (variantType === 'quick_reply') {
+                    baseObject.interactive = {
+                        type: 'quick_reply',
+                        msgid: 'qr1',
+                        content: {
+                            type: 'text',
+                            text: encodeURIComponent(data?.message ?? ''),
+                        },
+                        options: options.map((opt) => ({
+                            postbackText: opt.postbackText,
+                            type: 'text',
+                            title: encodeURIComponent(opt.title ?? ''),
+                        })),
+                    }
+                } else {
+                    baseObject.interactive = {
+                        globalButtons: [{ type: 'text', title: 'Elegir' }],
+                        type: 'list',
+                        body: encodeURIComponent(data?.message ?? ''),
+                        items: [
+                            {
+                                options: options.map((opt) => ({
+                                    postbackText: opt.postbackText,
+                                    type: 'text',
+                                    title: encodeURIComponent(opt.title ?? ''),
+                                })),
+                                title: 'Elija una opción',
                             },
-                        },
-                        alias: data?.variable ?? 'PrimeraOpcion',
-                        conditions,
-                        iterations: '2',
-                        timeOut: '90000',
-                    },
-                })
-                break
-            }
+                        ],
+                    }
+                }
 
-            /** 🔵 Menú Secundario (list) */
-            case 'menuNodeSecundario': {
-                const options = (data?.options ?? []) as {
-                    postbackText: string
-                    title: string
-                }[]
-
-                const outgoingEdges = getOutgoingEdges(id)
-                const setvariables: Record<string, string> = {}
-                const conditions: Record<string, string> = {}
-
-                options.forEach((opt, index) => {
-                    setvariables[opt.postbackText] = opt.title ?? ''
-                    const foundEdge = outgoingEdges.find(
-                        (e) => e.sourceHandle === `option-${index}`
-                    )
-                    if (foundEdge?.target)
-                        conditions[opt.postbackText] = foundEdge.target
-                })
-
-                const numeric = options
-                    .map((o) => Number(o.postbackText))
-                    .filter((n) => !isNaN(n))
-                const min = Math.min(...numeric)
-                const max = Math.max(...numeric)
-                const conditionRange =
-                    numeric.length > 0 ? `[${min}-${max}]` : '[1-1]'
-
-                steps.push({
+                allSteps.push({
                     id,
                     action: 'getdatacomplete',
                     onTrue,
@@ -223,42 +226,14 @@ export function generateConversationJson(
                     isInteractive: true,
                     source: 'GetData',
                     interactiveVersion: 4,
-                    object: {
-                        setvariables,
-                        condition: conditionRange,
-                        groodText: '',
-                        setvar: data?.variable ?? 'SEGUNDO_NIVEL',
-                        variable: data?.variable ?? 'SegundaOpcion',
-                        saveHidden: true,
-                        interactive: {
-                            globalButtons: [{ type: 'text', title: 'Elegir' }],
-                            type: 'list',
-                            body: encodeURIComponent(data?.message ?? ''),
-                            items: [
-                                {
-                                    options: options.map((opt) => ({
-                                        postbackText: opt.postbackText,
-                                        type: 'text',
-                                        title: encodeURIComponent(
-                                            opt.title ?? ''
-                                        ),
-                                    })),
-                                    title: 'Elija una opción',
-                                },
-                            ],
-                        },
-                        alias: data?.variable ?? 'SegundaOpcion',
-                        conditions,
-                        iterations: '2',
-                        timeOut: '90000',
-                    },
+                    object: baseObject,
                 })
                 break
             }
 
-            /** 🟥 Fin */
+            /** 🔴 END NODE */
             case 'endNode': {
-                steps.push({
+                allSteps.push({
                     id,
                     action: 'hangup',
                     object: {
@@ -273,24 +248,17 @@ export function generateConversationJson(
         }
     }
 
-    // 🟢 Nodo inicial automático (StartStep)
-    const firstNode = nodes.find((n) => n.type === 'startNode')
-    if (firstNode) {
-        const outgoing = getOutgoingEdges(firstNode.id)
-        const next = outgoing[0]?.target ?? null
+    // 🧮 ORDENAMIENTO JERÁRQUICO (como Ambipar)
+    const ordered = [
+        ...allSteps.filter((s) => s.action === 'startstep'),
+        ...allSteps.filter((s) => s.action === 'simpletext'),
+        ...allSteps.filter((s) => s.action === 'timecondition'),
+        ...allSteps.filter((s) => s.action === 'derivate'),
+        ...allSteps.filter((s) => s.action === 'getdatacomplete'),
+        ...allSteps.filter((s) => s.action === 'hangup'),
+    ]
 
-        steps.unshift({
-            id: firstNode.id,
-            action: 'startstep',
-            onTrue: next,
-            object: {},
-        })
-    }
-
-    // 🔚 Estructura final
     return {
-        process: {
-            steps,
-        },
+        process: { steps: ordered },
     }
 }

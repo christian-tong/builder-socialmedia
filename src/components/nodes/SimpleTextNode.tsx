@@ -79,6 +79,7 @@ export function SimpleTextNode({ id, data }: any) {
                 <Handle
                     type="source"
                     position={sourcePosition}
+                    id="onTrue"
                     className="!bg-indigo-400"
                 />
             </Card>
