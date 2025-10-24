@@ -10,12 +10,22 @@ import { VariantBaseConfigFields } from '@/components/shared/VariantBaseConfigFi
 import { VariantOptionAccordion } from '@/components/shared/VariantOptionAccordion'
 import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 
+/**
+ * 📋 VariantListForm (versión sincronizada)
+ * ------------------------------------------------------
+ * - Sincroniza opciones y condiciones con Zustand.
+ * - Evita pérdida de edges o condiciones huérfanas.
+ * - Usa un debounce para no saturar el store.
+ */
 export function VariantListForm({
     id,
     data,
-    availableNodes = [],
     onChange,
-}: any) {
+}: {
+    id: string
+    data: any
+    onChange: (path: string, value: unknown) => void
+}) {
     const { setVariantOptions, setVariantConditions, setVariantType } =
         useVariantTypeStore()
 
@@ -34,11 +44,18 @@ export function VariantListForm({
 
     const [expandedIndex, setExpandedIndex] = useState<number | null>(0)
 
-    // 🧩 Sincroniza con store Zustand
+    /**
+     * 🧩 Sincronización controlada con Zustand (debounce 120ms)
+     * - Asegura que el estado se actualice sin causar loops.
+     * - Mantiene conditions y options sincronizadas con useVariantFlowSync.
+     */
     useEffect(() => {
-        setVariantType(id, 'list')
-        setVariantOptions(id, options)
-        setVariantConditions(id, conditions)
+        const timeout = setTimeout(() => {
+            setVariantType(id, 'list')
+            setVariantOptions(id, options)
+            setVariantConditions(id, conditions)
+        }, 120)
+        return () => clearTimeout(timeout)
     }, [
         id,
         options,
@@ -54,6 +71,7 @@ export function VariantListForm({
                 📋 List — Configuración
             </Label>
 
+            {/* 📝 Texto del cuerpo */}
             <Textarea
                 value={decodeURIComponent(interactive.body || '')}
                 onChange={(e) =>
@@ -66,6 +84,7 @@ export function VariantListForm({
                 className="text-sm dark:bg-gray-900/40"
             />
 
+            {/* 🔹 Opciones dinámicas */}
             <div className="flex flex-col gap-3 rounded-md border border-sky-300/40 bg-sky-50/40 p-3">
                 <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium text-sky-700 dark:text-sky-300">
@@ -93,6 +112,9 @@ export function VariantListForm({
                         onRemove={removeOption}
                         onChange={onChange}
                         handlePrefix="list"
+                        expanded={expandedIndex === i}
+                        onExpand={setExpandedIndex}
+                        canRemove={true}
                     />
                 ))}
             </div>

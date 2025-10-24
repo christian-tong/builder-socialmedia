@@ -9,7 +9,10 @@ import { Handle, Position, type NodeProps } from 'reactflow'
 import { Card } from '@/components/ui/card'
 import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
-import { useVariantTypeStore } from '@/store/useVariantTypeStore'
+import {
+    useVariantTypeStore,
+    getVariantHandleId,
+} from '@/store/useVariantTypeStore'
 
 type VariantType = 'quick_reply' | 'list'
 
@@ -39,30 +42,24 @@ const colorMap: Record<VariantType, ColorStyle> = {
 }
 
 /**
- * 🟣 MenuNode
- * ------------------------------------------------------
- * - Renderiza el nodo visualmente
- * - Lee datos desde useVariantTypeStore (variantType, options, conditions)
- * - La creación/eliminación de edges dinámicos se maneja globalmente
- *   por el hook useVariantFlowSync.
+ * 🧩 MenuNode
+ * -------------------------------------------------
+ * - Renderiza visualmente los menús principal/secundario.
+ * - Crea handles únicos por nodo y variante (nodeId::variantType::option-key).
+ * - Totalmente sincronizado con useVariantFlowSync y useVariantTypeStore.
  */
 const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
     const { setSelectedNode } = useNodeConfigStore()
     const { orientation } = useFlowOrientationStore()
     const { getVariantType, getVariantOptions } = useVariantTypeStore()
 
-    // 🧠 Fuente de verdad: Zustand store
     const variantType = getVariantType(id)
     const options = getVariantOptions(id)
-
-    // 🎨 Estilo dinámico por tipo
     const style = colorMap[variantType as VariantType]
 
-    // 🎯 Posición dinámica del handle de entrada
     const targetPosition =
         orientation === 'vertical' ? Position.Top : Position.Left
 
-    // ⚙️ Estilo base de handles
     const handleBase: React.CSSProperties = {
         width: 10,
         height: 10,
@@ -72,9 +69,10 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
         position: 'absolute',
     }
 
-    /* --------------------------------------------------------
-       🎨 Render visual del nodo
-    -------------------------------------------------------- */
+    // 🔹 Calcular separación vertical según cantidad de opciones
+    const optionCount = options.length
+    const optionSpacing = 100 / (optionCount + 1)
+
     return (
         <motion.div
             layout
@@ -113,7 +111,7 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
                     )}
                 </div>
 
-                {/* 📨 Cuerpo del mensaje (solo list muestra body) */}
+                {/* 📨 Body (solo si existe) */}
                 {data?.object?.interactive?.body && (
                     <div className="mx-3 my-1 rounded-md border border-white/30 bg-black/10 px-2.5 py-1 text-[11px] text-white/90 italic">
                         {decodeURIComponent(data.object.interactive.body || '')}
@@ -135,40 +133,45 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
                     className={`h-[10px] w-[10px] rounded-full ${style.handle} shadow-sm`}
                 />
 
-                {/* 🔸 Opciones dinámicas (handles por cada opción) */}
-                <div className="mt-0.5 flex flex-col">
-                    {options.map((opt: any, i: number) => (
-                        <div
-                            key={`${id}-opt-${i}`}
-                            className={`relative flex items-center justify-between border-t border-white/20 ${style.optionBg} px-3 py-[6px] text-[12px] ${style.optionHover}`}
-                        >
-                            <div className="flex items-center gap-2">
-                                <span className="font-bold">
-                                    {opt.postbackText ?? i}:
-                                </span>
-                                <span>
-                                    {decodeURIComponent(opt.title || '')}
-                                </span>
-                            </div>
+                {/* 🔸 Opciones dinámicas */}
+                <div className="relative mt-0.5 flex flex-col">
+                    {options.map((opt: any, i: number) => {
+                        const optionKey = String(opt.postbackText ?? i)
+                        // ✅ Handle ID único global
+                        const handleId = getVariantHandleId(
+                            id,
+                            variantType,
+                            optionKey
+                        )
 
-                            {/* 🎯 Handle visual de salida */}
-                            <Handle
-                                id={`option-${i}`}
-                                data-handleid={`option-${i}`}
-                                type="source"
-                                position={Position.Right}
-                                style={{
-                                    top: '50%',
-                                    right: '-5px',
-                                    transform: 'translateY(-50%)',
-                                }}
-                                className={`h-[10px] w-[10px] rounded-full ${style.handle} shadow-sm`}
-                            />
-                        </div>
-                    ))}
+                        return (
+                            <div
+                                key={`${id}-opt-${optionKey}`}
+                                className={`relative flex items-center justify-between border-t border-white/20 ${style.optionBg} px-3 py-[6px] text-[12px] ${style.optionHover}`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold">
+                                        {optionKey}:
+                                    </span>
+                                    <span>
+                                        {decodeURIComponent(opt.title || '')}
+                                    </span>
+                                </div>
+
+                                {/* 🎯 Handle de salida único */}
+                                <Handle
+                                    id={handleId}
+                                    data-handleid={handleId}
+                                    type="source"
+                                    position={Position.Right}
+                                    className={`h-[10px] w-[10px] rounded-full ${style.handle} transition-all duration-150 hover:scale-110`}
+                                />
+                            </div>
+                        )
+                    })}
                 </div>
 
-                {/* 🟢🟡🔴 Handles inferiores */}
+                {/* 🟢🟡🔴 Handles inferiores fijos */}
                 {[
                     { id: 'onTrue', color: '#16a34a', left: '25%' },
                     { id: 'onFalse', color: '#f59e0b', left: '50%' },

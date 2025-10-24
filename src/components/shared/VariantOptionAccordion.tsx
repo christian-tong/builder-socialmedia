@@ -1,5 +1,4 @@
 // src\components\shared\VariantOptionAccordion.tsx
-
 'use client'
 
 import React, { useEffect, useRef } from 'react'
@@ -21,6 +20,10 @@ import {
 import { Trash2 } from 'lucide-react'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import { NodeSelectAccordion } from '@/components/shared/NodeSelectAccordion'
+import {
+    useVariantTypeStore,
+    getVariantHandleId,
+} from '@/store/useVariantTypeStore'
 
 export interface VariantOption {
     postbackText: string
@@ -41,15 +44,15 @@ interface VariantOptionAccordionProps {
     onUpdate: (index: number, field: keyof VariantOption, value: string) => void
     onRemove: (index: number) => void
     onChange: (path: string, value: unknown) => void
-    handlePrefix?: string
-    canRemove?: boolean // 👈 nueva prop opcional
+    canRemove?: boolean
 }
 
 /**
- * 🧩 VariantOptionAccordion
- * - Reutilizable para QuickReply/List.
- * - ✅ Ya no borra la condición si aún no existe el edge (solo limpia si el nodo destino desaparece).
- * - 🔁 Reintentos para crear la conexión hasta que el handle esté montado.
+ * 🧩 VariantOptionAccordion (versión sincronizada con IDs globales)
+ * ------------------------------------------------------------------
+ * - Usa `getVariantHandleId` para garantizar unicidad por nodo y tipo.
+ * - Sincroniza condiciones en Zustand + React Flow sin duplicados.
+ * - Reintenta conectar automáticamente cuando el handle se monta.
  */
 export function VariantOptionAccordion({
     index,
@@ -64,8 +67,7 @@ export function VariantOptionAccordion({
     onUpdate,
     onRemove,
     onChange,
-    handlePrefix = 'opt',
-    canRemove = true, // 👈 por defecto se permite eliminar (para QuickReply)
+    canRemove = true,
 }: VariantOptionAccordionProps) {
     const accent =
         color === 'sky'
@@ -79,27 +81,22 @@ export function VariantOptionAccordion({
 
     const { availableNodes, createConnection, removeConnection } =
         useNodeConnections(nodeId)
+    const { getVariantType, setVariantConditions } = useVariantTypeStore()
 
-    const handleId = `${handlePrefix}-option-${index}-${option.postbackText}`
+    // 🔹 Determinar tipo de variante actual
+    const variantType = getVariantType(nodeId)
+
+    // ✅ Nuevo handleId global (coincide con MenuNode y FlowSync)
+    const handleId = getVariantHandleId(
+        nodeId,
+        variantType,
+        option.postbackText
+    )
+
     const lastConnectionRef = useRef<number | null>(null)
 
-    // 🧠 Log por render
-    useEffect(() => {
-        console.groupCollapsed(`%c[VOA] Render index=${index}`, 'color:#7c3aed')
-        console.log('nodeId:', nodeId)
-        console.log('option:', option)
-        console.log('handleId:', handleId)
-        console.log('conditions:', conditions)
-        console.log(
-            'selected condition:',
-            conditions?.[option.postbackText] || ''
-        )
-        console.log('availableNodes:', availableNodes)
-        console.groupEnd()
-    })
-
     /* ------------------------------------------------------------
-       🔍 Validación diferida SÓLO por existencia del nodo
+       🔍 Validación diferida: elimina condiciones si el nodo destino desaparece
     ------------------------------------------------------------ */
     useEffect(() => {
         const connectedId = conditions?.[option.postbackText]
@@ -107,29 +104,30 @@ export function VariantOptionAccordion({
 
         const timer = setTimeout(() => {
             const stillExists = availableNodes.some((n) => n.id === connectedId)
-
-            console.groupCollapsed(
-                `%c[VOA] validate (existence only) index=${index}`,
-                'color:#2563eb'
-            )
-            console.log('connectedId:', connectedId)
-            console.log('stillExists:', stillExists)
-            console.groupEnd()
-
             if (!stillExists) {
                 console.warn(
-                    '[VOA] Cleaning condition because target node no longer exists:',
+                    '[VOA] 🔄 Limpiando condición huérfana:',
                     option.postbackText
                 )
+                const updated = { ...conditions }
+                delete updated[option.postbackText]
+                setVariantConditions(nodeId, updated)
                 onChange(`object.conditions.${option.postbackText}`, '')
             }
         }, 600)
 
         return () => clearTimeout(timer)
-    }, [availableNodes, conditions, option.postbackText, onChange, index])
+    }, [
+        availableNodes,
+        conditions,
+        option.postbackText,
+        nodeId,
+        onChange,
+        setVariantConditions,
+    ])
 
     /* ------------------------------------------------------------
-       🔗 Conexión con reintentos hasta que el handle esté en el DOM
+       🔗 Intento de conexión automática (reintentos hasta que el handle se monte)
     ------------------------------------------------------------ */
     const handleCreateConnection = (targetId: string) => {
         if (!targetId) return
@@ -146,7 +144,7 @@ export function VariantOptionAccordion({
             )
 
             if (handleEl) {
-                console.log('[VOA] ✅ handle montado, creando conexión:', {
+                console.log('[VOA] ✅ Handle montado, creando conexión:', {
                     targetId,
                     handleId,
                 })
@@ -167,7 +165,33 @@ export function VariantOptionAccordion({
     }
 
     /* ------------------------------------------------------------
-       🎨 Render
+       🎯 Manejadores de selección y eliminación de conexión
+    ------------------------------------------------------------ */
+    const handleSelectNode = (targetId: string) => {
+        const path = `object.conditions.${option.postbackText}`
+        onChange(path, targetId || '')
+
+        const updated = { ...conditions, [option.postbackText]: targetId || '' }
+        if (!targetId) delete updated[option.postbackText]
+        setVariantConditions(nodeId, updated)
+
+        if (targetId) handleCreateConnection(targetId)
+        else if (conditions?.[option.postbackText])
+            removeConnection?.(conditions[option.postbackText], handleId)
+    }
+
+    const handleUnselectNode = () => {
+        const prev = conditions?.[option.postbackText]
+        const updated = { ...conditions }
+        delete updated[option.postbackText]
+        setVariantConditions(nodeId, updated)
+
+        onChange(`object.conditions.${option.postbackText}`, '')
+        if (prev) removeConnection?.(prev, handleId)
+    }
+
+    /* ------------------------------------------------------------
+       🎨 Render del acordeón
     ------------------------------------------------------------ */
     return (
         <Accordion
@@ -269,23 +293,8 @@ export function VariantOptionAccordion({
                         availableNodes={availableNodes}
                         selectedId={conditions?.[option.postbackText] || ''}
                         handleId={handleId}
-                        onSelect={(targetId) => {
-                            const path = `object.conditions.${option.postbackText}`
-                            onChange(path, targetId || '')
-
-                            if (targetId) handleCreateConnection(targetId)
-                            else if (conditions?.[option.postbackText])
-                                removeConnection?.(
-                                    conditions[option.postbackText],
-                                    handleId
-                                )
-                        }}
-                        onUnselect={() => {
-                            const path = `object.conditions.${option.postbackText}`
-                            const prev = conditions?.[option.postbackText]
-                            onChange(path, '')
-                            if (prev) removeConnection?.(prev, handleId)
-                        }}
+                        onSelect={handleSelectNode}
+                        onUnselect={handleUnselectNode}
                         createConnection={createConnection}
                         removeConnection={removeConnection}
                         accentColor={accent}

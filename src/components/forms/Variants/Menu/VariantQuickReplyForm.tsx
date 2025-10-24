@@ -1,10 +1,9 @@
 // src\components\forms\Variants\Menu\VariantQuickReplyForm.tsx
 
-// src/components/forms/Variants/Menu/VariantQuickReplyForm.tsx
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Label, Textarea, Input, Button } from '@/components/ui'
+import { Label, Textarea, Button } from '@/components/ui'
 import { Plus } from 'lucide-react'
 import { useVariantOptionsManager } from '@/hooks/useVariantOptionsManager'
 import { VariantBaseConfigFields } from '@/components/shared/VariantBaseConfigFields'
@@ -36,6 +35,13 @@ interface VariantQuickReplyFormProps {
     onChange: (path: string, value: unknown) => void
 }
 
+/**
+ * 💬 VariantQuickReplyForm (versión sincronizada)
+ * ------------------------------------------------------------
+ * - Sincroniza en tiempo real con Zustand (useVariantTypeStore)
+ * - Evita sobrescritura continua y pérdida de edges
+ * - Mantiene la persistencia al cerrar/abrir formularios
+ */
 export function VariantQuickReplyForm({
     id,
     data,
@@ -58,11 +64,20 @@ export function VariantQuickReplyForm({
 
     const [expandedIndex, setExpandedIndex] = useState<number | null>(0)
 
-    // 🧩 Sincroniza con store Zustand
+    /**
+     * 🧩 Sincronización diferida con Zustand
+     * - Usa debounce (120ms) para evitar escrituras repetitivas.
+     * - Mantiene el store siempre igual al nodo, pero sin causar
+     *   re-renderes excesivos ni pérdida de edges.
+     */
     useEffect(() => {
-        setVariantType(id, 'quick_reply')
-        setVariantOptions(id, options)
-        setVariantConditions(id, conditions)
+        const timeout = setTimeout(() => {
+            setVariantType(id, 'quick_reply')
+            setVariantOptions(id, options)
+            setVariantConditions(id, conditions)
+        }, 120)
+
+        return () => clearTimeout(timeout)
     }, [
         id,
         options,
@@ -78,7 +93,7 @@ export function VariantQuickReplyForm({
                 💬 Quick Reply — Configuración
             </Label>
 
-            {/* Texto principal */}
+            {/* ✉️ Texto principal */}
             <Textarea
                 value={decodeURIComponent(interactive.content?.text || '')}
                 onChange={(e) =>
@@ -91,7 +106,7 @@ export function VariantQuickReplyForm({
                 className="text-sm dark:bg-gray-900/40"
             />
 
-            {/* Opciones */}
+            {/* 🔹 Opciones */}
             <div className="flex flex-col gap-3 rounded-md border border-violet-300/40 bg-violet-50/40 p-3">
                 <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium text-violet-700 dark:text-violet-300">
@@ -119,6 +134,8 @@ export function VariantQuickReplyForm({
                         onRemove={removeOption}
                         onChange={onChange}
                         handlePrefix="qr"
+                        expanded={expandedIndex === i}
+                        onExpand={setExpandedIndex}
                     />
                 ))}
             </div>

@@ -2,96 +2,116 @@
 
 'use client'
 
-import { useEffect } from 'react'
-import { useVariantTypeStore } from '@/store/useVariantTypeStore'
+import { useEffect, useRef } from 'react'
+import {
+    useVariantTypeStore,
+    getVariantHandleId,
+} from '@/store/useVariantTypeStore'
 import { useFlowStore } from '@/store/useFlowStore'
 
 /**
- * 🧩 useVariantFlowSync (versión extendida y segura)
+ * ⚙️ useVariantFlowSync (versión mejorada y segura)
  * ------------------------------------------------------
- * Sincroniza automáticamente los edges de React Flow con
- * los datos de condiciones del store useVariantTypeStore.
- *
- * 🔹 Crea nuevos edges si no existen.
- * 🔹 Elimina edges huérfanos si desaparecen condiciones o nodos.
- * 🔹 Evita bucles infinitos (no depende directamente de edges).
+ * - Sincroniza dinámicamente las conexiones (edges) de cada nodo tipo menú.
+ * - Crea handles únicos por nodo y variante: nodeId::variantType::option-key.
+ * - Evita duplicados y mantiene integridad del flujo al importar/exportar JSON.
+ * - Usa debounce y comparación profunda para mejorar el rendimiento.
  */
 export function useVariantFlowSync() {
     const { edges, setEdges, nodes } = useFlowStore()
     const { nodes: variantNodes, setVariantConditions } = useVariantTypeStore()
 
+    // 🧠 Snapshot previo de edges para evitar renders innecesarios
+    const lastEdgesRef = useRef<string>('')
+
     useEffect(() => {
         if (!variantNodes || Object.keys(variantNodes).length === 0) return
+        if (!nodes || nodes.length === 0) return
 
-        // ✅ Recolectar todos los edges válidos según el store de variantes
-        const validEdges: any[] = []
-        const validNodeIds = new Set(nodes.map((n) => n.id)) // nodos actuales del flow
+        let timeout: NodeJS.Timeout | null = null
 
-        Object.entries(variantNodes).forEach(([nodeId, variantData]) => {
-            if (!variantData.conditions) return
+        const syncEdges = () => {
+            const validNodeIds = new Set(nodes.map((n) => n.id))
+            const validEdges: any[] = []
 
-            const cleanConditions: Record<string, string> = {}
+            // 🔹 Recorre cada nodo con variantes
+            Object.entries(variantNodes).forEach(([nodeId, variantData]) => {
+                if (!variantData || !variantData.conditions) return
 
-            Object.entries(variantData.conditions).forEach(
-                ([key, targetId]) => {
-                    if (!targetId || !validNodeIds.has(targetId)) return // 💀 nodo eliminado
+                const cleanConditions: Record<string, string> = {}
+                const variantType = variantData.type || 'quick_reply'
 
-                    const optIndex = variantData.options.findIndex(
-                        (o: any) => o.postbackText === key
-                    )
-                    const handleId = `option-${optIndex >= 0 ? optIndex : key}`
-                    const edgeId = `edge-${nodeId}-${targetId}-${handleId}`
+                // 🔸 Generar edges únicos por nodo y condición
+                Object.entries(variantData.conditions).forEach(
+                    ([key, targetId]) => {
+                        if (!targetId || !validNodeIds.has(targetId)) return
 
-                    validEdges.push({
-                        id: edgeId,
-                        source: nodeId,
-                        target: targetId,
-                        sourceHandle: handleId,
-                        animated: true,
-                        style: { strokeWidth: 2 },
-                    })
+                        // ✅ ID de handle globalmente único
+                        const handleId = getVariantHandleId(
+                            nodeId,
+                            variantType,
+                            key
+                        )
 
-                    // 🔹 Mantener solo las condiciones válidas
-                    cleanConditions[key] = targetId
-                }
-            )
+                        // ✅ Edge ID único para prevenir duplicados
+                        const edgeId = `edge-${nodeId}-${targetId}-${handleId}`
 
-            // 💡 Si hubo condiciones inválidas, se limpia automáticamente el store
-            if (
-                Object.keys(cleanConditions).length !==
-                Object.keys(variantData.conditions).length
-            ) {
-                console.warn(
-                    `🧹 [useVariantFlowSync] Limpiando condiciones inválidas del nodo ${nodeId}`
+                        validEdges.push({
+                            id: edgeId,
+                            source: nodeId,
+                            target: targetId,
+                            sourceHandle: handleId,
+                            animated: true,
+                            style: { strokeWidth: 2 },
+                            type: 'smoothstep',
+                        })
+
+                        cleanConditions[key] = targetId
+                    }
                 )
-                setVariantConditions(nodeId, cleanConditions)
-            }
-        })
 
-        // 🔍 Detectar si hay cambios reales en edges
-        const currentIds = new Set(edges.map((e) => e.id))
-        const validIds = new Set(validEdges.map((e) => e.id))
+                // 🧹 Solo actualiza condiciones si hay diferencias reales
+                const prevCond = variantData.conditions || {}
+                const sameCount =
+                    Object.keys(cleanConditions).length ===
+                    Object.keys(prevCond).length
+                const sameKeys = Object.keys(cleanConditions).every((k) =>
+                    Object.prototype.hasOwnProperty.call(prevCond, k)
+                )
 
-        const hasAdded = validEdges.some((e) => !currentIds.has(e.id))
-        const hasRemoved = edges.some(
-            (e) => e.sourceHandle?.startsWith('option-') && !validIds.has(e.id)
-        )
-
-        if (hasAdded || hasRemoved) {
-            const updated = [
-                // Mantiene edges no interactivos (onTrue/onFalse/onError)
-                ...edges.filter((e) => !e.sourceHandle?.startsWith('option-')),
-                // Añade los nuevos válidos del store
-                ...validEdges,
-            ]
-
-            console.log('🧩 [useVariantFlowSync] Actualizando edges:', {
-                added: hasAdded,
-                removed: hasRemoved,
-                total: updated.length,
+                if (!sameCount || !sameKeys) {
+                    setVariantConditions(nodeId, cleanConditions)
+                }
             })
 
-            setEdges(updated)
+            // 🪄 Fusionar edges no interactivos (otros tipos de conexión)
+            const nonInteractiveEdges = edges.filter(
+                (e) => !e.sourceHandle?.includes('option-')
+            )
+
+            const updatedEdges = [...nonInteractiveEdges, ...validEdges]
+
+            // 🔍 Serializar para comparar sin hacer renders infinitos
+            const serialized = JSON.stringify(
+                updatedEdges.map((e) => ({
+                    id: e.id,
+                    source: e.source,
+                    target: e.target,
+                    sourceHandle: e.sourceHandle,
+                }))
+            )
+
+            if (serialized !== lastEdgesRef.current) {
+                lastEdgesRef.current = serialized
+                setEdges(updatedEdges)
+            }
         }
-    }, [variantNodes, nodes]) // ⚠️ sin 'edges' en dependencias para evitar loops
+
+        // ⏱️ Debounce de 200 ms para suavidad durante movimientos
+        timeout = setTimeout(syncEdges, 200)
+
+        return () => {
+            if (timeout) clearTimeout(timeout)
+        }
+    }, [variantNodes, nodes]) // ⚠️ NO incluir edges para evitar loops
 }
