@@ -7,6 +7,7 @@ let timeConditionCounter = 0
 let endCounter = 0
 let switchConditionCounter = 0
 let setVariablesCounter = 0
+let mysqlQueryCounter = 0
 
 /** 🟣 Menu Principal */
 export function getMenuId(): string {
@@ -56,6 +57,13 @@ export function generateSwitchConditionId(): string {
     return id
 }
 
+/** 🧠 MySQLQuery */
+export function generateMySQLQueryId(): string {
+    const id = `MySQLQuery${String(mysqlQueryCounter).padStart(4, '0')}`
+    mysqlQueryCounter++
+    return id
+}
+
 /** 🔁 Reset manual */
 export function resetNodeCounters() {
     getdatacompleteCounter = 0
@@ -65,4 +73,5 @@ export function resetNodeCounters() {
     endCounter = 0
     setVariablesCounter = 0
     switchConditionCounter = 0
+    mysqlQueryCounter = 0
 }

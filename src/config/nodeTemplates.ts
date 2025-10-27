@@ -8,7 +8,8 @@ import {
     generateSimpleTextId,
     generateTimeConditionId,
     generateSetVariablesId,
-    generateSwitchConditionId, // 🟣 nuevo import
+    generateSwitchConditionId,
+    generateMySQLQueryId,
 } from '@/utils/generateNodeId'
 
 /**
@@ -122,6 +123,26 @@ export const nodeTemplates: Record<
                     alias: '', // alias visible
                     conditions: { '': '' }, // condición inicial vacía
                     body: 'strict', // modo por defecto
+                },
+            },
+        }
+    },
+
+    /** 🧠 MySQLQueryNode */
+    mysqlQueryNode: () => {
+        const id = generateMySQLQueryId()
+        return {
+            id,
+            data: {
+                label: id,
+                action: 'mysqlquery',
+                object: {
+                    mode: 'simpletext',
+                    setvar: '',
+                    query: '',
+                    variable: '',
+                    alias: '',
+                    script: '',
                 },
             },
         }

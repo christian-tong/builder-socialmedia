@@ -8,7 +8,8 @@ import {
     PlayCircle,
     Power,
     UserCircle2,
-    Variable, // 🟣 nuevo icono agregado
+    Variable,
+    Database,
 } from 'lucide-react'
 
 import DerivateNode from '@/components/nodes/DerivateNode'
@@ -19,6 +20,7 @@ import TimeConditionNode from '@/components/nodes/TimeConditionNode'
 import MenuNode from '@/components/nodes/MenuNode'
 import { VariablesNode } from '@/components/nodes/VariablesNode' // 🧩 nuevo nodo
 import SwitchConditionNode from '@/components/nodes/SwitchConditionNode'
+import MySQLQueryNode from '@/components/nodes/MySQLQueryNode'
 
 // =============================================================
 // 🔒 Extiende el namespace global (para cachear nodeTypes)
@@ -55,7 +57,13 @@ export const nodeRegistry = [
         label: 'Condición Variable',
         icon: GitBranch,
         component: SwitchConditionNode,
-    }, // 🆕
+    },
+    {
+        type: 'mysqlQueryNode',
+        label: 'MySQL Query',
+        icon: Database,
+        component: MySQLQueryNode,
+    },
     {
         type: 'timeConditionNode',
         label: 'Condición Tiempo',
