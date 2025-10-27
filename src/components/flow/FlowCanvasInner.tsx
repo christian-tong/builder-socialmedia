@@ -2,12 +2,14 @@
 
 'use client'
 
-import React from 'react'
+import React, { useMemo } from 'react'
 import ReactFlow, {
     Background,
     BackgroundVariant,
     Controls,
     MiniMap,
+    MarkerType,
+    type Edge,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
@@ -18,16 +20,16 @@ import { useThemeStore } from '@/store/useThemeStore'
 import { FlowStylePanel } from './FlowStylePanel'
 import { useVariantFlowSync } from '@/store/useVariantFlowSync'
 
-/**
- * 🧩 FlowCanvasInner
- * --------------------------------------------------
- * - Renderiza el canvas principal de React Flow
- * - Aplica fondo, controles y estilos dinámicos
- * - Sincroniza edges de variantes con Zustand en tiempo real
- */
 export default function FlowCanvasInner() {
     const { theme } = useThemeStore()
-    const { backgroundType } = useFlowStyleStore()
+    const {
+        backgroundType,
+        edgeType,
+        edgeAspect,
+        edgeAnimated,
+        edgeColor,
+        edgeWidth,
+    } = useFlowStyleStore()
     const { nodes, edges, handlers } = useFlowHandlers()
 
     // 🧠 Sincroniza Zustand → ReactFlow automáticamente
@@ -40,15 +42,44 @@ export default function FlowCanvasInner() {
               ? BackgroundVariant.Lines
               : BackgroundVariant.Cross
 
+    // 🔧 Dasharray según aspecto
+    const dash = useMemo(() => {
+        switch (edgeAspect) {
+            case 'dashed':
+                return '8 6'
+            case 'dotted':
+                return '2 6'
+            default:
+                return undefined
+        }
+    }, [edgeAspect])
+
+    // 🎨 Inyecta estilo dinámico a TODOS los edges antes de renderizar
+    const styledEdges: Edge[] = useMemo(() => {
+        return edges.map((e) => ({
+            ...e,
+            type: edgeType, // forma geométrica
+            animated: edgeAnimated,
+            markerEnd: {
+                type: MarkerType.ArrowClosed,
+                color: edgeColor,
+            },
+            style: {
+                ...(e.style ?? {}),
+                stroke: edgeColor,
+                strokeWidth: edgeWidth,
+                strokeDasharray: dash,
+            },
+        }))
+    }, [edges, edgeType, edgeAnimated, edgeColor, edgeWidth, dash])
+
     return (
         <>
-            {/* 🎨 Panel lateral de estilo */}
             <FlowStylePanel />
 
-            {/* 🧩 Lienzo principal de flujo */}
             <ReactFlow
                 nodes={nodes}
-                edges={edges}
+                edges={styledEdges}
                 nodeTypes={nodeTypes}
                 onNodesChange={handlers.onNodesChange}
                 onEdgesChange={handlers.onEdgesChange}
@@ -58,7 +89,6 @@ export default function FlowCanvasInner() {
                 fitView
                 className="h-full w-full"
             >
-                {/* 🌌 Fondo dinámico */}
                 <Background
                     variant={bgVariant}
                     gap={12}
@@ -66,7 +96,6 @@ export default function FlowCanvasInner() {
                     color={theme === 'dark' ? '#333' : '#bbb'}
                 />
 
-                {/* 🗺️ MiniMapa */}
                 <MiniMap
                     position="bottom-left"
                     nodeColor={() => (theme === 'dark' ? '#6366f1' : '#3b82f6')}
@@ -80,7 +109,6 @@ export default function FlowCanvasInner() {
                     }
                 />
 
-                {/* 🕹️ Controles */}
                 <Controls />
             </ReactFlow>
         </>
