@@ -119,7 +119,12 @@ export function VariantListForm({
                 ))}
             </div>
 
-            <VariantBaseConfigFields data={data} onChange={onChange} />
+            <VariantBaseConfigFields
+                data={data}
+                onChange={onChange}
+                variantType="list"
+                colorClass="text-sky-700 dark:text-sky-300"
+            />
         </div>
     )
 }

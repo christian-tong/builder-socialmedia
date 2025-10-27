@@ -1,2 +1,2 @@
 export * from './VariantListForm';
-export * from './VariantQuickReplyFormORG';
+export * from './VariantQuickReplyForm';
