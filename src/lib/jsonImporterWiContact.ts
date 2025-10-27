@@ -1,15 +1,14 @@
 // src\lib\jsonImporterWiContact.ts
 
 import type { Edge, Node } from 'reactflow'
+import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 
 /**
- * 🔁 Convierte JSON WiContact (process.steps) → { nodes, edges }
+ * 🔁 Convierte JSON WiContact u OSM_WSP → { nodes, edges }
  * --------------------------------------------------------------
- * - Mantiene IDs originales
- * - Crea conexiones de control (onTrue / onFalse / onError)
- * - Crea conexiones de menú (conditions / options)
- * - Detecta dinámicamente nodos de cierre (hangup)
- * - Compatible con tus formularios actuales
+ * - Detecta automáticamente estructuras OSM o WiContact.
+ * - Crea nodos compatibles con el builder actual (MenuNode, etc.).
+ * - Sincroniza useVariantTypeStore con variantes y opciones.
  */
 export function convertWiContactToFlow(json: any): {
     nodes: Node[]
@@ -22,41 +21,37 @@ export function convertWiContactToFlow(json: any): {
     const nodes: Node<any>[] = []
     const edges: Edge<any>[] = []
     const conditionMap = new Map<string, Record<string, string>>()
-    const hangupIds = new Set<string>() // ← detecta dinámicamente nodos de cierre
 
-    /**
-     * 🔗 Helper: agrega una conexión (evita duplicados)
-     */
+    const variantStore = useVariantTypeStore.getState()
+
+    /** 🔗 Helper: evita duplicados */
     const addEdge = (
         source: string,
-        target: string | undefined,
-        sourceHandle?: string,
+        target?: string,
+        handle?: string,
         label?: string
     ) => {
-        if (!target) return // evita edges sin destino
-        const id = `${source}-${sourceHandle || 'auto'}-${target}`
+        if (!target) return
+        const id = `${source}-${handle || 'auto'}-${target}`
         if (edges.some((e) => e.id === id)) return
         edges.push({
             id,
             source,
             target,
-            sourceHandle,
+            sourceHandle: handle,
             label,
             type: 'smoothstep',
         })
     }
 
     // ========================
-    // 🧱 PRIMERA PASADA: NODOS
+    // 🧱 PASADA 1: CREAR NODOS
     // ========================
     for (const step of steps) {
         const { id, action, object = {} } = step
+        const lower = String(action || '').toLowerCase()
 
-        // 🟥 Detectar nodos de cierre dinámicamente
-        if (action === 'hangup') hangupIds.add(id)
-
-        switch (action) {
-            // 🟢 Inicio
+        switch (lower) {
             case 'startstep':
                 nodes.push({
                     id,
@@ -66,8 +61,8 @@ export function convertWiContactToFlow(json: any): {
                 })
                 break
 
-            // 🟦 Texto simple
             case 'simpletext':
+            case 'simple_text':
                 nodes.push({
                     id,
                     type: 'simpleTextNode',
@@ -75,21 +70,21 @@ export function convertWiContactToFlow(json: any): {
                     data: {
                         label: id,
                         groodText: object.groodText || '',
-                        message: decodeURIComponent(object.text || ''),
+                        message: decodeURIComponent(
+                            object.text || object.prompt || ''
+                        ),
                     },
                 })
                 break
 
-            // 🟨 Derivación
-            case 'derivate': {
-                const skill = object.skill ? Number(object.skill) : null
+            case 'derivate':
                 nodes.push({
                     id,
                     type: 'derivateNode',
                     position: { x: 0, y: 0 },
                     data: {
                         label: id,
-                        skill,
+                        skill: object.skill ? Number(object.skill) : null,
                         skillLabel: '',
                         timeoutMessage: decodeURIComponent(
                             object.timeoutMessage || ''
@@ -103,142 +98,184 @@ export function convertWiContactToFlow(json: any): {
                     },
                 })
                 break
-            }
 
-            // 🕓 Condición de tiempo
-            case 'timecondition': {
-                const cond: string = object.condition || ''
-                const [days, times] = cond.split(',')
-                const [dayStart, dayEnd] = (days || '').split('-')
-                const [startTime, endTime] = (times || '').split('-')
-
-                nodes.push({
-                    id,
-                    type: 'timeConditionNode',
-                    position: { x: 0, y: 0 },
-                    data: {
-                        label: id,
-                        condition: cond,
-                        dayStart: dayStart || '',
-                        dayEnd: dayEnd || '',
-                        startTime: startTime || '',
-                        endTime: endTime || '',
-                    },
-                })
+            case 'timecondition':
+                {
+                    const cond: string = object.condition || ''
+                    const [days, times] = cond.split(',')
+                    const [dayStart, dayEnd] = (days || '').split('-')
+                    const [startTime, endTime] = (times || '').split('-')
+                    nodes.push({
+                        id,
+                        type: 'timeConditionNode',
+                        position: { x: 0, y: 0 },
+                        data: {
+                            label: id,
+                            condition: cond,
+                            dayStart: dayStart || '',
+                            dayEnd: dayEnd || '',
+                            startTime: startTime || '',
+                            endTime: endTime || '',
+                        },
+                    })
+                }
                 break
-            }
 
-            // 🔴 Fin (Hangup)
             case 'hangup':
                 nodes.push({
                     id,
                     type: 'endNode',
                     position: { x: 0, y: 0 },
-                    data: {
-                        label: id,
-                        hangupCause: object.HangupCause || '',
-                    },
+                    data: { label: id, hangupCause: object.HangupCause || '' },
                 })
                 break
 
-            // 🟣 Menús (GetDataComplete)
-            case 'getdatacomplete': {
-                const isList: boolean = object?.interactive?.type === 'list'
-                const type: string = isList
-                    ? 'menuNodeSecundario'
-                    : 'menuNodePrincipal'
+            // 🟣 WiContact o OSM menú interactivo
+            case 'getdatacomplete':
+            case 'getdata':
+            case 'getdata_v2':
+            case 'get_data':
+                {
+                    // --- Compatibilidad OSM/WiContact ---
+                    const interactive = object.interactive ?? {}
+                    const prompt = object.prompt || ''
+                    const setvars = object.setvariables || {}
+                    const conditions = object.conditions || {}
 
-                conditionMap.set(id, object.conditions || {})
+                    // tipo list / quick_reply
+                    const isList =
+                        interactive.type === 'list' ||
+                        Object.keys(setvars).length > 4 // heurística básica
+                    const variantType = isList ? 'list' : 'quick_reply'
 
-                interface MenuOption {
-                    postbackText: string
-                    title: string
-                    next: string
+                    // opciones: usar interactive o setvariables
+                    const rawOptions =
+                        interactive?.options ??
+                        interactive?.items?.[0]?.options ??
+                        Object.entries(setvars).map(([key, title]) => ({
+                            postbackText: key,
+                            title,
+                        }))
+
+                    const options = rawOptions.map((opt: any, i: number) => ({
+                        postbackText: String(opt.postbackText ?? i + 1),
+                        title: decodeURIComponent(opt.title || ''),
+                        type: opt.type || 'text',
+                    }))
+
+                    // texto principal
+                    const message = decodeURIComponent(
+                        interactive.body ||
+                            interactive.content?.text ||
+                            prompt ||
+                            ''
+                    )
+
+                    // sincronizar store Zustand
+                    variantStore.setVariantType(id, variantType)
+                    variantStore.setVariantOptions(id, options)
+                    variantStore.setVariantConditions(id, conditions)
+
+                    conditionMap.set(id, conditions)
+
+                    nodes.push({
+                        id,
+                        type: 'menuNode',
+                        position: { x: 0, y: 0 },
+                        data: {
+                            label: id,
+                            variable: object.variable || '',
+                            variantType,
+                            object: {
+                                ...object,
+                                interactive: {
+                                    ...interactive,
+                                    type: variantType,
+                                    options: !isList ? rawOptions : undefined,
+                                    items: isList
+                                        ? interactive.items
+                                        : undefined,
+                                },
+                            },
+                            message,
+                            options,
+                        },
+                    })
                 }
-
-                const options: MenuOption[] =
-                    isList && object.interactive?.items
-                        ? object.interactive.items[0].options.map(
-                              (opt: any, idx: number): MenuOption => ({
-                                  postbackText: opt.postbackText,
-                                  title: decodeURIComponent(opt.title || ''),
-                                  next: object.conditions?.[opt.postbackText],
-                              })
-                          )
-                        : object.interactive?.options?.map(
-                              (opt: any, idx: number): MenuOption => ({
-                                  postbackText: opt.postbackText,
-                                  title: decodeURIComponent(opt.title || ''),
-                                  next: object.conditions?.[opt.postbackText],
-                              })
-                          ) || []
-
-                nodes.push({
-                    id,
-                    type,
-                    position: { x: 0, y: 0 },
-                    data: {
-                        label: id,
-                        variable: object.variable || '',
-                        message: decodeURIComponent(
-                            isList
-                                ? object.interactive?.body || ''
-                                : object.interactive?.content?.text || ''
-                        ),
-                        options,
-                    },
-                })
                 break
-            }
 
             default:
+                // 👇 Ignorar nodos no soportados (mysqlquery, saverecord, etc.)
+                nodes.push({
+                    id,
+                    type: 'simpleTextNode',
+                    position: { x: 0, y: 0 },
+                    data: {
+                        label: `${id} (${action})`,
+                        message: '[No soportado]',
+                    },
+                })
                 break
         }
     }
 
     // ==========================
-    // 🔗 SEGUNDA PASADA: EDGES
+    // 🔗 PASADA 2: CREAR EDGES
     // ==========================
     for (const step of steps) {
         const { id, action, onTrue, onFalse, onError, object = {} } = step
 
-        // Conexiones de control (presentes en todos los tipos)
         addEdge(id, onTrue, 'onTrue')
         addEdge(id, onFalse, 'onFalse')
         addEdge(id, onError, 'onError')
 
-        // Conexiones de menú
-        if (action === 'getdatacomplete') {
+        const lower = String(action || '').toLowerCase()
+        if (
+            ['getdatacomplete', 'getdata', 'getdata_v2', 'get_data'].includes(
+                lower
+            )
+        ) {
             const conds = object.conditions || {}
-            const isList = object?.interactive?.type === 'list'
-            const options = isList
-                ? object.interactive?.items?.[0]?.options || []
-                : object.interactive?.options || []
+            const interactive = object.interactive ?? {}
+            const setvars = object.setvariables || {}
 
-            options.forEach((opt: any, index: number) => {
+            const isList =
+                interactive.type === 'list' || Object.keys(setvars).length > 4
+            const rawOptions =
+                interactive.options ??
+                interactive.items?.[0]?.options ??
+                Object.entries(setvars).map(([key, title]) => ({
+                    postbackText: key,
+                    title,
+                }))
+
+            rawOptions.forEach((opt: any) => {
                 const target = conds?.[opt.postbackText]
-                addEdge(id, target, `option-${index}`)
+                if (target)
+                    addEdge(
+                        id,
+                        target,
+                        `${variantTypeHandle(isList)}-${opt.postbackText}`
+                    )
             })
         }
     }
 
-    // ♻ Reconstruir vínculos “Menú anterior” (condición [0])
+    // 🔄 Menú anterior (condición '0')
     for (const [childId, conds] of conditionMap.entries()) {
         const parentId = conds['0']
-        if (parentId) {
-            const exists = edges.some(
-                (e) => e.source === childId && e.target === parentId
-            )
-            if (!exists) {
-                addEdge(childId, parentId, 'back', '🔙 Menú anterior')
-            }
-        }
+        if (parentId) addEdge(childId, parentId, 'back', '🔙 Menú anterior')
     }
 
-    // 📍 Posiciones base
+    // posiciones iniciales
     nodes.forEach((node, i) => {
         node.position = { x: (i % 5) * 320, y: Math.floor(i / 5) * 220 }
     })
 
     return { nodes, edges }
+}
+
+/** 🔧 Prefijo correcto */
+function variantTypeHandle(isList: boolean) {
+    return isList ? 'list' : 'qr'
 }

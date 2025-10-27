@@ -11,7 +11,6 @@ import {
 } from 'lucide-react'
 import DerivateNode from '@/components/nodes/DerivateNode'
 import EndNode from '@/components/nodes/EndNode'
-import MenuNodePrincipal from '@/components/nodes/MenuNode'
 import { SimpleTextNode } from '@/components/nodes/SimpleTextNode'
 import { StartNode } from '@/components/nodes/StartNode'
 import TimeConditionNode from '@/components/nodes/TimeConditionNode'

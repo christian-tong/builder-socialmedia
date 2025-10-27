@@ -41,7 +41,6 @@ D:.
 ¦   ¦       TimeConditionNode.tsx
 ¦   ¦       
 ¦   +---shared
-¦   ¦       BaseVariantFields.tsx
 ¦   ¦       BeforeUnloadModal.tsx
 ¦   ¦       ColorPicker.tsx
 ¦   ¦       DraggableWrapper.tsx
@@ -53,6 +52,7 @@ D:.
 ¦   ¦       NodeConnectionsAccordion.tsx
 ¦   ¦       NodeSelectAccordion.tsx
 ¦   ¦       useVariantOptions.ts
+¦   ¦       VariantBaseConfigFields.tsx
 ¦   ¦       VariantOptionAccordion.tsx
 ¦   ¦       
 ¦   +---ui
@@ -73,6 +73,7 @@ D:.
 ¦           textarea.tsx
 ¦           
 +---config
+¦       baseVariantFields.ts
 ¦       getDataVariantsConfig.ts
 ¦       nodesConfig.ts
 ¦       nodesForms.ts
@@ -81,16 +82,16 @@ D:.
 +---hooks
 ¦       useBeforeUnloadConfirm.ts
 ¦       useBeforeUnloadWarning.ts
+¦       useFlowConnections.ts
 ¦       useFlowHandlers.ts
-¦       useKeyboard.ts
 ¦       useKeyboardShortcut.ts
 ¦       useMenuNodeForm.ts
 ¦       useMenuNodeOptions.ts
 ¦       useMenuNodeSync.ts
 ¦       useNodeConnections.ts
-¦       useNodeValidation.ts
 ¦       useTheme.ts
 ¦       useVariantOptions.ts
+¦       useVariantOptionsManager.ts
 ¦       
 +---lib
 ¦       autoLayout.ts
@@ -126,6 +127,8 @@ D:.
 ¦       useNodeConfigStore.ts
 ¦       useSidebarStore.ts
 ¦       useThemeStore.ts
+¦       useVariantFlowSync.ts
+¦       useVariantTypeStore.ts
 ¦       
 +---styles
 ¦       globals.css
@@ -137,5 +140,5 @@ D:.
 ¦       
 +---utils
         generateNodeId.ts
-        helpers.ts
+        getNestedValue.ts
         
