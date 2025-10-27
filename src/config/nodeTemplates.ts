@@ -1,12 +1,14 @@
 // src/config/nodeTemplates.ts
 
+// src/config/nodeTemplates.ts
 import {
     generateDerivateId,
     generateEndId,
     getMenuId,
     generateSimpleTextId,
     generateTimeConditionId,
-    generateSetVariablesId, // 🟣 nuevo import
+    generateSetVariablesId,
+    generateSwitchConditionId, // 🟣 nuevo import
 } from '@/utils/generateNodeId'
 
 /**
@@ -19,7 +21,7 @@ export const nodeTemplates: Record<
     string,
     () => { id: string; data: Record<string, any> }
 > = {
-    /** 🟩 SimpleText */
+    /** 🟢 SimpleText */
     simpleTextNode: () => {
         const id = generateSimpleTextId()
         return {
@@ -101,6 +103,25 @@ export const nodeTemplates: Record<
                 action: 'setvariables',
                 object: {
                     setvars: '{}', // inicialmente vacío
+                },
+            },
+        }
+    },
+
+    /** 🧩 SwitchConditionNode */
+    switchConditionNode: () => {
+        const id = generateSwitchConditionId()
+        return {
+            id,
+            data: {
+                label: id,
+                action: 'switchcondition',
+                object: {
+                    setvariables: { '1': '' }, // estructura base, valor vacío
+                    variable: '', // nombre de la variable
+                    alias: '', // alias visible
+                    conditions: { '': '' }, // condición inicial vacía
+                    body: 'strict', // modo por defecto
                 },
             },
         }

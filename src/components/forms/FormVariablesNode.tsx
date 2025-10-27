@@ -2,7 +2,7 @@
 
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
     NodeConnectionsAccordion,
     NodeSelectionAccordion,
@@ -26,52 +26,62 @@ export default function FormVariablesNode({
     id: string
     data: Record<string, any>
 }) {
-    const { updateNodeData } = useNodeConfigStore()
-    const { getNodeVariables, setNodeVariables, addVariableToNode } =
-        useVariablesStore()
-
+    const { updateNodeData, registerSaveCallback, unregisterSaveCallback } =
+        useNodeConfigStore()
+    const { getNodeVariables, setNodeVariables } = useVariablesStore()
     const { nextNodes, availableNodes, hasConnection, toggleConnection } =
         useNodeConnections(id)
 
-    const [localVars, setLocalVars] = useState<VariableEntry[]>(
-        getNodeVariables(id)
-    )
+    const [localVars, setLocalVars] = useState<VariableEntry[]>([])
 
-    const syncSetvarsToNodeData = (vars: VariableEntry[]) => {
-        const obj = Object.fromEntries(
-            vars.map((v) => [v.key, (v.value ?? '').toUpperCase()])
-        )
-        updateNodeData(id, {
-            object: {
-                setvars: JSON.stringify(obj),
-            },
-        })
-    }
+    useEffect(() => {
+        setLocalVars(getNodeVariables(id))
+    }, [id, getNodeVariables])
 
     const addVariable = () => {
-        const updated = addVariableToNode(id)
-        setLocalVars(updated)
-        syncSetvarsToNodeData(updated)
+        const newVar: VariableEntry = {
+            key: `campo_${Date.now()}`,
+            value: '',
+        }
+        setLocalVars((prev) => [...prev, newVar])
     }
 
     const removeVariable = (index: number) => {
-        const updated = localVars.filter((_, i) => i !== index)
-        setLocalVars(updated)
-        setNodeVariables(id, updated)
-        syncSetvarsToNodeData(updated)
+        setLocalVars((prev) => prev.filter((_, i) => i !== index))
     }
 
     const updateValue = (index: number, value: string) => {
-        const updated = [...localVars]
-        updated[index] = { ...updated[index], value }
-        setLocalVars(updated)
-        setNodeVariables(id, updated)
-        syncSetvarsToNodeData(updated)
+        setLocalVars((prev) => {
+            const updated = [...prev]
+            updated[index] = { ...updated[index], value }
+            return updated
+        })
     }
+
+    useEffect(() => {
+        registerSaveCallback(id, () => {
+            setNodeVariables(id, localVars)
+            const obj = Object.fromEntries(
+                localVars.map((v) => [v.key, v.value.toUpperCase()])
+            )
+            updateNodeData(id, {
+                object: { setvars: JSON.stringify(obj) },
+            })
+        })
+
+        // Limpieza específica de este formulario
+        return () => unregisterSaveCallback(id)
+    }, [
+        id,
+        localVars,
+        registerSaveCallback,
+        unregisterSaveCallback,
+        setNodeVariables,
+        updateNodeData,
+    ])
 
     return (
         <div className="flex flex-col gap-5">
-            {/* 🔹 Encabezado */}
             <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
                 <Label
                     className="text-sm font-semibold"
@@ -92,14 +102,12 @@ export default function FormVariablesNode({
                 </Badge>
             </div>
 
-            {/* 🔗 Nodo siguiente */}
             <NodeConnectionsAccordion
                 title="Nodo siguiente"
                 nodesList={nextNodes}
                 accentColor="text-[#44344F]"
             />
 
-            {/* ⚡ Selección interactiva */}
             <NodeSelectionAccordion
                 title="Conectar o desconectar nodos"
                 availableNodes={availableNodes}
@@ -108,7 +116,6 @@ export default function FormVariablesNode({
                 accentColor="text-[#44344F]"
             />
 
-            {/* 🧩 Variables */}
             <div className="mt-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium">
@@ -135,7 +142,6 @@ export default function FormVariablesNode({
                         key={v.key ?? i}
                         className="flex items-center gap-2 border-b pb-1 dark:border-gray-800"
                     >
-                        {/* Solo el VALUE editable */}
                         <Input
                             value={v.value}
                             onChange={(e) => updateValue(i, e.target.value)}

@@ -2,6 +2,7 @@
 
 import {
     Clock,
+    GitBranch,
     ListTree,
     MessageSquare,
     PlayCircle,
@@ -17,6 +18,7 @@ import { StartNode } from '@/components/nodes/StartNode'
 import TimeConditionNode from '@/components/nodes/TimeConditionNode'
 import MenuNode from '@/components/nodes/MenuNode'
 import { VariablesNode } from '@/components/nodes/VariablesNode' // 🧩 nuevo nodo
+import SwitchConditionNode from '@/components/nodes/SwitchConditionNode'
 
 // =============================================================
 // 🔒 Extiende el namespace global (para cachear nodeTypes)
@@ -43,11 +45,17 @@ export const nodeRegistry = [
         component: MenuNode,
     },
     {
-        type: 'variablesNode', // 🟣 NUEVO NODO
+        type: 'variablesNode',
         label: 'Variables',
         icon: Variable,
         component: VariablesNode,
     },
+    {
+        type: 'switchConditionNode',
+        label: 'Condición Variable',
+        icon: GitBranch,
+        component: SwitchConditionNode,
+    }, // 🆕
     {
         type: 'timeConditionNode',
         label: 'Condición Tiempo',

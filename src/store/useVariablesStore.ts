@@ -37,7 +37,6 @@ interface VariablesState {
  * - Genera claves automáticas del tipo `campo_YYYY_MM_DD_HH_MM_SS`
  * - Convierte los valores en MAYÚSCULAS antes de guardarlos
  * - Permite sincronización directa con el formulario VariablesNode
- * - Color base de módulo: #006C67 (verde esmeralda)
  */
 export const useVariablesStore = create<VariablesState>((set, get) => ({
     variables: {},

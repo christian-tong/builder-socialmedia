@@ -1,8 +1,7 @@
 // src\components\flow\NodeConfigSidebar.tsx
-
 'use client'
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { SidebarRight } from '@/components/layout/SidebarRight'
 import { nodeFormRegistry } from '@/config/nodesForms'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
@@ -14,20 +13,32 @@ import { useNodeConfigStore } from '@/store/useNodeConfigStore'
  * ⚙️ NodeConfigSidebar
  * -------------------------------------------------------
  * - Panel de configuración del nodo.
- * - Mantiene transiciones suaves.
- * - Cierra con tecla Escape.
- * - Botón Guardar fijo en el footer (controlado por SidebarRight).
+ * - Cierra con tecla Escape o botón ✕.
+ * - Limpia callbacks de guardado al cerrar (memoria limpia 🧠).
+ * - Botón Guardar fijo en el footer (SidebarRight).
  */
 export function NodeConfigSidebar() {
     const { isDark } = useTheme()
-    const { selectedNode, setSelectedNode, saveNodeDataToFlow } =
-        useNodeConfigStore()
+    const {
+        selectedNode,
+        setSelectedNode,
+        saveNodeDataToFlow,
+        clearAllSaveCallbacks,
+    } = useNodeConfigStore()
     const isOpen = !!selectedNode
 
-    // 🎹 Cerrar con tecla Escape
+    // 🎹 Cerrar con tecla Escape (y limpiar callbacks)
     useKeyboardShortcut('Escape', () => {
-        if (isOpen) setSelectedNode(null)
+        if (isOpen) {
+            clearAllSaveCallbacks()
+            setSelectedNode(null)
+        }
     })
+
+    // 🧹 Limpieza automática al desmontar el panel o cerrar
+    useEffect(() => {
+        if (!isOpen) clearAllSaveCallbacks()
+    }, [isOpen, clearAllSaveCallbacks])
 
     // ⛑️ Determinar nodo activo
     const { id, type, data } = selectedNode ?? {}
@@ -36,6 +47,13 @@ export function NodeConfigSidebar() {
     // 💾 Guardar cambios y cerrar
     const handleSave = () => {
         saveNodeDataToFlow()
+        clearAllSaveCallbacks()
+        setSelectedNode(null)
+    }
+
+    // ❌ Cerrar con el botón (limpieza incluida)
+    const handleClose = () => {
+        clearAllSaveCallbacks()
         setSelectedNode(null)
     }
 
@@ -68,7 +86,7 @@ export function NodeConfigSidebar() {
                     </h3>
 
                     <button
-                        onClick={() => setSelectedNode(null)}
+                        onClick={handleClose}
                         className={cn(
                             'rounded-md px-2 py-1 text-xs transition-colors',
                             isDark
