@@ -6,6 +6,7 @@ import FormMenuNode from '@/components/forms/FormMenuNode'
 import FormSimpleTextNode from '@/components/forms/FormSimpleTextNode'
 import FormStartNode from '@/components/forms/FormStartNode'
 import FormTimeConditionNode from '@/components/forms/FormTimeConditionNode'
+import FormVariablesNode from '@/components/forms/FormVariablesNode'
 
 export const nodeFormRegistry: Record<string, any> = {
     startNode: FormStartNode,
@@ -13,5 +14,6 @@ export const nodeFormRegistry: Record<string, any> = {
     simpleTextNode: FormSimpleTextNode,
     derivateNode: FormDerivateNode,
     timeConditionNode: FormTimeConditionNode,
+    variablesNode: FormVariablesNode,
     endNode: FormEndNode,
 }

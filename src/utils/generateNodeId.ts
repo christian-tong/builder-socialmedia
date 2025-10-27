@@ -5,6 +5,7 @@ let simpleTextCounter = 0
 let derivateCounter = 0
 let timeConditionCounter = 0
 let endCounter = 0
+let setVariablesCounter = 0 // 🟣 nuevo contador
 
 /** 🟣 Menu Principal */
 export function getMenuId(): string {
@@ -41,6 +42,13 @@ export function generateEndId(): string {
     return id
 }
 
+/** 🟣 VariablesNode (SetVariables) */
+export function generateSetVariablesId(): string {
+    const id = `SetVariables${String(setVariablesCounter).padStart(4, '0')}`
+    setVariablesCounter++
+    return id
+}
+
 /** 🔁 Reset manual */
 export function resetNodeCounters() {
     getdatacompleteCounter = 0
@@ -48,4 +56,5 @@ export function resetNodeCounters() {
     derivateCounter = 0
     timeConditionCounter = 0
     endCounter = 0
+    setVariablesCounter = 0 // 🟣 reseteo incluido
 }

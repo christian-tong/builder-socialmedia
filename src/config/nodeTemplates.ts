@@ -1,10 +1,12 @@
 // src/config/nodeTemplates.ts
+
 import {
     generateDerivateId,
     generateEndId,
     getMenuId,
     generateSimpleTextId,
     generateTimeConditionId,
+    generateSetVariablesId, // 🟣 nuevo import
 } from '@/utils/generateNodeId'
 
 /**
@@ -85,6 +87,21 @@ export const nodeTemplates: Record<
             data: {
                 label: id,
                 hangupCause: '',
+            },
+        }
+    },
+
+    /** 🟣 VariablesNode (SetVariables) */
+    variablesNode: () => {
+        const id = generateSetVariablesId()
+        return {
+            id,
+            data: {
+                label: id,
+                action: 'setvariables',
+                object: {
+                    setvars: '{}', // inicialmente vacío
+                },
             },
         }
     },

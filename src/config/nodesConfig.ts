@@ -1,20 +1,22 @@
 // src/config/nodesConfig.ts
+
 import {
     Clock,
-    FileText,
-    ListChecks,
     ListTree,
     MessageSquare,
     PlayCircle,
     Power,
     UserCircle2,
+    Variable, // 🟣 nuevo icono agregado
 } from 'lucide-react'
+
 import DerivateNode from '@/components/nodes/DerivateNode'
 import EndNode from '@/components/nodes/EndNode'
 import { SimpleTextNode } from '@/components/nodes/SimpleTextNode'
 import { StartNode } from '@/components/nodes/StartNode'
 import TimeConditionNode from '@/components/nodes/TimeConditionNode'
 import MenuNode from '@/components/nodes/MenuNode'
+import { VariablesNode } from '@/components/nodes/VariablesNode' // 🧩 nuevo nodo
 
 // =============================================================
 // 🔒 Extiende el namespace global (para cachear nodeTypes)
@@ -40,7 +42,12 @@ export const nodeRegistry = [
         icon: ListTree,
         component: MenuNode,
     },
-
+    {
+        type: 'variablesNode', // 🟣 NUEVO NODO
+        label: 'Variables',
+        icon: Variable,
+        component: VariablesNode,
+    },
     {
         type: 'timeConditionNode',
         label: 'Condición Tiempo',
@@ -59,7 +66,12 @@ export const nodeRegistry = [
         icon: MessageSquare,
         component: SimpleTextNode,
     },
-    { type: 'endNode', label: 'Fin', icon: Power, component: EndNode },
+    {
+        type: 'endNode',
+        label: 'Fin',
+        icon: Power,
+        component: EndNode,
+    },
 ] as const
 
 // =============================================================
