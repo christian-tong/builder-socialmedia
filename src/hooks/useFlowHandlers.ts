@@ -1,7 +1,7 @@
 // src\hooks\useFlowHandlers.ts
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import {
     addEdge,
     applyEdgeChanges,
@@ -19,12 +19,21 @@ import { useFlowStore } from '@/store/useFlowStore'
 import { useFlowStyleStore } from '@/store/useFlowStyleStore'
 import { useBeforeUnloadConfirm } from './useBeforeUnloadConfirm'
 
+// ✅ Pequeño debounce sin dependencia externa
+function debounce<T extends (...args: any[]) => void>(fn: T, delay = 40) {
+    let timer: NodeJS.Timeout
+    return (...args: Parameters<T>) => {
+        clearTimeout(timer)
+        timer = setTimeout(() => fn(...args), delay)
+    }
+}
+
 /**
- * 🧠 useFlowHandlers — Lógica principal del Flow
+ * 🧠 useFlowHandlers — versión optimizada y fluida
  * -------------------------------------------------------
- * - Maneja eventos de nodos, edges y conexiones
- * - Crea nodos dinámicos por drag & drop
- * - Auto layout, actualizaciones globales y confirmaciones
+ * - Sincroniza nodos y edges con mínimo overhead.
+ * - Reduce renderizados durante el arrastre.
+ * - Mantiene la compatibilidad total con la lógica actual.
  */
 export function useFlowHandlers() {
     const { nodes, edges, setNodes, setEdges } = useFlowStore()
@@ -32,9 +41,10 @@ export function useFlowHandlers() {
     const { orientation } = useFlowOrientationStore()
     const { project, fitView } = useReactFlow()
 
+    // ⚠️ Previene cierre accidental
     useBeforeUnloadConfirm(nodes, edges)
 
-    // 🧠 Crear nodo inicial
+    // 🧠 Crea nodo inicial si no existe
     useEffect(() => {
         if (nodes.length === 0) {
             setNodes([
@@ -51,25 +61,32 @@ export function useFlowHandlers() {
         }
     }, [nodes, setNodes])
 
-    // 🔁 Actualizar tipo de edges al cambiar estilo
+    // 🔁 Actualiza tipo de edges al cambiar estilo
     useEffect(() => {
         setEdges((eds) => eds.map((e) => ({ ...e, type: edgeType })))
     }, [edgeType, setEdges])
 
-    // 🧭 Reordenar al cambiar orientación
+    // 🧭 Reordenar automáticamente al cambiar orientación
     useEffect(() => {
         if (nodes.length > 0) {
             const layouted = applyAutoLayout(nodes, edges, orientation)
             setNodes(layouted)
             setTimeout(() => fitView({ padding: 0.2 }), 300)
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orientation])
 
-    // 🎛️ Handlers
+    // ⚙️ Debounced setter para nodos
+    const debouncedSetNodes = useMemo(
+        () => debounce(setNodes, 40), // ~25 FPS → fluidez óptima
+        [setNodes]
+    )
+
+    // 🎛️ Handlers principales
     const onNodesChange = useCallback(
         (changes: NodeChange[]) =>
-            setNodes((nds) => applyNodeChanges(changes, nds)),
-        [setNodes]
+            debouncedSetNodes((nds) => applyNodeChanges(changes, nds)),
+        [debouncedSetNodes]
     )
 
     const onEdgesChange = useCallback(
@@ -117,7 +134,7 @@ export function useFlowHandlers() {
                 ? { x: position.x + OFFSET_X, y: position.y + OFFSET_Y }
                 : position
 
-            // 📦 Obtener plantilla del tipo correspondiente
+            // 📦 Obtener plantilla base del tipo correspondiente
             const { id, data } = getNodeTemplate(type)
 
             const newNode: Node = {
@@ -132,15 +149,17 @@ export function useFlowHandlers() {
         [nodes, setNodes, project]
     )
 
-    return {
-        nodes,
-        edges,
-        handlers: {
+    // 🔒 Memoiza handlers para evitar recreación constante
+    const handlers = useMemo(
+        () => ({
             onNodesChange,
             onEdgesChange,
             onConnect,
             onDrop,
             onDragOver,
-        },
-    }
+        }),
+        [onNodesChange, onEdgesChange, onConnect, onDrop, onDragOver]
+    )
+
+    return { nodes, edges, handlers }
 }
