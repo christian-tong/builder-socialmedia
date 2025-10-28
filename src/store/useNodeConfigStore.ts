@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { create } from 'zustand'
 import { exportToJsonFile, importFromJsonFile } from '@/lib/jsonExportImport'
 import { useFlowStore } from './useFlowStore'
+import { usePendingConnectionsStore } from './usePendingConnectionsStore'
 
 interface NodeConfig {
     id: string
@@ -55,26 +56,19 @@ export const useNodeConfigStore = create<NodeConfigState>((set, get) => ({
     /** 🎯 Seleccionar o limpiar nodo */
     setSelectedNode: (node) => set({ selectedNode: node }),
 
-    /** 🧩 Actualizar datos del nodo activo (versión optimizada con shallow compare) */
+    /** 🧩 Actualizar datos del nodo activo (comparación superficial para evitar renders innecesarios) */
     updateNodeData: (id, newData) => {
         const current = get().selectedNode
         if (!current || current.id !== id) return
 
         const prevData = current.data ?? {}
 
-        // 🧠 Comparación superficial: evita renders innecesarios
-        const isSame =
-            Object.keys(newData).every(
-                (key) => prevData[key] === newData[key]
-            ) &&
-            Object.keys(prevData).every(
-                (key) => !(key in newData) || prevData[key] === newData[key]
-            )
+        const hasChanged = Object.keys(newData).some(
+            (key) => prevData[key] !== newData[key]
+        )
 
-        // 🚫 Si los datos son iguales, no actualizamos el estado
-        if (isSame) return
+        if (!hasChanged) return
 
-        // ✅ Solo actualiza si hay cambios reales
         set({
             selectedNode: {
                 ...current,
@@ -89,59 +83,128 @@ export const useNodeConfigStore = create<NodeConfigState>((set, get) => ({
         flow.updateNodeOptions(id, options)
     },
 
-    /** 💾 Guardar cambios del nodo en el flujo */
+    /** 💾 Guardar cambios del nodo en el flujo (aplica conexiones diferidas) */
     saveNodeDataToFlow: () => {
         const { selectedNode, saveCallbacks } = get()
-        if (!selectedNode) return
+        if (!selectedNode) {
+            toast.warning('⚠️ No hay nodo seleccionado para guardar.')
+            return
+        }
 
-        // 🔹 Ejecutar callback de guardado del formulario actual (si existe)
         const callback = saveCallbacks[selectedNode.id]
+        const { id, data } = selectedNode
+
+        // 🧠 Ejecutar callback personalizado si existe
         if (callback) {
             try {
                 callback()
             } catch (err) {
-                console.error('❌ Error ejecutando callback de guardado:', err)
+                console.error(
+                    `❌ Error ejecutando callback de guardado del nodo ${id}:`,
+                    err
+                )
                 toast.error('Error al guardar los cambios del nodo')
+                return
             }
         }
 
-        const { id, data } = selectedNode
-        const { nodes, setNodes } = useFlowStore.getState()
+        // 🧩 Actualizar nodo dentro del flujo global
+        const { nodes, edges, setNodes, setEdges } = useFlowStore.getState()
 
-        // Actualiza solo el nodo editado
-        const updated = nodes.map((node) =>
+        const exists = nodes.some((n) => n.id === id)
+        if (!exists) {
+            console.warn(
+                `⚠️ Nodo con ID ${id} no encontrado al intentar guardar.`
+            )
+            return
+        }
+
+        const updatedNodes = nodes.map((node) =>
             node.id === id ? { ...node, data: { ...node.data, ...data } } : node
         )
 
-        setNodes(updated)
-        toast.success('💾 Cambios guardados en el flujo')
+        setNodes(updatedNodes)
+        console.log(`✅ Nodo ${id} actualizado en el flujo`, data)
+
+        // 🔗 APLICAR CONEXIONES DIFERIDAS (drafts)
+        try {
+            const { getSourceDrafts, clearSource } =
+                usePendingConnectionsStore.getState()
+            const drafts = getSourceDrafts(id)
+
+            if (drafts.length > 0) {
+                console.groupCollapsed(
+                    `🔗 Aplicando ${drafts.length} conexiones diferidas del nodo ${id}`
+                )
+                console.table(drafts, ['sourceId', 'handleId', 'targetId'])
+
+                const newEdges = [...edges]
+
+                for (const d of drafts) {
+                    if (d.targetId && d.targetId !== '') {
+                        const edgeId = `${d.sourceId}-${d.handleId}-${d.targetId}`
+
+                        // Evita duplicados
+                        const alreadyExists = newEdges.some(
+                            (e) => e.id === edgeId
+                        )
+                        if (!alreadyExists) {
+                            newEdges.push({
+                                id: edgeId,
+                                source: d.sourceId,
+                                target: d.targetId,
+                                sourceHandle: d.handleId,
+                                type: 'smoothstep',
+                            })
+                            console.log(`✅ Edge creado: ${edgeId}`)
+                        }
+                    }
+                }
+
+                setEdges(newEdges)
+                clearSource(id)
+                console.groupEnd()
+                console.log(`🧹 Drafts de ${id} aplicados y limpiados`)
+            }
+        } catch (err) {
+            console.error('⚠️ Error aplicando drafts diferidos:', err)
+        }
+
+        toast.success('💾 Cambios guardados correctamente')
     },
 
-    /** 🧠 Registrar callback de guardado */
-    registerSaveCallback: (nodeId, callback) =>
+    /** 🧠 Registrar callback de guardado (uno por nodo) */
+    registerSaveCallback: (nodeId, callback) => {
         set((state) => ({
             saveCallbacks: { ...state.saveCallbacks, [nodeId]: callback },
-        })),
+        }))
+        console.log(`📌 Callback de guardado registrado para nodo: ${nodeId}`)
+    },
 
-    /** 🧹 Eliminar callback de guardado (para evitar fugas de memoria) */
+    /** 🧹 Eliminar callback de guardado (al desmontar formulario) */
     unregisterSaveCallback: (nodeId) =>
         set((state) => {
             const { [nodeId]: _, ...rest } = state.saveCallbacks
+            console.log(`🧽 Callback eliminado para nodo: ${nodeId}`)
             return { saveCallbacks: rest }
         }),
 
-    /** 🧼 Limpia todos los callbacks registrados */
-    clearAllSaveCallbacks: () => set({ saveCallbacks: {} }),
+    /** 🧼 Limpia todos los callbacks registrados (seguridad global) */
+    clearAllSaveCallbacks: () => {
+        console.log('🧹 Limpiando todos los callbacks de guardado')
+        set({ saveCallbacks: {} })
+    },
 
     /** 📤 Exportar configuración actual del nodo */
     exportConfig: () => {
-        const state = get().selectedNode
-        if (!state) {
+        const node = get().selectedNode
+        if (!node) {
             toast.warning('⚠️ No hay nodo seleccionado para exportar.')
             return
         }
-        exportToJsonFile(state, 'builderSocialMedia')
-        toast.success('✅ Configuración exportada correctamente')
+
+        exportToJsonFile(node, 'builderSocialMedia')
+        toast.success(`✅ Nodo ${node.id} exportado correctamente`)
     },
 
     /** 📥 Importar configuración desde un archivo JSON */

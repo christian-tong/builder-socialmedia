@@ -1,5 +1,3 @@
-// src\utils\generateNodeId.ts
-
 let getdatacompleteCounter = 0
 let simpleTextCounter = 0
 let derivateCounter = 0
@@ -10,6 +8,7 @@ let setVariablesCounter = 0
 let mysqlQueryCounter = 0
 let noopCounter = 0
 let chatbotIARequestCounter = 0
+let saveRecordCounter = 0 // 🧾 Nuevo contador
 
 /** 🟣 Menu Principal */
 export function getMenuId(): string {
@@ -53,6 +52,7 @@ export function generateSetVariablesId(): string {
     return id
 }
 
+/** 🔀 SwitchCondition */
 export function generateSwitchConditionId(): string {
     const id = `SwitchCondition${String(switchConditionCounter).padStart(4, '0')}`
     switchConditionCounter++
@@ -80,6 +80,13 @@ export function generateChatBotIARequestId(): string {
     return id
 }
 
+/** 🧾 SaveRecord */
+export function generateSaveRecordId(): string {
+    const id = `SaveRecord${String(saveRecordCounter).padStart(4, '0')}`
+    saveRecordCounter++
+    return id
+}
+
 /** 🔁 Reset manual */
 export function resetNodeCounters() {
     getdatacompleteCounter = 0
@@ -92,4 +99,5 @@ export function resetNodeCounters() {
     mysqlQueryCounter = 0
     noopCounter = 0
     chatbotIARequestCounter = 0
+    saveRecordCounter = 0
 }

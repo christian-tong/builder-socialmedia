@@ -6,6 +6,7 @@ import FormEndNode from '@/components/forms/FormEndNode'
 import FormMenuNode from '@/components/forms/FormMenuNode'
 import FormMySQLQueryNode from '@/components/forms/FormMySQLQueryNode'
 import FormNoOpNode from '@/components/forms/FormNoOpNode'
+import FormSaveRecordNode from '@/components/forms/FormSaveRecordNode'
 import FormSimpleTextNode from '@/components/forms/FormSimpleTextNode'
 import FormStartNode from '@/components/forms/FormStartNode'
 import FormSwitchConditionNode from '@/components/forms/FormSwitchConditionNode'
@@ -23,5 +24,6 @@ export const nodeFormRegistry: Record<string, any> = {
     mysqlQueryNode: FormMySQLQueryNode,
     noopNode: FormNoOpNode,
     chatBotIARequestNode: FormChatBotIARequestNode,
+    saveRecordNode: FormSaveRecordNode,
     endNode: FormEndNode,
 }

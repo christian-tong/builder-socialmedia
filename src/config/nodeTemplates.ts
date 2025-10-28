@@ -12,6 +12,7 @@ import {
     generateMySQLQueryId,
     generateNoOpId,
     generateChatBotIARequestId,
+    generateSaveRecordId,
 } from '@/utils/generateNodeId'
 
 /**
@@ -172,12 +173,35 @@ export const nodeTemplates: Record<
                 label: id,
                 action: 'chatbotiarequest',
                 object: {
-                    variable: 'ANSWER',
+                    variable: '',
                     body: '',
-                    url: 'https://159.112.141.171:8021/api/v1/user/py/serviceCbIA/getQuestion',
+                    url: '',
                 },
                 onTrue: '',
                 onFalse: '',
+            },
+        }
+    },
+
+    /** 🧾 SaveRecordNode */
+    saveRecordNode: () => {
+        const id = generateSaveRecordId()
+        return {
+            id,
+            data: {
+                label: id,
+                action: 'saverecord',
+                onTrue: '',
+                onFalse: '',
+                object: {
+                    auth: {
+                        headers: {},
+                        vartoken: '',
+                        body: '',
+                        url: '',
+                    },
+                    body: '',
+                },
             },
         }
     },

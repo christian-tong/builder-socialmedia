@@ -2,8 +2,7 @@
 
 'use client'
 
-import React, { useEffect } from 'react'
-import { ChevronDown } from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
     Accordion,
     AccordionContent,
@@ -18,6 +17,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
+import { usePendingConnectionsStore } from '@/store/usePendingConnectionsStore'
+import { useFlowStore } from '@/store/useFlowStore'
 
 interface NodeSelectAccordionProps {
     title: string
@@ -27,17 +28,14 @@ interface NodeSelectAccordionProps {
     onUnselect?: () => void
     accentColor?: string
     handleId?: string
+    /** 🔁 Si true, NO toca edges en vivo; solo guarda draft para “Guardar cambios” */
+    deferred?: boolean
     createConnection?: (targetId: string, handleId?: string) => void
     removeConnection?: (targetId: string, handleId?: string) => void
+    /** Para saber el source actual (requerido en modo deferred) */
+    sourceId?: string
 }
 
-/**
- * 🎯 NodeSelectAccordion
- * --------------------------------------------------
- * - Compatible con `MenuNodeFormLayout` y `VariantOptionAccordion`
- * - Soporta deselección manual ("Ninguno") y limpieza automática
- *   cuando el nodo conectado desaparece del canvas.
- */
 export function NodeSelectAccordion({
     title,
     availableNodes,
@@ -45,46 +43,175 @@ export function NodeSelectAccordion({
     onSelect,
     onUnselect,
     handleId,
+    deferred = false,
     createConnection,
     removeConnection,
+    sourceId,
     accentColor = 'text-gray-700 dark:text-gray-300',
 }: NodeSelectAccordionProps) {
-    // 🧠 Limpieza automática si el nodo ya no existe
+    const { setDraft } = usePendingConnectionsStore()
+    const { edges, setEdges } = useFlowStore()
+
+    // 🔐 Mantener un valor UI estable mientras hay jitter de props
+    const [lastStableSelected, setLastStableSelected] = useState<string | ''>(
+        selectedId || ''
+    )
     useEffect(() => {
-        if (!selectedId) return
-        const stillExists = availableNodes.some((n) => n.id === selectedId)
-        if (!stillExists) {
-            onUnselect?.()
-            onSelect('')
+        // actualiza solo si realmente cambió a un valor distinto (evita oscilar a '')
+        if (selectedId && selectedId !== lastStableSelected) {
+            setLastStableSelected(selectedId)
         }
-    }, [availableNodes, selectedId, onSelect, onUnselect])
+        // si se limpió explícitamente (usuario eligió "Ninguno"), respétalo
+        if (selectedId === '') setLastStableSelected('')
+    }, [selectedId, lastStableSelected])
 
-    // 📋 Etiqueta visible
-    const selectedNodeLabel =
-        availableNodes.find((n) => n.id === selectedId)?.data?.label ||
-        (selectedId ? selectedId : '—')
+    // 📦 Firma estable de disponibles para detectar cambios reales entre renders
+    const availSignature = useMemo(
+        () => JSON.stringify([...availableNodes.map((n) => n.id)].sort()),
+        [availableNodes]
+    )
 
-    // ⚙️ Selección de nodo
-    const handleSelect = (targetId: string) => {
-        // 🔹 Si selecciona “Ninguno”
-        if (targetId === '__none__') {
-            if (removeConnection && selectedId) {
-                removeConnection(selectedId, handleId)
+    const lastAvailSigRef = useRef(availSignature)
+    const debounceTimerRef = useRef<number | null>(null)
+    const justInteractedRef = useRef<number>(0) // marca tiempo de selección manual
+
+    // 🧹 Limpieza con debounce: evita falsos negativos cuando la lista se recompone
+    useEffect(() => {
+        // si no hay selección, no limpies nada (no hay qué validar)
+        if (!selectedId) return
+
+        const stillExists = availableNodes.some((n) => n.id === selectedId)
+        const now = Date.now()
+
+        // si el usuario acaba de seleccionar (200ms), no limpies
+        if (now - justInteractedRef.current < 200) return
+
+        // si existe, cancela cualquier limpieza pendiente
+        if (stillExists) {
+            if (debounceTimerRef.current) {
+                window.clearTimeout(debounceTimerRef.current)
+                debounceTimerRef.current = null
             }
-            onUnselect?.()
-            onSelect('')
             return
         }
 
-        // 🔄 Si cambia de nodo
+        // si la firma de disponibles está cambiando todavía, espera
+        const initialSig = availSignature
+        if (debounceTimerRef.current) {
+            window.clearTimeout(debounceTimerRef.current)
+        }
+        debounceTimerRef.current = window.setTimeout(() => {
+            // revalida tras el delay
+            const currentSig = JSON.stringify(
+                [...availableNodes.map((n) => n.id)].sort()
+            )
+            const existsNow = availableNodes.some((n) => n.id === selectedId)
+
+            // solo limpiar si:
+            // 1) sigue sin existir
+            // 2) la firma no cambió durante el debounce (lista estable)
+            const listStable = initialSig === currentSig
+
+            if (!existsNow && listStable) {
+                // 🔻 limpiar selección y draft diferido
+                onUnselect?.()
+                onSelect('')
+                if (deferred && sourceId) setDraft(sourceId, handleId, '')
+                setLastStableSelected('') // refleja en la UI
+                // además: elimina edge real si lo hubiera en diferido (paridad con "Ninguno")
+                if (deferred && sourceId) {
+                    const updatedEdges = edges.filter(
+                        (e) =>
+                            !(
+                                e.source === sourceId &&
+                                e.sourceHandle === handleId
+                            )
+                    )
+                    if (updatedEdges.length !== edges.length)
+                        setEdges(updatedEdges)
+                }
+            }
+        }, 200) as unknown as number
+
+        return () => {
+            if (debounceTimerRef.current) {
+                window.clearTimeout(debounceTimerRef.current)
+                debounceTimerRef.current = null
+            }
+        }
+    }, [
+        selectedId,
+        availableNodes,
+        availSignature,
+        deferred,
+        sourceId,
+        handleId,
+        onSelect,
+        onUnselect,
+        setDraft,
+        edges,
+        setEdges,
+    ])
+
+    const selectedNodeLabel =
+        availableNodes.find((n) => n.id === (selectedId || lastStableSelected))
+            ?.data?.label ||
+        (selectedId || lastStableSelected
+            ? selectedId || lastStableSelected
+            : '—')
+
+    const uiValue = (selectedId ?? lastStableSelected) || '__none__'
+
+    const handleSelect = (targetId: string) => {
+        justInteractedRef.current = Date.now()
+
+        // 🧹 “Ninguno”
+        if (targetId === '__none__') {
+            if (deferred) {
+                if (sourceId) {
+                    setDraft(sourceId, handleId, '')
+                    // elimina edge en diferido si existe
+                    const updatedEdges = edges.filter(
+                        (e) =>
+                            !(
+                                e.source === sourceId &&
+                                e.sourceHandle === handleId
+                            )
+                    )
+                    if (updatedEdges.length !== edges.length)
+                        setEdges(updatedEdges)
+                }
+                onUnselect?.()
+                onSelect('')
+                setLastStableSelected('') // refleja en UI al instante
+                return
+            }
+
+            // modo inmediato
+            if (removeConnection && selectedId)
+                removeConnection(selectedId, handleId)
+            onUnselect?.()
+            onSelect('')
+            setLastStableSelected('')
+            return
+        }
+
+        // ✅ Selección válida
+        if (deferred) {
+            if (sourceId) setDraft(sourceId, handleId, targetId)
+            setLastStableSelected(targetId) // evita parpadeo a 'Ninguno'
+            onSelect(targetId)
+            return
+        }
+
+        // modo inmediato
         if (removeConnection && selectedId && selectedId !== targetId) {
             removeConnection(selectedId, handleId)
         }
-
         if (createConnection && targetId) {
             createConnection(targetId, handleId)
         }
-
+        setLastStableSelected(targetId)
         onSelect(targetId)
     }
 
@@ -111,14 +238,13 @@ export function NodeSelectAccordion({
                                 Seleccionar nodo destino
                             </Label>
                             <Select
-                                value={selectedId || '__none__'}
+                                value={uiValue}
                                 onValueChange={handleSelect}
                             >
                                 <SelectTrigger className="w-full text-xs dark:bg-gray-900/50">
                                     <SelectValue placeholder="Elegir nodo destino" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {/* ✅ Opción válida para limpiar selección */}
                                     <SelectItem value="__none__">
                                         — Ninguno —
                                     </SelectItem>

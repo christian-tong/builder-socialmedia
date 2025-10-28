@@ -1,4 +1,5 @@
 // src\components\shared\MenuNodeFormLayout.tsx
+
 'use client'
 
 import clsx from 'clsx'
@@ -32,6 +33,8 @@ import type { useMenuNodeForm } from '@/hooks/useMenuNodeForm'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { Switch } from '@/components/ui/switch'
 import { useVariantTypeStore } from '@/store/useVariantTypeStore'
+import { usePendingConnectionsStore } from '@/store/usePendingConnectionsStore'
+import { useFlowStore } from '@/store/useFlowStore'
 
 /**
  * 🧩 Estructura base estándar para cada nodo de tipo "getdatacomplete"
@@ -56,9 +59,10 @@ interface MenuNodeFormLayoutProps {
 }
 
 /**
- * 🎨 MenuNodeFormLayout
+ * 🎨 MenuNodeFormLayout (v2 con guardado diferido)
  * - Sincroniza tipo de variante con Zustand
- * - Permite editar opciones, condiciones y flujo de salida
+ * - Registra callback de guardado para aplicar drafts
+ * - Aplica edges diferidos en saveNodeDataToFlow()
  */
 export function MenuNodeFormLayout({
     id,
@@ -68,15 +72,14 @@ export function MenuNodeFormLayout({
     variableLabel,
     hook,
 }: MenuNodeFormLayoutProps) {
-    const {
-        prevNodes,
-        nextNodes,
-        availableNodes,
-        createConnection,
-        removeConnection,
-    } = hook
+    const { prevNodes, nextNodes, availableNodes } = hook
 
-    const { updateNodeData } = useNodeConfigStore()
+    const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
+        useNodeConfigStore()
+
+    const { edges, setEdges } = useFlowStore()
+    const { getSourceDrafts, clearSource } = usePendingConnectionsStore()
+
     const {
         setVariantType,
         getVariantType,
@@ -84,6 +87,8 @@ export function MenuNodeFormLayout({
         setVariantOptions,
         setVariantConditions,
     } = useVariantTypeStore()
+
+    console.log('Hi')
 
     const variantType =
         getVariantType(id) ||
@@ -108,7 +113,7 @@ export function MenuNodeFormLayout({
         return clone
     }
 
-    /** 🚀 Inicialización */
+    /** 🚀 Inicialización base */
     useEffect(() => {
         if (!data || !data.object) {
             const defaultObject =
@@ -138,6 +143,50 @@ export function MenuNodeFormLayout({
         if (data?.object?.interactive?.type)
             setVariantType(id, data.object.interactive.type)
     }, [id, data?.object?.interactive?.type, setVariantType])
+
+    /** 💾 Registro de guardado diferido */
+    useEffect(() => {
+        registerSaveCallback(id, () => {
+            console.log(`💾 Guardando nodo diferido: ${id}`)
+
+            // 🔹 Actualiza nodo en el flujo
+            updateNodeData(id, data)
+
+            // 🔹 Aplica conexiones diferidas si las hay
+            const drafts = getSourceDrafts(id)
+            if (drafts.length > 0) {
+                console.log(
+                    `🔗 Aplicando ${drafts.length} conexiones diferidas`,
+                    drafts
+                )
+                const validEdges = edges.filter((e) => e.source !== id)
+                const newEdges = drafts
+                    .filter((d) => d.targetId)
+                    .map((d) => ({
+                        id: `${d.sourceId}-${d.handleId}-${d.targetId}`,
+                        source: d.sourceId,
+                        sourceHandle: d.handleId,
+                        target: d.targetId,
+                        type: 'smoothstep',
+                    }))
+
+                setEdges([...validEdges, ...newEdges])
+                clearSource(id)
+            }
+        })
+
+        return () => unregisterSaveCallback(id)
+    }, [
+        id,
+        data,
+        registerSaveCallback,
+        unregisterSaveCallback,
+        updateNodeData,
+        edges,
+        setEdges,
+        getSourceDrafts,
+        clearSource,
+    ])
 
     return (
         <div className="flex flex-col gap-6">
@@ -186,7 +235,6 @@ export function MenuNodeFormLayout({
                             id,
                             object: structuredClone(config.defaultObject),
                         })
-                        // 🔁 Guarda también el tipo seleccionado en el store
                         setVariantType(id, val)
                     }}
                 >
@@ -230,14 +278,13 @@ export function MenuNodeFormLayout({
                                     availableNodes={availableNodes}
                                     selectedId={data[key]}
                                     handleId={key}
+                                    sourceId={id}
+                                    deferred={true}
                                     onSelect={(val: string) =>
                                         updateNodeData(id, { [key]: val })
                                     }
-                                    createConnection={(targetId: string) =>
-                                        createConnection(targetId, key)
-                                    }
-                                    removeConnection={(targetId: string) =>
-                                        removeConnection(targetId, key)
+                                    onUnselect={() =>
+                                        updateNodeData(id, { [key]: '' })
                                     }
                                     accentColor={`text-${colorAccent}-700 dark:text-${colorAccent}-300`}
                                 />

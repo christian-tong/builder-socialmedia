@@ -12,6 +12,7 @@ import {
     Database,
     MinusCircle,
     Brain,
+    Save,
 } from 'lucide-react'
 
 import DerivateNode from '@/components/nodes/DerivateNode'
@@ -25,6 +26,7 @@ import SwitchConditionNode from '@/components/nodes/SwitchConditionNode'
 import MySQLQueryNode from '@/components/nodes/MySQLQueryNode'
 import NoOpNode from '@/components/nodes/NoOpNode'
 import ChatBotIARequestNode from '@/components/nodes/ChatBotIARequestNode'
+import SaveRecordNode from '@/components/nodes/SaveRecordNode'
 
 // =============================================================
 // 🔒 Extiende el namespace global (para cachear nodeTypes)
@@ -78,7 +80,7 @@ export const nodeRegistry = [
     {
         type: 'chatBotIARequestNode',
         label: 'ChatBot IA Request',
-        icon: Brain, // puedes usar 'Brain' de lucide-react
+        icon: Brain,
         component: ChatBotIARequestNode,
     },
 
@@ -87,6 +89,12 @@ export const nodeRegistry = [
         label: 'Condición Tiempo',
         icon: Clock,
         component: TimeConditionNode,
+    },
+    {
+        type: 'saveRecordNode',
+        label: 'Guardar Registro',
+        icon: Save, // 🧾 icono claro y simbólico
+        component: SaveRecordNode,
     },
     {
         type: 'derivateNode',

@@ -13,26 +13,30 @@ import {
 } from '@/store/useVariantTypeStore'
 
 /**
- * 🧠 useNodeConnections (versión híbrida v3)
+ * 🧠 useNodeConnections (versión híbrida v4)
  * ----------------------------------------------------
- * Hook unificado para gestionar conexiones entre nodos.
- * - Soporta handles simples (onTrue, onFalse, etc.)
- * - Soporta handles complejos (nodeId::variantType::option)
- * - Aplica color automático a edges
+ * Hook unificado y seguro para gestionar conexiones.
+ * Compatible con:
+ * - Nodos simples (ChatBotIARequest, SwitchCondition, etc.)
+ * - Nodos interactivos (GetDataComplete, MenuNode, etc.)
+ *
+ * 🟢 Handles simples: onTrue / onFalse / onError / in
+ * 🔵 Handles complejos: nodeId::variantType::optionKey
  */
 export function useNodeConnections(nodeId: string) {
     const { edges, nodes, setEdges, getConnectedNodes } = useFlowStore()
     const { getVariantType } = useVariantTypeStore()
+
     const [prevNodes, setPrevNodes] = useState<string[]>([])
     const [nextNodes, setNextNodes] = useState<string[]>([])
 
-    // 📊 Nodos disponibles (sin incluir el actual ni startNode)
+    // 📊 Nodos disponibles (excluye el mismo y el startNode)
     const availableNodes = useMemo(
         () => nodes.filter((n) => n.id !== nodeId && n.type !== 'startNode'),
         [nodes, nodeId]
     )
 
-    // 🔁 Actualizar nodos conectados
+    // 🔁 Sincronizar nodos conectados (previos / siguientes)
     useEffect(() => {
         const { prev, next } = getConnectedNodes(nodeId)
         setPrevNodes(prev.map((n) => n.data?.label || n.id))
@@ -40,7 +44,7 @@ export function useNodeConnections(nodeId: string) {
     }, [edges, nodes, nodeId, getConnectedNodes])
 
     /**
-     * 🧩 Verificar si ya existe una conexión
+     * 🧩 Verifica si ya existe una conexión
      */
     const hasConnection = (targetId: string, handleId?: string) =>
         edges.some(
@@ -51,47 +55,46 @@ export function useNodeConnections(nodeId: string) {
         )
 
     /**
-     * ⚙️ Crear una conexión en tiempo real con IDs correctos
+     * ⚙️ Crea una conexión con detección automática del tipo de handle
      */
     const createConnection = (targetId: string, handleId?: string) => {
         const sourceNode = nodes.find((n) => n.id === nodeId)
         const targetNode = nodes.find((n) => n.id === targetId)
         if (!sourceNode || !targetNode) return
 
-        // ⚙️ Detectar tipo de handle (simple o variante)
+        // 🧩 Determinar si el handle es simple o variante
+        const simpleHandles = ['onTrue', 'onFalse', 'onError', 'in', 'out']
+        const isSimple = simpleHandles.includes(handleId ?? '')
+
         const variantType = getVariantType(nodeId)
-        const isSimpleHandle = ['onTrue', 'onFalse', 'onError', 'in'].includes(
-            handleId ?? ''
-        )
-        const globalHandleId = isSimpleHandle
-            ? handleId
+        const globalHandleId = isSimple
+            ? handleId // 🟢 simple
             : handleId
               ? getVariantHandleId(nodeId, variantType, handleId)
               : null
 
-        // 🚫 Validación de conexión
+        // 🚫 Validar conexión
         const connection: Connection = {
             source: nodeId,
             target: targetId,
             sourceHandle: globalHandleId ?? null,
             targetHandle: null,
         }
-
         const isValid = validateConnection(connection, nodes)
         if (!isValid) return
 
-        // ⚠️ Evitar duplicados exactos
+        // ⚠️ Evitar duplicados
         if (hasConnection(targetId, globalHandleId ?? undefined)) return
 
-        // 🎨 Color automático según handle
-        const color =
-            handleId === 'onTrue'
-                ? '#22c55e' // Verde
-                : handleId === 'onFalse'
-                  ? '#ef4444' // Rojo
-                  : '#94a3b8' // Gris por defecto
+        // 🎨 Color dinámico según tipo de conexión
+        let color = '#94a3b8' // gris por defecto
+        if (handleId === 'onTrue') color = '#22c55e'
+        else if (handleId === 'onFalse') color = '#ef4444'
+        else if (handleId === 'onError') color = '#facc15'
+        else if (variantType === 'list') color = '#0ea5e9'
+        else if (variantType === 'quick_reply') color = '#8b5cf6'
 
-        // 🧩 Edge ID global estable
+        // 🧩 ID único global
         const edgeId = `edge-${nodeId}-${targetId}-${globalHandleId ?? 'default'}`
 
         const newEdge: Edge = {
@@ -113,14 +116,13 @@ export function useNodeConnections(nodeId: string) {
     }
 
     /**
-     * ❌ Eliminar una conexión existente
+     * ❌ Elimina una conexión existente
      */
     const removeConnection = (targetId: string, handleId?: string) => {
         const variantType = getVariantType(nodeId)
-        const isSimpleHandle = ['onTrue', 'onFalse', 'onError', 'in'].includes(
-            handleId ?? ''
-        )
-        const globalHandleId = isSimpleHandle
+        const simpleHandles = ['onTrue', 'onFalse', 'onError', 'in', 'out']
+        const isSimple = simpleHandles.includes(handleId ?? '')
+        const globalHandleId = isSimple
             ? handleId
             : handleId
               ? getVariantHandleId(nodeId, variantType, handleId)
@@ -149,7 +151,7 @@ export function useNodeConnections(nodeId: string) {
     }
 
     /**
-     * 🔀 Alternar conexión (checkbox o switch)
+     * 🔀 Alternar conexión (para switches o checkboxes)
      */
     const toggleConnection = (
         targetId: string,

@@ -178,14 +178,13 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
                                 availableNodes={availableNodes}
                                 selectedId={data[key]}
                                 handleId={key}
+                                sourceId={id}
+                                deferred={true} // 👈 activa modo diferido
                                 onSelect={(val: string) =>
                                     updateNodeData(id, { [key]: val })
                                 }
-                                createConnection={(targetId: string) =>
-                                    createConnection(targetId, key)
-                                }
-                                removeConnection={(targetId: string) =>
-                                    removeConnection(targetId, key)
+                                onUnselect={() =>
+                                    updateNodeData(id, { [key]: '' })
                                 }
                                 accentColor="text-indigo-600"
                             />
