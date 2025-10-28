@@ -9,6 +9,7 @@ let switchConditionCounter = 0
 let setVariablesCounter = 0
 let mysqlQueryCounter = 0
 let noopCounter = 0
+let chatbotIARequestCounter = 0
 
 /** 🟣 Menu Principal */
 export function getMenuId(): string {
@@ -72,6 +73,13 @@ export function generateNoOpId(): string {
     return id
 }
 
+/** 🤖 ChatBotIARequest */
+export function generateChatBotIARequestId(): string {
+    const id = `ChatBotIARequest${String(chatbotIARequestCounter).padStart(4, '0')}`
+    chatbotIARequestCounter++
+    return id
+}
+
 /** 🔁 Reset manual */
 export function resetNodeCounters() {
     getdatacompleteCounter = 0
@@ -83,4 +91,5 @@ export function resetNodeCounters() {
     switchConditionCounter = 0
     mysqlQueryCounter = 0
     noopCounter = 0
+    chatbotIARequestCounter = 0
 }

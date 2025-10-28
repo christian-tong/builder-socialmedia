@@ -11,6 +11,7 @@ import {
     generateSwitchConditionId,
     generateMySQLQueryId,
     generateNoOpId,
+    generateChatBotIARequestId,
 } from '@/utils/generateNodeId'
 
 /**
@@ -104,7 +105,7 @@ export const nodeTemplates: Record<
                 label: id,
                 action: 'setvariables',
                 object: {
-                    setvars: '{}', // inicialmente vacío
+                    setvars: '{}',
                 },
             },
         }
@@ -119,11 +120,11 @@ export const nodeTemplates: Record<
                 label: id,
                 action: 'switchcondition',
                 object: {
-                    setvariables: { '1': '' }, // estructura base, valor vacío
-                    variable: '', // nombre de la variable
-                    alias: '', // alias visible
-                    conditions: { '': '' }, // condición inicial vacía
-                    body: 'strict', // modo por defecto
+                    setvariables: { '1': '' },
+                    variable: '',
+                    alias: '',
+                    conditions: { '': '' },
+                    body: 'strict',
                 },
             },
         }
@@ -158,6 +159,25 @@ export const nodeTemplates: Record<
                 label: id,
                 action: 'noop',
                 object: {},
+            },
+        }
+    },
+
+    /** 🤖 ChatBotIARequestNode */
+    chatBotIARequestNode: () => {
+        const id = generateChatBotIARequestId()
+        return {
+            id,
+            data: {
+                label: id,
+                action: 'chatbotiarequest',
+                object: {
+                    variable: 'ANSWER',
+                    body: '',
+                    url: 'https://159.112.141.171:8021/api/v1/user/py/serviceCbIA/getQuestion',
+                },
+                onTrue: '',
+                onFalse: '',
             },
         }
     },

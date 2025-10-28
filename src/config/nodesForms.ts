@@ -1,5 +1,6 @@
 // src\config\nodesForms.ts
 
+import FormChatBotIARequestNode from '@/components/forms/FormChatBotIARequestNode'
 import FormDerivateNode from '@/components/forms/FormDerivateNode'
 import FormEndNode from '@/components/forms/FormEndNode'
 import FormMenuNode from '@/components/forms/FormMenuNode'
@@ -21,5 +22,6 @@ export const nodeFormRegistry: Record<string, any> = {
     switchConditionNode: FormSwitchConditionNode,
     mysqlQueryNode: FormMySQLQueryNode,
     noopNode: FormNoOpNode,
+    chatBotIARequestNode: FormChatBotIARequestNode,
     endNode: FormEndNode,
 }

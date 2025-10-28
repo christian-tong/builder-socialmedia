@@ -13,12 +13,12 @@ import {
 } from '@/store/useVariantTypeStore'
 
 /**
- * 🧠 useNodeConnections (versión global unificada)
+ * 🧠 useNodeConnections (versión híbrida v3)
  * ----------------------------------------------------
- * Hook reutilizable para gestionar conexiones entre nodos en ReactFlow.
- * - Usa IDs globales para handles: nodeId::variantType::option-key
- * - Evita duplicados entre nodos y mantiene consistencia en JSON
- * - Compatible con todos los tipos de nodo (startNode, menuNode, etc.)
+ * Hook unificado para gestionar conexiones entre nodos.
+ * - Soporta handles simples (onTrue, onFalse, etc.)
+ * - Soporta handles complejos (nodeId::variantType::option)
+ * - Aplica color automático a edges
  */
 export function useNodeConnections(nodeId: string) {
     const { edges, nodes, setEdges, getConnectedNodes } = useFlowStore()
@@ -26,13 +26,13 @@ export function useNodeConnections(nodeId: string) {
     const [prevNodes, setPrevNodes] = useState<string[]>([])
     const [nextNodes, setNextNodes] = useState<string[]>([])
 
-    // 📊 Calcular nodos disponibles (sin incluir el actual ni startNode)
+    // 📊 Nodos disponibles (sin incluir el actual ni startNode)
     const availableNodes = useMemo(
         () => nodes.filter((n) => n.id !== nodeId && n.type !== 'startNode'),
         [nodes, nodeId]
     )
 
-    // 🔁 Actualizar nodos conectados (previos y siguientes)
+    // 🔁 Actualizar nodos conectados
     useEffect(() => {
         const { prev, next } = getConnectedNodes(nodeId)
         setPrevNodes(prev.map((n) => n.data?.label || n.id))
@@ -51,34 +51,45 @@ export function useNodeConnections(nodeId: string) {
         )
 
     /**
-     * ⚙️ Crear una conexión en tiempo real con IDs globales
+     * ⚙️ Crear una conexión en tiempo real con IDs correctos
      */
     const createConnection = (targetId: string, handleId?: string) => {
         const sourceNode = nodes.find((n) => n.id === nodeId)
         const targetNode = nodes.find((n) => n.id === targetId)
         if (!sourceNode || !targetNode) return
 
-        // 🧠 Determinar tipo de variante (para crear handle global)
+        // ⚙️ Detectar tipo de handle (simple o variante)
         const variantType = getVariantType(nodeId)
-        const globalHandleId =
-            handleId && handleId.includes('::')
-                ? handleId
-                : handleId
-                  ? getVariantHandleId(nodeId, variantType, handleId)
-                  : null
+        const isSimpleHandle = ['onTrue', 'onFalse', 'onError', 'in'].includes(
+            handleId ?? ''
+        )
+        const globalHandleId = isSimpleHandle
+            ? handleId
+            : handleId
+              ? getVariantHandleId(nodeId, variantType, handleId)
+              : null
 
-        // 🚫 Validación global
+        // 🚫 Validación de conexión
         const connection: Connection = {
-            source: nodeId ?? null,
-            target: targetId ?? null,
+            source: nodeId,
+            target: targetId,
             sourceHandle: globalHandleId ?? null,
             targetHandle: null,
         }
+
         const isValid = validateConnection(connection, nodes)
         if (!isValid) return
 
         // ⚠️ Evitar duplicados exactos
         if (hasConnection(targetId, globalHandleId ?? undefined)) return
+
+        // 🎨 Color automático según handle
+        const color =
+            handleId === 'onTrue'
+                ? '#22c55e' // Verde
+                : handleId === 'onFalse'
+                  ? '#ef4444' // Rojo
+                  : '#94a3b8' // Gris por defecto
 
         // 🧩 Edge ID global estable
         const edgeId = `edge-${nodeId}-${targetId}-${globalHandleId ?? 'default'}`
@@ -90,11 +101,10 @@ export function useNodeConnections(nodeId: string) {
             type: 'smoothstep',
             sourceHandle: globalHandleId ?? undefined,
             animated: true,
-            style: { strokeWidth: 2 },
+            style: { strokeWidth: 2, stroke: color },
         }
 
         setEdges((prev) => [...prev, newEdge])
-
         toast.success(
             `✅ Conectado con ${targetNode.data?.label || targetId}${
                 globalHandleId ? ` (${globalHandleId})` : ''
@@ -107,12 +117,14 @@ export function useNodeConnections(nodeId: string) {
      */
     const removeConnection = (targetId: string, handleId?: string) => {
         const variantType = getVariantType(nodeId)
-        const globalHandleId =
-            handleId && handleId.includes('::')
-                ? handleId
-                : handleId
-                  ? getVariantHandleId(nodeId, variantType, handleId)
-                  : null
+        const isSimpleHandle = ['onTrue', 'onFalse', 'onError', 'in'].includes(
+            handleId ?? ''
+        )
+        const globalHandleId = isSimpleHandle
+            ? handleId
+            : handleId
+              ? getVariantHandleId(nodeId, variantType, handleId)
+              : null
 
         if (!hasConnection(targetId, globalHandleId ?? undefined)) return
 
@@ -137,7 +149,7 @@ export function useNodeConnections(nodeId: string) {
     }
 
     /**
-     * 🔀 Alternar conexión
+     * 🔀 Alternar conexión (checkbox o switch)
      */
     const toggleConnection = (
         targetId: string,
