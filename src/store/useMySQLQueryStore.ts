@@ -1,4 +1,4 @@
-// src\store\useMySQLQueryStore.ts
+// src/store/useMySQLQueryStore.ts
 
 'use client'
 
@@ -22,6 +22,8 @@ interface MySQLQueryState {
         field: keyof MySQLQueryObject,
         value: string
     ) => void
+    getNodeData: (id: string) => MySQLQueryObject
+    setNodeData: (id: string, data: MySQLQueryObject) => void
     resetNode: (id: string) => void
     resetAll: () => void
 }
@@ -50,10 +52,23 @@ export const useMySQLQueryStore = create<MySQLQueryState>((set, get) => ({
     updateField: (id, field, value) =>
         set((state) => {
             const cur = state.byId[id] || {}
-            return {
-                byId: { ...state.byId, [id]: { ...cur, [field]: value } },
-            }
+            return { byId: { ...state.byId, [id]: { ...cur, [field]: value } } }
         }),
+
+    getNodeData: (id) =>
+        get().byId[id] || {
+            mode: 'simpletext',
+            setvar: '',
+            query: '',
+            variable: '',
+            alias: '',
+            script: '',
+        },
+
+    setNodeData: (id, data) =>
+        set((state) => ({
+            byId: { ...state.byId, [id]: data },
+        })),
 
     resetNode: (id) =>
         set((state) => {

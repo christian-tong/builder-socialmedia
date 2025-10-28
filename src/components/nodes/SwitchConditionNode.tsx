@@ -105,31 +105,6 @@ const SwitchConditionNode: React.FC<NodeProps> = ({ id, data }) => {
                         )
                     })}
                 </div>
-
-                {/* onTrue/onFalse/onError */}
-                {[
-                    { id: 'onTrue', color: '#16a34a', left: '33%' },
-                    { id: 'onError', color: '#dc2626', left: '66%' },
-                ].map((h) => (
-                    <Handle
-                        key={h.id}
-                        type="source"
-                        id={h.id}
-                        position={Position.Bottom}
-                        title={h.id}
-                        style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: '50%',
-                            zIndex: 15,
-                            pointerEvents: 'auto',
-                            position: 'absolute',
-                            bottom: '-6px',
-                            left: h.left,
-                            background: h.color,
-                        }}
-                    />
-                ))}
             </Card>
         </motion.div>
     )

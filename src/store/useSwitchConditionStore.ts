@@ -1,23 +1,21 @@
-// src\store\useSwitchConditionStore.ts
+// src/store/useSwitchConditionStore.ts
 
 'use client'
 import { create } from 'zustand'
 
 export type MatchMode = 'strict' | 'flex'
 
+export interface SwitchConditionConfig {
+    variable: string
+    alias?: string
+    mode: MatchMode
+    values: string[]
+    setvariables: { key: string; value: string }[]
+    connections: Record<string, string> // <--- NUEVO: valor → nodo destino
+}
+
 export interface SwitchConditionState {
-    byId: Record<
-        string,
-        {
-            variable: string
-            alias?: string
-            mode: MatchMode
-            // lista de valores a evaluar (ej: ["SI","NO"])
-            values: string[]
-            // pares setvariables auxiliares para UI (opcional)
-            setvariables: { key: string; value: string }[]
-        }
-    >
+    byId: Record<string, SwitchConditionConfig>
 
     initNode: (nodeId: string) => void
     setVariable: (nodeId: string, variable: string) => void
@@ -27,6 +25,9 @@ export interface SwitchConditionState {
     addValue: (nodeId: string, value?: string) => void
     updateValue: (nodeId: string, index: number, value: string) => void
     removeValue: (nodeId: string, index: number) => void
+
+    setConnection: (nodeId: string, value: string, targetId: string) => void
+    removeConnection: (nodeId: string, value: string) => void
 
     addSetVar: (nodeId: string) => void
     updateSetVar: (
@@ -54,8 +55,9 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                             variable: '',
                             alias: '',
                             mode: 'strict',
-                            values: ['SI'], // valor inicial útil
-                            setvariables: [{ key: '1', value: 'SI' }],
+                            values: ['SI', 'NO'],
+                            setvariables: [],
+                            connections: {}, // <--- NUEVO
                         },
                     },
                 }
@@ -80,10 +82,16 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
             set((s) => {
                 const cur = s.byId[nodeId]
                 if (!cur) return s
+                const newValues = [...cur.values, value]
+                const newConnections = { ...cur.connections, [value]: '' }
                 return {
                     byId: {
                         ...s.byId,
-                        [nodeId]: { ...cur, values: [...cur.values, value] },
+                        [nodeId]: {
+                            ...cur,
+                            values: newValues,
+                            connections: newConnections,
+                        },
                     },
                 }
             }),
@@ -92,17 +100,65 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
             set((s) => {
                 const cur = s.byId[nodeId]
                 if (!cur) return s
+                const oldValue = cur.values[index]
                 const values = [...cur.values]
                 values[index] = value
-                return { byId: { ...s.byId, [nodeId]: { ...cur, values } } }
+                const connections = { ...cur.connections }
+                if (connections[oldValue]) {
+                    connections[value] = connections[oldValue]
+                    delete connections[oldValue]
+                }
+                return {
+                    byId: {
+                        ...s.byId,
+                        [nodeId]: { ...cur, values, connections },
+                    },
+                }
             }),
 
         removeValue: (nodeId, index) =>
             set((s) => {
                 const cur = s.byId[nodeId]
                 if (!cur) return s
+                const val = cur.values[index]
                 const values = cur.values.filter((_, i) => i !== index)
-                return { byId: { ...s.byId, [nodeId]: { ...cur, values } } }
+                const connections = { ...cur.connections }
+                delete connections[val]
+                return {
+                    byId: {
+                        ...s.byId,
+                        [nodeId]: { ...cur, values, connections },
+                    },
+                }
+            }),
+
+        setConnection: (nodeId, value, targetId) =>
+            set((s) => {
+                const cur = s.byId[nodeId]
+                if (!cur) return s
+                return {
+                    byId: {
+                        ...s.byId,
+                        [nodeId]: {
+                            ...cur,
+                            connections: {
+                                ...cur.connections,
+                                [value]: targetId,
+                            },
+                        },
+                    },
+                }
+            }),
+
+        removeConnection: (nodeId, value) =>
+            set((s) => {
+                const cur = s.byId[nodeId]
+                if (!cur) return s
+                const connections = { ...cur.connections }
+                delete connections[value]
+                return {
+                    byId: { ...s.byId, [nodeId]: { ...cur, connections } },
+                }
             }),
 
         addSetVar: (nodeId) =>

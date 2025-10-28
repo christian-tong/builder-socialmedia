@@ -3,10 +3,8 @@
 'use client'
 
 import React from 'react'
-import {
-    NodeConnectionsAccordion,
-    NodeSelectionAccordion,
-} from '@/components/shared/NodeConnectionsAccordion'
+import { NodeConnectionsAccordion } from '@/components/shared/NodeConnectionsAccordion'
+import { NodeSelectAccordion } from '@/components/shared/NodeSelectAccordion'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -24,6 +22,12 @@ import {
     useSwitchConditionStore,
     getSwitchHandleId,
 } from '@/store/useSwitchConditionStore'
+import {
+    Accordion,
+    AccordionItem,
+    AccordionTrigger,
+    AccordionContent,
+} from '@/components/ui/accordion'
 
 export default function FormSwitchConditionNode({
     id,
@@ -41,32 +45,35 @@ export default function FormSwitchConditionNode({
         addValue,
         updateValue,
         removeValue,
-        addSetVar,
-        updateSetVar,
-        removeSetVar,
+        setConnection,
+        removeConnection,
     } = useSwitchConditionStore()
 
     React.useEffect(() => {
         initNode(id)
     }, [id, initNode])
-    const cfg = byId[id]
 
+    const cfg = byId[id]
     const {
         prevNodes,
         nextNodes,
         availableNodes,
-        hasConnection,
-        toggleConnection,
+        createConnection,
+        removeConnection: removeFlowConn,
     } = useNodeConnections(id)
 
     if (!cfg) return null
 
+    // 🔸 Controla si SI o NO ya están usados
+    const usedValues = cfg.values
+    const canAddMore = usedValues.length < 2
+
     return (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-6">
             {/* Header */}
             <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
                 <Label className="text-sm font-semibold text-violet-700 dark:text-violet-300">
-                    Condición por Variable
+                    ⚙️ Switch Condition
                 </Label>
                 <Badge
                     variant="outline"
@@ -77,27 +84,25 @@ export default function FormSwitchConditionNode({
             </div>
 
             {/* Conexiones existentes */}
-            <div className="flex flex-col gap-3">
-                <NodeConnectionsAccordion
-                    title="Nodo anterior"
-                    nodesList={prevNodes}
-                    accentColor="text-violet-700 dark:text-violet-300"
-                />
-                <NodeConnectionsAccordion
-                    title="Nodo siguiente"
-                    nodesList={nextNodes}
-                    accentColor="text-violet-700 dark:text-violet-300"
-                />
-            </div>
+            <NodeConnectionsAccordion
+                title="Nodo anterior"
+                nodesList={prevNodes}
+                accentColor="text-violet-700 dark:text-violet-300"
+            />
+            <NodeConnectionsAccordion
+                title="Nodo siguiente"
+                nodesList={nextNodes}
+                accentColor="text-violet-700 dark:text-violet-300"
+            />
 
-            {/* Campos básicos */}
+            {/* Configuración base */}
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                     <Label className="text-sm">Variable</Label>
                     <Input
                         value={cfg.variable}
                         onChange={(e) => setVariable(id, e.target.value)}
-                        placeholder="Ej: DETRACTOR"
+                        placeholder="Ej: ESTADO"
                     />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -119,131 +124,114 @@ export default function FormSwitchConditionNode({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="strict">Estricto (=)</SelectItem>
-                            <SelectItem value="flex">Flexible (~)</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
             </div>
 
-            {/* Valores/Condiciones */}
-            <div className="mt-2 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">
-                        Valores / Condiciones
-                    </Label>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => addValue(id)}
-                    >
-                        <Plus className="mr-1 h-3.5 w-3.5" /> Agregar valor
-                    </Button>
-                </div>
+            {/* Botón agregar */}
+            <div className="flex justify-end pt-2">
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => addValue(id)}
+                    disabled={!canAddMore}
+                    className={`${
+                        canAddMore
+                            ? 'bg-green-500 text-white hover:bg-green-600'
+                            : 'cursor-not-allowed opacity text-white'
+                    }`}
+                >
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Agregar valor
+                </Button>
+            </div>
 
-                {cfg.values.length === 0 && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                        No hay valores definidos.
-                    </p>
-                )}
-
+            {/* ⚙️ Valores / Condiciones */}
+            <Accordion type="multiple" className="w-full">
                 {cfg.values.map((v, i) => {
-                    const handleId = getSwitchHandleId(id, v || String(i))
+                    const handleId = getSwitchHandleId(id, v)
+                    const selectedNext = cfg.connections?.[v] || ''
+                    const isSI = v === 'SI'
+                    const isNO = v === 'NO'
+                    const options = ['SI', 'NO']
+
                     return (
-                        <div
-                            key={`${id}-val-${i}`}
-                            className="flex items-center gap-2 border-b pb-2 dark:border-gray-800"
-                        >
-                            <Input
-                                value={v}
-                                onChange={(e) =>
-                                    updateValue(id, i, e.target.value)
-                                }
-                                placeholder="Ej: SI, NO, ALTO, BAJO"
-                                className="text-sm"
-                            />
-                            <code className="rounded bg-violet-100 px-2 py-1 text-[10px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-200">
-                                {handleId}
-                            </code>
-                            <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => removeValue(id, i)}
-                                className="text-red-500 hover:text-red-600"
-                                aria-label="Eliminar valor"
-                            >
-                                <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                        </div>
+                        <AccordionItem key={`val-${i}`} value={`val-${i}`}>
+                            <AccordionTrigger className="bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800">
+                                <div className="flex w-full justify-between">
+                                    <span className="font-medium text-violet-700 dark:text-violet-300">
+                                        {v || `Valor ${i + 1}`}
+                                    </span>
+                                </div>
+                            </AccordionTrigger>
+
+                            <AccordionContent className="space-y-3 rounded-b-md bg-gray-50 p-3 dark:bg-gray-900/40">
+                                {/* 🔹 Select entre SI/NO */}
+                                <div className="flex flex-col gap-1.5">
+                                    <Label className="text-sm">
+                                        Valor condicional
+                                    </Label>
+                                    <Select
+                                        value={v}
+                                        onValueChange={(val) =>
+                                            updateValue(id, i, val)
+                                        }
+                                    >
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue placeholder="Selecciona" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {options.map((opt) => (
+                                                <SelectItem
+                                                    key={opt}
+                                                    value={opt}
+                                                    disabled={
+                                                        usedValues.includes(
+                                                            opt
+                                                        ) && v !== opt
+                                                    }
+                                                >
+                                                    {opt}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Nodo siguiente */}
+                                <NodeSelectAccordion
+                                    title={`Nodo siguiente para "${v || '—'}"`}
+                                    availableNodes={availableNodes}
+                                    selectedId={selectedNext}
+                                    handleId={handleId}
+                                    onSelect={(targetId: string) =>
+                                        setConnection(id, v, targetId)
+                                    }
+                                    onUnselect={() => removeConnection(id, v)}
+                                    createConnection={(targetId: string) =>
+                                        createConnection(targetId, handleId)
+                                    }
+                                    removeConnection={(targetId: string) =>
+                                        removeFlowConn(targetId, handleId)
+                                    }
+                                    accentColor="text-violet-700 dark:text-violet-300"
+                                />
+
+                                {/* Botón eliminar */}
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => removeValue(id, i)}
+                                    className="text-red-500 hover:text-red-600"
+                                >
+                                    <Trash2 className="mr-1 h-3.5 w-3.5" />{' '}
+                                    Eliminar valor
+                                </Button>
+                            </AccordionContent>
+                        </AccordionItem>
                     )
                 })}
-            </div>
-
-            {/* Conectar/Desconectar (fallback onTrue y otros) */}
-            <NodeSelectionAccordion
-                title="Conectar o desconectar nodos (onTrue / genéricos)"
-                availableNodes={availableNodes}
-                hasConnection={hasConnection}
-                toggleConnection={toggleConnection}
-                accentColor="text-violet-700 dark:text-violet-300"
-            />
-            <p className="text-[11px] text-gray-500">
-                Para cada <strong>valor</strong>, conecta desde su handle
-                lateral al nodo destino.
-            </p>
-
-            {/* SetVariables opcional */}
-            <div className="mt-2 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">
-                        SetVariables (opcional)
-                    </Label>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => addSetVar(id)}
-                    >
-                        <Plus className="mr-1 h-3.5 w-3.5" /> Agregar par
-                    </Button>
-                </div>
-
-                {cfg.setvariables.length === 0 && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                        No hay pares.
-                    </p>
-                )}
-
-                {cfg.setvariables.map((sv, i) => (
-                    <div
-                        key={`sv-${i}`}
-                        className="grid grid-cols-5 items-center gap-2 border-b pb-2 dark:border-gray-800"
-                    >
-                        <Input
-                            value={sv.key}
-                            onChange={(e) =>
-                                updateSetVar(id, i, { key: e.target.value })
-                            }
-                            placeholder="Clave (ej: 1)"
-                            className="col-span-2 text-xs"
-                        />
-                        <Input
-                            value={sv.value}
-                            onChange={(e) =>
-                                updateSetVar(id, i, { value: e.target.value })
-                            }
-                            placeholder="Valor (ej: SI)"
-                            className="col-span-2 text-xs"
-                        />
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => removeSetVar(id, i)}
-                            className="text-red-500 hover:text-red-600"
-                        >
-                            <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                    </div>
-                ))}
-            </div>
+            </Accordion>
         </div>
     )
 }

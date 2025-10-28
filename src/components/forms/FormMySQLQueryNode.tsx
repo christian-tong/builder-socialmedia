@@ -1,8 +1,7 @@
-// src\components\forms\FormMySQLQueryNode.tsx
-
+// src/components/forms/FormMySQLQueryNode.tsx
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
     NodeConnectionsAccordion,
     NodeSelectionAccordion,
@@ -13,14 +12,11 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
-import { useMySQLQueryStore } from '@/store/useMySQLQueryStore'
+import {
+    useMySQLQueryStore,
+    type MySQLQueryObject,
+} from '@/store/useMySQLQueryStore'
 
-/**
- * 🧾 FormMySQLQueryNode
- * ----------------------------------------------------
- * - Permite editar la consulta SQL, variable destino y script
- * - Totalmente sincronizado con Zustand
- */
 export default function FormMySQLQueryNode({
     id,
     data,
@@ -28,8 +24,15 @@ export default function FormMySQLQueryNode({
     id: string
     data: Record<string, any>
 }) {
-    const { updateNodeData } = useNodeConfigStore()
-    const { initNode, updateField, byId, resetNode } = useMySQLQueryStore()
+    const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
+        useNodeConfigStore()
+    const {
+        getNodeData,
+        setNodeData,
+        byId,
+        initNode,
+        // ❌ NO usamos resetNode en desmontaje
+    } = useMySQLQueryStore()
 
     const {
         prevNodes,
@@ -39,19 +42,47 @@ export default function FormMySQLQueryNode({
         toggleConnection,
     } = useNodeConnections(id)
 
-    // 🧠 Inicializa el estado si no existe
+    const [localData, setLocalData] = useState<Partial<MySQLQueryObject>>({
+        setvar: '',
+        query: '',
+        alias: '',
+        script: '',
+    })
+
+    // 🧠 Inicialización + debug logs
     useEffect(() => {
         initNode(id)
-        return () => resetNode(id)
-    }, [id, initNode, resetNode])
+        const current = getNodeData(id)
 
-    const queryObj = byId[id] || {}
+        setLocalData(current)
+        return () => {
+            // ❌ Antes limpiábamos aquí con resetNode(id)
+            // 🚫 Ya no lo hacemos para mantener persistencia
+        }
+    }, [id])
 
-    const handleChange = (field: keyof typeof queryObj, value: string) => {
-        updateField(id, field, value)
-        updateNodeData(id, {
-            object: { ...queryObj, [field]: value },
+    // 💾 Callback de guardado con logs detallados
+    useEffect(() => {
+        registerSaveCallback(id, () => {
+            const current = getNodeData(id)
+            const finalData: MySQLQueryObject = {
+                ...current,
+                ...localData,
+                mode: current.mode ?? 'simpletext',
+            }
+
+            setNodeData(id, finalData)
+            updateNodeData(id, { object: { ...finalData } })
         })
+
+        return () => {
+            unregisterSaveCallback(id)
+        }
+    }, [id, localData])
+
+    // 🧠 Manejo local con log
+    const handleChange = (field: keyof MySQLQueryObject, value: string) => {
+        setLocalData((prev) => ({ ...prev, [field]: value }))
     }
 
     return (
@@ -106,9 +137,9 @@ export default function FormMySQLQueryNode({
                         Variable destino (setvar)
                     </Label>
                     <Input
-                        value={queryObj.setvar || ''}
+                        value={localData.setvar || ''}
                         onChange={(e) => handleChange('setvar', e.target.value)}
-                        placeholder="Ejemplo: ELECTRICIDAD_CONCESIONARIO_DEUDA"
+                        placeholder="ELECTRICIDAD_CONCESIONARIO_DEUDA"
                         className="text-xs"
                     />
                 </div>
@@ -117,7 +148,7 @@ export default function FormMySQLQueryNode({
                     <Label className="text-sm font-medium">Query SQL</Label>
                     <Textarea
                         rows={5}
-                        value={queryObj.query || ''}
+                        value={localData.query || ''}
                         onChange={(e) => handleChange('query', e.target.value)}
                         placeholder="SELECT ... FROM ..."
                         className="font-mono text-xs"
@@ -127,7 +158,7 @@ export default function FormMySQLQueryNode({
                 <div>
                     <Label className="text-sm font-medium">Alias</Label>
                     <Input
-                        value={queryObj.alias || ''}
+                        value={localData.alias || ''}
                         onChange={(e) => handleChange('alias', e.target.value)}
                         placeholder="Alias descriptivo"
                         className="text-xs"
@@ -139,7 +170,7 @@ export default function FormMySQLQueryNode({
                         Script (resultado)
                     </Label>
                     <Input
-                        value={queryObj.script || ''}
+                        value={localData.script || ''}
                         onChange={(e) => handleChange('script', e.target.value)}
                         placeholder="${datos}"
                         className="text-xs"

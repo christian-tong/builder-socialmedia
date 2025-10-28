@@ -71,7 +71,7 @@ export default function MySQLQueryNode({ id, data }: any) {
                     )}
 
                     {/* 🔹 Resumen de query */}
-                    {queryData.query && (
+                    {queryData.script && (
                         <p
                             className="mt-1 text-[10px] leading-snug text-gray-200 opacity-85"
                             style={{
@@ -81,7 +81,7 @@ export default function MySQLQueryNode({ id, data }: any) {
                                 maxWidth: 200,
                             }}
                         >
-                            {queryData.query}
+                            {queryData.script}
                         </p>
                     )}
                 </div>
