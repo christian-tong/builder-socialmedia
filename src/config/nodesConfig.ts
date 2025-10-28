@@ -10,6 +10,7 @@ import {
     UserCircle2,
     Variable,
     Database,
+    MinusCircle,
 } from 'lucide-react'
 
 import DerivateNode from '@/components/nodes/DerivateNode'
@@ -21,6 +22,7 @@ import MenuNode from '@/components/nodes/MenuNode'
 import { VariablesNode } from '@/components/nodes/VariablesNode' // 🧩 nuevo nodo
 import SwitchConditionNode from '@/components/nodes/SwitchConditionNode'
 import MySQLQueryNode from '@/components/nodes/MySQLQueryNode'
+import NoOpNode from '@/components/nodes/NoOpNode'
 
 // =============================================================
 // 🔒 Extiende el namespace global (para cachear nodeTypes)
@@ -63,6 +65,13 @@ export const nodeRegistry = [
         label: 'MySQL Query',
         icon: Database,
         component: MySQLQueryNode,
+    },
+
+    {
+        type: 'noopNode',
+        label: 'No Operation',
+        icon: MinusCircle,
+        component: NoOpNode,
     },
     {
         type: 'timeConditionNode',

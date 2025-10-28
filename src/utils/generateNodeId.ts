@@ -8,6 +8,7 @@ let endCounter = 0
 let switchConditionCounter = 0
 let setVariablesCounter = 0
 let mysqlQueryCounter = 0
+let noopCounter = 0
 
 /** 🟣 Menu Principal */
 export function getMenuId(): string {
@@ -64,6 +65,13 @@ export function generateMySQLQueryId(): string {
     return id
 }
 
+/** 🟤 NoOp (sin operación) */
+export function generateNoOpId(): string {
+    const id = `NoOp${String(noopCounter).padStart(4, '0')}`
+    noopCounter++
+    return id
+}
+
 /** 🔁 Reset manual */
 export function resetNodeCounters() {
     getdatacompleteCounter = 0
@@ -74,4 +82,5 @@ export function resetNodeCounters() {
     setVariablesCounter = 0
     switchConditionCounter = 0
     mysqlQueryCounter = 0
+    noopCounter = 0
 }

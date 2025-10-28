@@ -10,6 +10,7 @@ import {
     generateSetVariablesId,
     generateSwitchConditionId,
     generateMySQLQueryId,
+    generateNoOpId,
 } from '@/utils/generateNodeId'
 
 /**
@@ -144,6 +145,19 @@ export const nodeTemplates: Record<
                     alias: '',
                     script: '',
                 },
+            },
+        }
+    },
+
+    /** 🟤 NoOpNode (sin operación) */
+    noopNode: () => {
+        const id = generateNoOpId()
+        return {
+            id,
+            data: {
+                label: id,
+                action: 'noop',
+                object: {},
             },
         }
     },
