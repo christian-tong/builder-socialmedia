@@ -13,6 +13,7 @@ import {
     MinusCircle,
     Brain,
     Save,
+    KeyRound,
 } from 'lucide-react'
 
 import DerivateNode from '@/components/nodes/DerivateNode'
@@ -27,6 +28,7 @@ import MySQLQueryNode from '@/components/nodes/MySQLQueryNode'
 import NoOpNode from '@/components/nodes/NoOpNode'
 import ChatBotIARequestNode from '@/components/nodes/ChatBotIARequestNode'
 import SaveRecordNode from '@/components/nodes/SaveRecordNode'
+import GenerateTokenNode from '@/components/nodes/GenerateTokenNode'
 
 // =============================================================
 // 🔒 Extiende el namespace global (para cachear nodeTypes)
@@ -93,8 +95,14 @@ export const nodeRegistry = [
     {
         type: 'saveRecordNode',
         label: 'Guardar Registro',
-        icon: Save, // 🧾 icono claro y simbólico
+        icon: Save,
         component: SaveRecordNode,
+    },
+    {
+        type: 'generateTokenNode',
+        label: 'Generar Token',
+        icon: KeyRound,
+        component: GenerateTokenNode,
     },
     {
         type: 'derivateNode',

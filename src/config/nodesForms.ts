@@ -3,6 +3,7 @@
 import FormChatBotIARequestNode from '@/components/forms/FormChatBotIARequestNode'
 import FormDerivateNode from '@/components/forms/FormDerivateNode'
 import FormEndNode from '@/components/forms/FormEndNode'
+import FormGenerateTokenNode from '@/components/forms/FormGenerateTokenNode'
 import FormMenuNode from '@/components/forms/FormMenuNode'
 import FormMySQLQueryNode from '@/components/forms/FormMySQLQueryNode'
 import FormNoOpNode from '@/components/forms/FormNoOpNode'
@@ -25,5 +26,6 @@ export const nodeFormRegistry: Record<string, any> = {
     noopNode: FormNoOpNode,
     chatBotIARequestNode: FormChatBotIARequestNode,
     saveRecordNode: FormSaveRecordNode,
+    generateTokenNode: FormGenerateTokenNode,
     endNode: FormEndNode,
 }

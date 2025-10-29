@@ -13,6 +13,7 @@ import {
     generateNoOpId,
     generateChatBotIARequestId,
     generateSaveRecordId,
+    generateGenerateTokenId,
 } from '@/utils/generateNodeId'
 
 /**
@@ -201,6 +202,25 @@ export const nodeTemplates: Record<
                         url: '',
                     },
                     body: '',
+                },
+            },
+        }
+    },
+
+    /** 🪄 GenerateTokenNode */
+    generateTokenNode: () => {
+        const id = generateGenerateTokenId()
+        return {
+            id,
+            data: {
+                label: id,
+                action: 'generatetoken',
+                onTrue: '',
+                object: {
+                    mode: 'simpletext', // Select expandible
+                    text: 'Clic aquí', // Input simple
+                    body: {}, // Key-Value dinámico
+                    script: '', // Textarea largo
                 },
             },
         }

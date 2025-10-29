@@ -1,3 +1,5 @@
+// src/utils/generateNodeId.ts
+
 let getdatacompleteCounter = 0
 let simpleTextCounter = 0
 let derivateCounter = 0
@@ -8,7 +10,8 @@ let setVariablesCounter = 0
 let mysqlQueryCounter = 0
 let noopCounter = 0
 let chatbotIARequestCounter = 0
-let saveRecordCounter = 0 // 🧾 Nuevo contador
+let saveRecordCounter = 0
+let generateTokenCounter = 0
 
 /** 🟣 Menu Principal */
 export function getMenuId(): string {
@@ -87,6 +90,13 @@ export function generateSaveRecordId(): string {
     return id
 }
 
+/** 🪄 GenerateToken */
+export function generateGenerateTokenId(): string {
+    const id = `GenerateToken${String(generateTokenCounter).padStart(4, '0')}`
+    generateTokenCounter++
+    return id
+}
+
 /** 🔁 Reset manual */
 export function resetNodeCounters() {
     getdatacompleteCounter = 0
@@ -100,4 +110,5 @@ export function resetNodeCounters() {
     noopCounter = 0
     chatbotIARequestCounter = 0
     saveRecordCounter = 0
+    generateTokenCounter = 0
 }
