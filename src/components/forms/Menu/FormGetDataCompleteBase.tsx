@@ -8,48 +8,94 @@ import { NodeConnectionsAccordion } from '@/components/shared/NodeConnectionsAcc
 import { NodeFlowConnectionsManager } from '@/components/shared/NodeFlowConnectionsManager'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
-import type { GetDataCompleteObject } from '@/types/getDataComplete'
+import {
+    createEmptyInteractive,
+    type GetDataCompleteObject,
+} from '@/types/getDataComplete'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
+import { FormGetDataCompleteQR } from './FormGetDataCompleteQR'
+import {
+    Select,
+    SelectTrigger,
+    SelectValue,
+    SelectContent,
+    SelectItem,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 
 export default function FormGetDataCompleteBase({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
-    const { initNode, getNodeData, setNodeData } = useGetDataCompleteBaseStore()
-    const { prevNodes, availableNodes } = useNodeConnections(id)
+    const { initNode, getNodeData, setNodeData, onAfterSave } =
+        useGetDataCompleteBaseStore()
+    const { createConnectionIfMissing, prevNodes, availableNodes } =
+        useNodeConnections(id)
 
     const [localData, setLocalData] = useState<Partial<GetDataCompleteObject>>(
         {}
     )
 
-    // 🧩 Inicializar nodo en store local
     useEffect(() => {
         initNode(id)
         setLocalData(getNodeData(id))
     }, [id])
 
-    // 💾 Sincronización diferida (v1.2)
+    // 💾 Guardar cambios diferidos
     useEffect(() => {
-        registerSaveCallback(id, () => {
-            setNodeData(id, localData)
-            updateNodeData(id, { ...data, object: localData })
-        })
-        return () => unregisterSaveCallback(id)
-    }, [id, localData, setNodeData, updateNodeData])
+        const saveFn = () => {
+            const current = getNodeData(id)
+            setNodeData(id, current)
+            updateNodeData(id, { ...data, object: current })
 
-    const handleChange = (field: keyof GetDataCompleteObject, value: any) =>
-        setLocalData((prev) => ({ ...prev, [field]: value }))
+            // 🧩 Post-save: crear edges de opciones (solo en QR)
+            if (current.interactive?.type === 'quick_reply') {
+                current.interactive.options.forEach((opt) => {
+                    if (opt.nextNodeId) {
+                        createConnectionIfMissing(
+                            opt.nextNodeId,
+                            opt.postbackText
+                        )
+                    }
+                })
+            }
+
+            // 🔁 Ejecutar callback global si existe
+            onAfterSave?.(id, current)
+        }
+
+        registerSaveCallback(id, saveFn)
+        return () => unregisterSaveCallback(id)
+    }, [
+        id,
+        registerSaveCallback,
+        unregisterSaveCallback,
+        setNodeData,
+        updateNodeData,
+    ])
+
+    // ✏️ Edición local
+    const handleChange = (field: keyof GetDataCompleteObject, value: any) => {
+        setLocalData((prev) => {
+            const updated = { ...prev, [field]: value }
+            setNodeData(id, updated)
+            return updated
+        })
+    }
+
+    const handleInteractiveTypeChange = (value: 'quick_reply' | 'list') => {
+        const interactive = createEmptyInteractive(value)
+        handleChange('interactive', interactive)
+    }
 
     return (
         <div className="flex flex-col gap-6">
-            {/* 🔗 Conexiones previas */}
+            {/* 🔗 Conexiones principales */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
                 accentColor="text-purple-600"
             />
 
-            {/* ⚙️ Control de flujo (onTrue / onFalse / onError) */}
             <NodeFlowConnectionsManager
                 id={id}
                 data={data}
@@ -57,10 +103,10 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                 updateNodeData={updateNodeData}
                 connections={['onTrue', 'onFalse', 'onError']}
                 accentColor="text-purple-600"
-                deferred={true} // mantiene el patrón de guardado diferido
+                deferred={true}
             />
 
-            {/* ⚙️ Configuración General */}
+            {/* ⚙️ Configuración general */}
             <div className="space-y-3">
                 <Label>🧩 Variable</Label>
                 <Input
@@ -85,11 +131,12 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
 
                 <Label>⏳ Timeout (ms)</Label>
                 <Input
+                    type="number"
                     value={localData.timeOut || ''}
                     onChange={(e) => handleChange('timeOut', e.target.value)}
-                    type="number"
                 />
 
+                {/* Switch Guardar oculto */}
                 <div className="flex items-center justify-between py-1">
                     <Label className="text-sm font-medium text-gray-700">
                         Guardar oculto
@@ -99,10 +146,41 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                         onCheckedChange={(checked) =>
                             handleChange('saveHidden', checked)
                         }
-                        className={`transition-colors duration-200 ease-in-out data-[state=checked]:bg-[#198754] data-[state=checked]:hover:bg-[#157347] data-[state=unchecked]:bg-gray-300`}
-                    ></Switch>
+                        className="transition-colors duration-200 ease-in-out data-[state=checked]:bg-[#198754] data-[state=unchecked]:bg-gray-300"
+                    />
+                </div>
+
+                {/* 🔘 Selector de tipo interactivo */}
+                <div className="pt-2">
+                    <Label className="mb-1 block text-sm font-medium">
+                        Tipo interactivo
+                    </Label>
+                    <Select
+                        value={localData.interactive?.type || 'quick_reply'}
+                        onValueChange={handleInteractiveTypeChange}
+                    >
+                        <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Selecciona tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="quick_reply">
+                                Quick Reply
+                            </SelectItem>
+                            <SelectItem value="list">List</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
+
+            {/* 🧱 Form dinámico */}
+            {localData.interactive?.type === 'quick_reply' && (
+                <FormGetDataCompleteQR id={id} />
+            )}
+            {localData.interactive?.type === 'list' && (
+                <div className="p-3 text-sm text-gray-500 italic">
+                    📋 Aquí irá el FormGetDataCompleteList (en construcción)
+                </div>
+            )}
         </div>
     )
 }

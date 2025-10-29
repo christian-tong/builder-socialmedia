@@ -92,20 +92,20 @@ export default function ChatBotIARequestNode({ id, data }: any) {
                 {/* 🟢🔴 Handles de salida */}
                 <Handle
                     type="source"
-                    position={handleSource}
+                    position={Position.Bottom}
                     id="onTrue"
                     className="!bg-green-500"
                     style={{
-                        left: orientation === 'vertical' ? '35%' : undefined,
+                        left: '35%',
                     }}
                 />
                 <Handle
                     type="source"
-                    position={handleSource}
+                    position={Position.Bottom}
                     id="onFalse"
                     className="!bg-red-500"
                     style={{
-                        left: orientation === 'vertical' ? '65%' : undefined,
+                        left: '65%',
                     }}
                 />
             </Card>

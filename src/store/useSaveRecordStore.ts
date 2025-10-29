@@ -1,5 +1,3 @@
-// src\store\useSaveRecordStore.ts
-
 // src/store/useSaveRecordStore.ts
 'use client'
 
@@ -13,12 +11,15 @@ export interface SaveRecordObject {
         url: string
     }
     body: string
+    /** 🧩 Opcional: referencia al siguiente nodo */
+    nextNodeId?: string
 }
 
 interface SaveRecordState {
     nodes: Record<string, SaveRecordObject>
     debug: boolean
 
+    /** 🔧 CRUD básico */
     initNode: (nodeId: string) => void
     getNodeData: (nodeId: string) => SaveRecordObject
     setNodeData: (nodeId: string, data: Partial<SaveRecordObject>) => void
@@ -28,14 +29,21 @@ interface SaveRecordState {
     ) => void
     resetNode: (nodeId: string) => void
     resetAll: () => void
+
+    /** 🔁 Callback post-save */
+    onAfterSave?: (nodeId: string, data: SaveRecordObject) => void
+    setAfterSaveCallback: (
+        cb: (nodeId: string, data: SaveRecordObject) => void
+    ) => void
+    triggerAfterSave: (nodeId: string) => void
 }
 
 /**
- * 🧩 useSaveRecordStore (v1.3 — alineado con Patrón Diferido)
+ * 🧩 useSaveRecordStore (v2.0 — con post-save callback)
  * ------------------------------------------------------------
- * ✅ Inicialización inmutable
- * ✅ Merge seguro y reutilizable
- * ✅ Logs consistentes y desactivables
+ * ✅ Compatible con FlowAutoEdgeSync
+ * ✅ Patrón diferido seguro
+ * ✅ Callbacks reutilizables por tipo de nodo
  */
 export const useSaveRecordStore = create<SaveRecordState>((set, get) => ({
     nodes: {},
@@ -48,6 +56,7 @@ export const useSaveRecordStore = create<SaveRecordState>((set, get) => ({
             const newNode: SaveRecordObject = {
                 auth: { headers: {}, vartoken: '', body: '', url: '' },
                 body: '',
+                nextNodeId: undefined,
             }
             const updated = { ...state.nodes, [nodeId]: newNode }
             if (state.debug)
@@ -72,6 +81,7 @@ export const useSaveRecordStore = create<SaveRecordState>((set, get) => ({
             const current = state.nodes[nodeId] || {
                 auth: { headers: {}, vartoken: '', body: '', url: '' },
                 body: '',
+                nextNodeId: undefined,
             }
 
             const merged: SaveRecordObject = {
@@ -131,5 +141,19 @@ export const useSaveRecordStore = create<SaveRecordState>((set, get) => ({
         if (get().debug)
             console.log('🧹 [SaveRecordStore] Todos los nodos limpiados')
         set({ nodes: {} })
+    },
+
+    /** 🔁 Callbacks post-save */
+    setAfterSaveCallback: (cb) => set({ onAfterSave: cb }),
+
+    triggerAfterSave: (nodeId) => {
+        const node = get().getNodeData(nodeId)
+        const cb = get().onAfterSave
+        if (!cb) return
+        try {
+            cb(nodeId, node)
+        } catch (err) {
+            console.error('❌ [SaveRecordStore] Error en onAfterSave:', err)
+        }
     },
 }))

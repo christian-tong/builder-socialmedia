@@ -1,6 +1,6 @@
 // src/store/useSwitchConditionStore.ts
-
 'use client'
+
 import { create } from 'zustand'
 
 export type MatchMode = 'strict' | 'flex'
@@ -11,12 +11,13 @@ export interface SwitchConditionConfig {
     mode: MatchMode
     values: string[]
     setvariables: { key: string; value: string }[]
-    connections: Record<string, string> // <--- NUEVO: valor → nodo destino
+    connections: Record<string, string> // valor → nodo destino
 }
 
 export interface SwitchConditionState {
     byId: Record<string, SwitchConditionConfig>
 
+    /** 🔧 Métodos base */
     initNode: (nodeId: string) => void
     setVariable: (nodeId: string, variable: string) => void
     setAlias: (nodeId: string, alias: string) => void
@@ -36,15 +37,29 @@ export interface SwitchConditionState {
         patch: Partial<{ key: string; value: string }>
     ) => void
     removeSetVar: (nodeId: string, index: number) => void
+
+    /** 🔁 Callbacks post-save */
+    onAfterSave?: (nodeId: string, data: SwitchConditionConfig) => void
+    setAfterSaveCallback: (
+        cb: (nodeId: string, data: SwitchConditionConfig) => void
+    ) => void
+    triggerAfterSave: (nodeId: string) => void
 }
 
 export const getSwitchHandleId = (nodeId: string, value: string) =>
     `${nodeId}::switch::${encodeURIComponent(value)}`
 
+/**
+ * 🧠 useSwitchConditionStore (v2.0 — con soporte post-save)
+ * ----------------------------------------------------------------
+ * ✅ Compatible con FlowAutoEdgeSync
+ * ✅ Permite generar edges automáticos (onTrue / onFalse / custom)
+ */
 export const useSwitchConditionStore = create<SwitchConditionState>(
     (set, get) => ({
         byId: {},
 
+        /** 🆕 Inicializa el nodo si no existe */
         initNode: (nodeId) =>
             set((s) => {
                 if (s.byId[nodeId]) return s
@@ -57,7 +72,7 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                             mode: 'strict',
                             values: ['SI', 'NO'],
                             setvariables: [],
-                            connections: {}, // <--- NUEVO
+                            connections: {},
                         },
                     },
                 }
@@ -78,6 +93,7 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 byId: { ...s.byId, [nodeId]: { ...s.byId[nodeId], mode } },
             })),
 
+        /** ➕ Agregar valor y conexión */
         addValue: (nodeId, value = '') =>
             set((s) => {
                 const cur = s.byId[nodeId]
@@ -96,6 +112,7 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 }
             }),
 
+        /** ✏️ Actualiza un valor y preserva conexión */
         updateValue: (nodeId, index, value) =>
             set((s) => {
                 const cur = s.byId[nodeId]
@@ -116,6 +133,7 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 }
             }),
 
+        /** 🗑️ Elimina un valor y su conexión */
         removeValue: (nodeId, index) =>
             set((s) => {
                 const cur = s.byId[nodeId]
@@ -132,6 +150,7 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 }
             }),
 
+        /** 🔗 Asigna conexión a un valor */
         setConnection: (nodeId, value, targetId) =>
             set((s) => {
                 const cur = s.byId[nodeId]
@@ -150,6 +169,7 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 }
             }),
 
+        /** ❌ Quita conexión de un valor */
         removeConnection: (nodeId, value) =>
             set((s) => {
                 const cur = s.byId[nodeId]
@@ -161,6 +181,7 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 }
             }),
 
+        /** ➕ Añadir setvariable */
         addSetVar: (nodeId) =>
             set((s) => {
                 const cur = s.byId[nodeId]
@@ -179,6 +200,7 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 }
             }),
 
+        /** ✏️ Actualizar setvariable */
         updateSetVar: (nodeId, index, patch) =>
             set((s) => {
                 const cur = s.byId[nodeId]
@@ -190,6 +212,7 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 }
             }),
 
+        /** 🗑️ Eliminar setvariable */
         removeSetVar: (nodeId, index) =>
             set((s) => {
                 const cur = s.byId[nodeId]
@@ -199,5 +222,22 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                     byId: { ...s.byId, [nodeId]: { ...cur, setvariables: sv } },
                 }
             }),
+
+        /** 🔁 Callbacks post-save */
+        setAfterSaveCallback: (cb) => set({ onAfterSave: cb }),
+
+        triggerAfterSave: (nodeId) => {
+            const cfg = get().byId[nodeId]
+            const cb = get().onAfterSave
+            if (!cb || !cfg) return
+            try {
+                cb(nodeId, cfg)
+            } catch (err) {
+                console.error(
+                    '❌ [SwitchConditionStore] Error onAfterSave:',
+                    err
+                )
+            }
+        },
     })
 )

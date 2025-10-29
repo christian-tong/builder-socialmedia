@@ -1,4 +1,5 @@
 // src\components\flow\FlowCanvasInner.tsx
+
 'use client'
 
 import React, { useMemo } from 'react'
@@ -21,12 +22,16 @@ import { useVariantFlowSync } from '@/store/useVariantFlowSync'
 import { useFlowStore } from '@/store/useFlowStore'
 import { useShallow } from 'zustand/react/shallow'
 
+// ✅ Importar el sincronizador global
+import { FlowAutoEdgeSync } from '@/components/flow/FlowAutoEdgeSync'
+
 /**
  * 🧩 FlowCanvasInner — versión optimizada para fluidez
  * ------------------------------------------------------
  * - Minimiza renders al arrastrar nodos (60 FPS).
  * - Usa shallow selector para evitar renders globales.
  * - Estilos y handlers memoizados para máxima estabilidad.
+ * - 🧠 Incluye FlowAutoEdgeSync (edges automáticos tras guardar nodos)
  */
 export default function FlowCanvasInner() {
     const { theme } = useThemeStore()
@@ -47,6 +52,7 @@ export default function FlowCanvasInner() {
     // 🧠 sincronización controlada (pausada durante drag)
     useVariantFlowSync()
 
+    // 🎨 Fondo del lienzo
     const bgVariant =
         backgroundType === 'dots'
             ? BackgroundVariant.Dots
@@ -54,6 +60,7 @@ export default function FlowCanvasInner() {
               ? BackgroundVariant.Lines
               : BackgroundVariant.Cross
 
+    // 🔳 Estilo de línea (punteada / discontinua / normal)
     const dash = useMemo(() => {
         switch (edgeAspect) {
             case 'dashed':
@@ -65,6 +72,7 @@ export default function FlowCanvasInner() {
         }
     }, [edgeAspect])
 
+    // 🎨 Edge con estilo dinámico global
     const styledEdges: Edge[] = useMemo(
         () =>
             edges.map((e) => ({
@@ -84,7 +92,13 @@ export default function FlowCanvasInner() {
 
     return (
         <>
+            {/* 🔁 Sincronizador invisible de edges automáticos */}
+            <FlowAutoEdgeSync />
+
+            {/* 🎨 Panel de estilo del flujo */}
             <FlowStylePanel />
+
+            {/* 🌊 Canvas principal */}
             <ReactFlow
                 nodes={nodes}
                 edges={styledEdges}

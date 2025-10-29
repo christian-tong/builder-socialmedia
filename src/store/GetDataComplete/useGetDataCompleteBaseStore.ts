@@ -17,13 +17,17 @@ export interface GetDataCompleteState {
     setNodeData: (nodeId: string, data: Partial<GetDataCompleteObject>) => void
     resetNode: (nodeId: string) => void
     resetAll: () => void
+
+    /** 🔁 Callback global post-save */
+    onAfterSave?: (nodeId: string, data: GetDataCompleteObject) => void
+    setAfterSaveCallback: (
+        cb: (nodeId: string, data: GetDataCompleteObject) => void
+    ) => void
+
+    /** ⚙️ Disparador manual */
+    triggerAfterSave: (nodeId: string) => void
 }
 
-/**
- * 🧠 Store Base para todos los GetDataComplete
- * ------------------------------------------------------
- * Sirve como base para las variantes (list / quick_reply)
- */
 export const useGetDataCompleteBaseStore = create<GetDataCompleteState>(
     (set, get) => ({
         nodes: {},
@@ -53,7 +57,7 @@ export const useGetDataCompleteBaseStore = create<GetDataCompleteState>(
             set((state) => {
                 const current = get().getNodeData(nodeId)
                 const merged = { ...current, ...data }
-                if (state.debug) console.log(`💾 Nodo ${nodeId}`, merged)
+                if (state.debug) console.log(`💾 [GDC] Nodo ${nodeId}`, merged)
                 return { nodes: { ...state.nodes, [nodeId]: merged } }
             }),
 
@@ -64,5 +68,21 @@ export const useGetDataCompleteBaseStore = create<GetDataCompleteState>(
             }),
 
         resetAll: () => set({ nodes: {} }),
+
+        setAfterSaveCallback: (cb) => set({ onAfterSave: cb }),
+
+        triggerAfterSave: (nodeId) => {
+            const node = get().getNodeData(nodeId)
+            const cb = get().onAfterSave
+            if (!cb) return
+            try {
+                cb(nodeId, node)
+            } catch (err) {
+                console.error('❌ [GDC] Error onAfterSave:', err)
+            }
+        },
     })
 )
+
+// ❌ Importante: NO usar hooks aquí, ni registrar callbacks automáticos en módulo.
+// Todo registro se hará desde FlowAutoEdgeSync.
