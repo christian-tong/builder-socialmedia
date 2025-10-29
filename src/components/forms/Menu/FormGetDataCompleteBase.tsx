@@ -14,6 +14,7 @@ import {
 } from '@/types/getDataComplete'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
 import { FormGetDataCompleteQR } from './FormGetDataCompleteQR'
+import { FormGetDataCompleteList } from './FormGetDataCompleteList'
 import {
     Select,
     SelectTrigger,
@@ -23,6 +24,14 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 
+/**
+ * 🧩 FormGetDataCompleteBase (v3.0 — Unified Interactive)
+ * --------------------------------------------------------
+ * - Soporta QuickReply y List
+ * - Aplica patrón de sincronización diferida (solo al guardar)
+ * - Crea edges automáticos de opciones QuickReply
+ * - Integra formularios dinámicos basados en tipo interactivo
+ */
 export default function FormGetDataCompleteBase({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
@@ -47,7 +56,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
             setNodeData(id, current)
             updateNodeData(id, { ...data, object: current })
 
-            // 🧩 Post-save: crear edges de opciones (solo en QR)
+            // 🧩 Post-save: crear edges (solo QR)
             if (current.interactive?.type === 'quick_reply') {
                 current.interactive.options.forEach((opt) => {
                     if (opt.nextNodeId) {
@@ -59,7 +68,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                 })
             }
 
-            // 🔁 Ejecutar callback global si existe
+            // 🔁 Callback global si existe
             onAfterSave?.(id, current)
         }
 
@@ -177,9 +186,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                 <FormGetDataCompleteQR id={id} />
             )}
             {localData.interactive?.type === 'list' && (
-                <div className="p-3 text-sm text-gray-500 italic">
-                    📋 Aquí irá el FormGetDataCompleteList (en construcción)
-                </div>
+                <FormGetDataCompleteList id={id} />
             )}
         </div>
     )

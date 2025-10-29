@@ -60,6 +60,7 @@ export interface QuickReplyOption {
     postbackText: string
     type: 'text'
     title: string
+    description?: string
     nextNodeId?: string
 }
 

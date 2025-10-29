@@ -1,6 +1,5 @@
 // src\components\flow\FlowAutoEdgeSync.tsx
 
-// src/components/flow/FlowAutoEdgeSync.tsx
 'use client'
 
 import { useEffect } from 'react'
@@ -8,33 +7,63 @@ import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataC
 import { useSaveRecordStore } from '@/store/useSaveRecordStore'
 import { useSwitchConditionStore } from '@/store/useSwitchConditionStore'
 import { createConnectionIfMissing } from '@/lib/edgeUtils'
+import type {
+    QuickReplyInteractive,
+    ListInteractive,
+} from '@/types/getDataComplete'
 
 /**
- * 🧠 FlowAutoEdgeSync (versión final estable)
+ * 🧠 FlowAutoEdgeSync (v3.1 — soporta List)
  * ---------------------------------------------------------------
- * - Centraliza todos los callbacks post-save.
- * - Usa `createConnectionIfMissing` (puro, sin hooks).
- * - No rompe las reglas de React ni los tipos.
+ * - QuickReply → crea edges por cada opción
+ * - List → crea edges por cada item/opción con nextNodeId
+ * - SaveRecord / SwitchCondition → igual que antes
+ * - Usa createConnectionIfMissing (seguro, idempotente)
  */
 export function FlowAutoEdgeSync() {
     const { setAfterSaveCallback: setGetData } = useGetDataCompleteBaseStore()
     const { setAfterSaveCallback: setSaveRecord } = useSaveRecordStore()
     const { setAfterSaveCallback: setSwitch } = useSwitchConditionStore()
 
-    // 🟣 QuickReply → crea edges por opciones
+    // 🟣 GetDataComplete (QuickReply + List)
     useEffect(() => {
         setGetData((nodeId, data) => {
-            if (data.interactive?.type !== 'quick_reply') return
-            const opts = data.interactive.options || []
-            opts.forEach((opt) => {
-                if (opt.nextNodeId) {
-                    createConnectionIfMissing(
-                        nodeId,
-                        opt.nextNodeId,
-                        opt.postbackText
-                    )
-                }
-            })
+            const interactive = data.interactive as
+                | QuickReplyInteractive
+                | ListInteractive
+                | undefined
+
+            if (!interactive) return
+
+            // 💬 QUICK_REPLY
+            if (interactive.type === 'quick_reply') {
+                interactive.options?.forEach((opt) => {
+                    if (opt.nextNodeId) {
+                        createConnectionIfMissing(
+                            nodeId,
+                            opt.nextNodeId,
+                            opt.postbackText
+                        )
+                    }
+                })
+                return
+            }
+
+            // 🔵 LIST
+            if (interactive.type === 'list') {
+                interactive.items?.forEach((item) => {
+                    item.options?.forEach((opt) => {
+                        const nextId = (opt as any).nextNodeId
+                        if (nextId) {
+                            createConnectionIfMissing(
+                                nodeId,
+                                nextId,
+                                opt.postbackText
+                            )
+                        }
+                    })
+                })
+            }
         })
     }, [setGetData])
 
