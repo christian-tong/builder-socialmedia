@@ -13,15 +13,11 @@ import {
 } from '@/store/useVariantTypeStore'
 
 /**
- * 🧠 useNodeConnections (versión híbrida v4)
+ * 🧠 useNodeConnections (versión híbrida v5)
  * ----------------------------------------------------
- * Hook unificado y seguro para gestionar conexiones.
- * Compatible con:
- * - Nodos simples (ChatBotIARequest, SwitchCondition, etc.)
- * - Nodos interactivos (GetDataComplete, MenuNode, etc.)
- *
- * 🟢 Handles simples: onTrue / onFalse / onError / in
- * 🔵 Handles complejos: nodeId::variantType::optionKey
+ * Hook unificado para gestionar conexiones y edges de nodos.
+ * - Compatible con nodos simples e interactivos.
+ * - Previene duplicados y sincroniza automáticamente edges.
  */
 export function useNodeConnections(nodeId: string) {
     const { edges, nodes, setEdges, getConnectedNodes } = useFlowStore()
@@ -43,9 +39,7 @@ export function useNodeConnections(nodeId: string) {
         setNextNodes(next.map((n) => n.data?.label || n.id))
     }, [edges, nodes, nodeId, getConnectedNodes])
 
-    /**
-     * 🧩 Verifica si ya existe una conexión
-     */
+    /** 🔎 Verifica si ya existe una conexión */
     const hasConnection = (targetId: string, handleId?: string) =>
         edges.some(
             (e) =>
@@ -54,21 +48,18 @@ export function useNodeConnections(nodeId: string) {
                 (handleId ? e.sourceHandle === handleId : true)
         )
 
-    /**
-     * ⚙️ Crea una conexión con detección automática del tipo de handle
-     */
+    /** ⚙️ Crea una conexión con detección automática del tipo de handle */
     const createConnection = (targetId: string, handleId?: string) => {
         const sourceNode = nodes.find((n) => n.id === nodeId)
         const targetNode = nodes.find((n) => n.id === targetId)
         if (!sourceNode || !targetNode) return
 
-        // 🧩 Determinar si el handle es simple o variante
         const simpleHandles = ['onTrue', 'onFalse', 'onError', 'in', 'out']
         const isSimple = simpleHandles.includes(handleId ?? '')
 
         const variantType = getVariantType(nodeId)
         const globalHandleId = isSimple
-            ? handleId // 🟢 simple
+            ? handleId
             : handleId
               ? getVariantHandleId(nodeId, variantType, handleId)
               : null
@@ -86,15 +77,14 @@ export function useNodeConnections(nodeId: string) {
         // ⚠️ Evitar duplicados
         if (hasConnection(targetId, globalHandleId ?? undefined)) return
 
-        // 🎨 Color dinámico según tipo de conexión
-        let color = '#94a3b8' // gris por defecto
+        // 🎨 Color dinámico según tipo
+        let color = '#94a3b8' // gris
         if (handleId === 'onTrue') color = '#22c55e'
         else if (handleId === 'onFalse') color = '#ef4444'
         else if (handleId === 'onError') color = '#facc15'
         else if (variantType === 'list') color = '#0ea5e9'
         else if (variantType === 'quick_reply') color = '#8b5cf6'
 
-        // 🧩 ID único global
         const edgeId = `edge-${nodeId}-${targetId}-${globalHandleId ?? 'default'}`
 
         const newEdge: Edge = {
@@ -115,9 +105,7 @@ export function useNodeConnections(nodeId: string) {
         )
     }
 
-    /**
-     * ❌ Elimina una conexión existente
-     */
+    /** ❌ Elimina una conexión existente */
     const removeConnection = (targetId: string, handleId?: string) => {
         const variantType = getVariantType(nodeId)
         const simpleHandles = ['onTrue', 'onFalse', 'onError', 'in', 'out']
@@ -150,9 +138,7 @@ export function useNodeConnections(nodeId: string) {
         )
     }
 
-    /**
-     * 🔀 Alternar conexión (para switches o checkboxes)
-     */
+    /** 🔀 Alterna conexión (checkbox o select múltiple) */
     const toggleConnection = (
         targetId: string,
         checked: boolean,
@@ -160,6 +146,18 @@ export function useNodeConnections(nodeId: string) {
     ) => {
         if (checked) createConnection(targetId, handleId)
         else removeConnection(targetId, handleId)
+    }
+
+    /**
+     * 🧩 Crea una conexión solo si no existe (modo seguro para saveCallback)
+     * ---------------------------------------------------------------------
+     * Se usa dentro de los formularios cuando se guardan los cambios para
+     * crear los edges pendientes sin provocar re-renderes innecesarios.
+     */
+    const createConnectionIfMissing = (targetId: string, handleId?: string) => {
+        if (!targetId) return
+        const exists = hasConnection(targetId, handleId)
+        if (!exists) createConnection(targetId, handleId)
     }
 
     return {
@@ -170,5 +168,6 @@ export function useNodeConnections(nodeId: string) {
         createConnection,
         removeConnection,
         toggleConnection,
+        createConnectionIfMissing, // ✅ añadido aquí
     }
 }

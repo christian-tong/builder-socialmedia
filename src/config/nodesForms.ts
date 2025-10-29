@@ -13,10 +13,12 @@ import FormStartNode from '@/components/forms/FormStartNode'
 import FormSwitchConditionNode from '@/components/forms/FormSwitchConditionNode'
 import FormTimeConditionNode from '@/components/forms/FormTimeConditionNode'
 import FormVariablesNode from '@/components/forms/FormVariablesNode'
+import FormGetDataCompleteBase from '@/components/forms/Menu/FormGetDataCompleteBase'
 
 export const nodeFormRegistry: Record<string, any> = {
     startNode: FormStartNode,
-    menuNode: FormMenuNode,
+    menuNode: FormGetDataCompleteBase,
+    // menuNode: FormMenuNode,
     simpleTextNode: FormSimpleTextNode,
     derivateNode: FormDerivateNode,
     timeConditionNode: FormTimeConditionNode,
