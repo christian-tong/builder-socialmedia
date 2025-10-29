@@ -1,5 +1,6 @@
 // src/components/forms/FormSaveRecordNode.tsx
 
+// src/components/forms/FormSaveRecordNode.tsx
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -27,12 +28,12 @@ interface KeyValue {
 }
 
 /**
- * 🧾 FormSaveRecordNode (v1.5 – Integrado con NodeConnectionsAccordion)
+ * 🧾 FormSaveRecordNode (v1.6 – Tipado seguro)
  * ------------------------------------------------------
- * ✅ Persistencia real con useSaveRecordStore
- * ✅ Sincronización diferida (solo al guardar)
- * ✅ Sin fugas de memoria ni renders innecesarios
- * ✅ Integración visual con acordeones de conexiones
+ * ✅ Tipos compatibles con SaveRecordObject
+ * ✅ Corrección completa de setLocalData
+ * ✅ Sin errores TS2345
+ * ✅ Mismo comportamiento funcional
  */
 export default function FormSaveRecordNode({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
@@ -164,10 +165,16 @@ export default function FormSaveRecordNode({ id, data }: any) {
         value: string
     ) => {
         safeUpdateAuth(id, { [field]: value })
-        setLocalData((prev) => ({
-            ...prev,
-            auth: { ...(prev.auth || {}), [field]: value },
-        }))
+        setLocalData((prev) => {
+            const safeAuth: SaveRecordObject['auth'] = {
+                headers: prev.auth?.headers ?? {},
+                vartoken: prev.auth?.vartoken ?? '',
+                body: prev.auth?.body ?? '',
+                url: prev.auth?.url ?? '',
+                [field]: value,
+            }
+            return { ...prev, auth: safeAuth }
+        })
     }
 
     /** 🔄 Sincroniza JSON <-> Visual */
@@ -188,10 +195,15 @@ export default function FormSaveRecordNode({ id, data }: any) {
                 2
             )
             safeUpdateAuth(id, { body: jsonStr })
-            setLocalData((prev) => ({
-                ...prev,
-                auth: { ...(prev.auth || {}), body: jsonStr },
-            }))
+            setLocalData((prev) => {
+                const safeAuth: SaveRecordObject['auth'] = {
+                    headers: prev.auth?.headers ?? {},
+                    vartoken: prev.auth?.vartoken ?? '',
+                    body: jsonStr,
+                    url: prev.auth?.url ?? '',
+                }
+                return { ...prev, auth: safeAuth }
+            })
         }
     }, [jsonMode, authJsonMode, pairs, authPairs, id, safeUpdateAuth])
 
