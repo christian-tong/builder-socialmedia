@@ -4,37 +4,69 @@
 
 import { create } from 'zustand'
 import { useGetDataCompleteBaseStore } from './useGetDataCompleteBaseStore'
+import type {
+    GetDataCompleteObject,
+    QuickReplyInteractive,
+    QuickReplyOption,
+} from '@/types/getDataComplete'
 
 interface QuickReplyStoreState {
+    /** ➕ Añade una nueva opción */
     addOption: (nodeId: string) => void
+
+    /** 🗑️ Elimina una opción por índice */
     removeOption: (nodeId: string, index: number) => void
 }
 
 /**
- * 🟢 Extensión para manejar QuickReply
+ * 🟢 useGetDataCompleteQRStore (v2.1 – Fully Typed)
+ * ------------------------------------------------------------
+ * - Maneja opciones del bloque QuickReply
+ * - Totalmente tipado con seguridad de null checks
+ * - Sin mutaciones directas del estado (usa copias inmutables)
  */
 export const useGetDataCompleteQRStore = create<QuickReplyStoreState>(() => ({
     addOption: (nodeId) => {
         const base = useGetDataCompleteBaseStore.getState()
-        const node = base.getNodeData(nodeId)
-        const interactive = node.interactive
-        if (interactive.type !== 'quick_reply') return
+        const node: GetDataCompleteObject = base.getNodeData(nodeId)
+        const interactive = node.interactive as
+            | QuickReplyInteractive
+            | undefined
 
-        interactive.options.push({
+        if (!interactive || interactive.type !== 'quick_reply') return
+
+        // Nueva opción vacía
+        const newOption: QuickReplyOption = {
             postbackText: '',
             type: 'text',
             title: '',
-        })
-        base.setNodeData(nodeId, { interactive })
+        }
+
+        // Copia segura del bloque actualizado
+        const updated: QuickReplyInteractive = {
+            ...interactive,
+            options: [...interactive.options, newOption],
+        }
+
+        base.setNodeData(nodeId, { interactive: updated })
     },
 
     removeOption: (nodeId, index) => {
         const base = useGetDataCompleteBaseStore.getState()
-        const node = base.getNodeData(nodeId)
-        const interactive = node.interactive
-        if (interactive.type !== 'quick_reply') return
+        const node: GetDataCompleteObject = base.getNodeData(nodeId)
+        const interactive = node.interactive as
+            | QuickReplyInteractive
+            | undefined
 
-        interactive.options.splice(index, 1)
-        base.setNodeData(nodeId, { interactive })
+        if (!interactive || interactive.type !== 'quick_reply') return
+
+        const updatedOptions = interactive.options.filter((_, i) => i !== index)
+
+        const updated: QuickReplyInteractive = {
+            ...interactive,
+            options: updatedOptions,
+        }
+
+        base.setNodeData(nodeId, { interactive: updated })
     },
 }))

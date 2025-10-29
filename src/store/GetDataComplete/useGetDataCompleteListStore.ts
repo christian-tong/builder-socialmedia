@@ -4,6 +4,13 @@
 
 import { create } from 'zustand'
 import { useGetDataCompleteBaseStore } from './useGetDataCompleteBaseStore'
+import type {
+    GetDataCompleteObject,
+    ListInteractive,
+    ListItem,
+    ListOption,
+    GlobalButton,
+} from '@/types/getDataComplete'
 
 interface ListStoreState {
     /** ➕ Añade un nuevo grupo (ListItem) */
@@ -34,75 +41,87 @@ interface ListStoreState {
 }
 
 /**
- * 🔵 useGetDataCompleteListStore (v2.1 Extended)
+ * 🔵 useGetDataCompleteListStore (v2.2 – Fully Typed)
  * ------------------------------------------------------------
  * - Maneja items, options y globalButtons del tipo ListInteractive
- * - Mantiene sincronización con useGetDataCompleteBaseStore
- * - Mutaciones seguras (inmutables y consistentes)
+ * - Sincroniza con useGetDataCompleteBaseStore
+ * - Tipado completo con seguridad ante nodos inexistentes o tipo inválido
  */
 export const useGetDataCompleteListStore = create<ListStoreState>(() => ({
     /** 🧱 Añade un nuevo bloque de opciones */
     addListItem: (nodeId, title = 'Elija una opción') => {
         const base = useGetDataCompleteBaseStore.getState()
-        const node = base.getNodeData(nodeId)
-        const interactive = node.interactive
-        if (interactive.type !== 'list') return
+        const node: GetDataCompleteObject = base.getNodeData(nodeId)
+        const interactive = node.interactive as ListInteractive | undefined
+        if (!interactive || interactive.type !== 'list') return
 
-        interactive.items = [...interactive.items, { title, options: [] }]
-        base.setNodeData(nodeId, { interactive })
-    },
-
-    /** 🧱 Añade una nueva opción dentro del bloque */
-    addOption: (nodeId, itemIndex) => {
-        const base = useGetDataCompleteBaseStore.getState()
-        const node = base.getNodeData(nodeId)
-        const interactive = node.interactive
-        if (interactive.type !== 'list') return
-
-        const updated = { ...interactive }
-        updated.items = [...interactive.items]
-        updated.items[itemIndex] = {
-            ...interactive.items[itemIndex],
-            options: [
-                ...interactive.items[itemIndex].options,
-                { postbackText: '', type: 'text', title: '' },
-            ],
+        const updated: ListInteractive = {
+            ...interactive,
+            items: [...interactive.items, { title, options: [] }],
         }
 
+        base.setNodeData(nodeId, { interactive: updated })
+    },
+
+    /** 🧱 Añade una nueva opción dentro de un bloque */
+    addOption: (nodeId, itemIndex) => {
+        const base = useGetDataCompleteBaseStore.getState()
+        const node: GetDataCompleteObject = base.getNodeData(nodeId)
+        const interactive = node.interactive as ListInteractive | undefined
+        if (!interactive || interactive.type !== 'list') return
+
+        const updatedItems: ListItem[] = [...interactive.items]
+        const targetItem = updatedItems[itemIndex]
+        if (!targetItem) return
+
+        const newOption: ListOption = {
+            postbackText: '',
+            type: 'text',
+            title: '',
+        }
+
+        updatedItems[itemIndex] = {
+            ...targetItem,
+            options: [...targetItem.options, newOption],
+        }
+
+        const updated: ListInteractive = { ...interactive, items: updatedItems }
         base.setNodeData(nodeId, { interactive: updated })
     },
 
     /** 🗑️ Elimina una opción dentro de un bloque */
     removeOption: (nodeId, itemIndex, optionIndex) => {
         const base = useGetDataCompleteBaseStore.getState()
-        const node = base.getNodeData(nodeId)
-        const interactive = node.interactive
-        if (interactive.type !== 'list') return
+        const node: GetDataCompleteObject = base.getNodeData(nodeId)
+        const interactive = node.interactive as ListInteractive | undefined
+        if (!interactive || interactive.type !== 'list') return
 
-        const updated = { ...interactive }
-        updated.items = [...interactive.items]
-        updated.items[itemIndex] = {
-            ...interactive.items[itemIndex],
-            options: interactive.items[itemIndex].options.filter(
-                (_, i) => i !== optionIndex
-            ),
+        const updatedItems: ListItem[] = [...interactive.items]
+        const targetItem = updatedItems[itemIndex]
+        if (!targetItem) return
+
+        updatedItems[itemIndex] = {
+            ...targetItem,
+            options: targetItem.options.filter((_, i) => i !== optionIndex),
         }
 
+        const updated: ListInteractive = { ...interactive, items: updatedItems }
         base.setNodeData(nodeId, { interactive: updated })
     },
 
     /** 🔘 Añade un nuevo botón global */
     addGlobalButton: (nodeId, title = '') => {
         const base = useGetDataCompleteBaseStore.getState()
-        const node = base.getNodeData(nodeId)
-        const interactive = node.interactive
-        if (interactive.type !== 'list') return
+        const node: GetDataCompleteObject = base.getNodeData(nodeId)
+        const interactive = node.interactive as ListInteractive | undefined
+        if (!interactive || interactive.type !== 'list') return
 
-        const updated = { ...interactive }
-        updated.globalButtons = [
-            ...(interactive.globalButtons || []),
-            { type: 'text', title },
-        ]
+        const newButton: GlobalButton = { type: 'text', title }
+
+        const updated: ListInteractive = {
+            ...interactive,
+            globalButtons: [...(interactive.globalButtons || []), newButton],
+        }
 
         base.setNodeData(nodeId, { interactive: updated })
     },
@@ -110,14 +129,16 @@ export const useGetDataCompleteListStore = create<ListStoreState>(() => ({
     /** 🗑️ Elimina un botón global */
     removeGlobalButton: (nodeId, index) => {
         const base = useGetDataCompleteBaseStore.getState()
-        const node = base.getNodeData(nodeId)
-        const interactive = node.interactive
-        if (interactive.type !== 'list') return
+        const node: GetDataCompleteObject = base.getNodeData(nodeId)
+        const interactive = node.interactive as ListInteractive | undefined
+        if (!interactive || interactive.type !== 'list') return
 
-        const updated = { ...interactive }
-        updated.globalButtons = (interactive.globalButtons || []).filter(
-            (_, i) => i !== index
-        )
+        const updated: ListInteractive = {
+            ...interactive,
+            globalButtons: (interactive.globalButtons || []).filter(
+                (_, i) => i !== index
+            ),
+        }
 
         base.setNodeData(nodeId, { interactive: updated })
     },
@@ -125,14 +146,18 @@ export const useGetDataCompleteListStore = create<ListStoreState>(() => ({
     /** ✏️ Actualiza título de un botón global */
     updateGlobalButtonTitle: (nodeId, index, title) => {
         const base = useGetDataCompleteBaseStore.getState()
-        const node = base.getNodeData(nodeId)
-        const interactive = node.interactive
-        if (interactive.type !== 'list') return
+        const node: GetDataCompleteObject = base.getNodeData(nodeId)
+        const interactive = node.interactive as ListInteractive | undefined
+        if (!interactive || interactive.type !== 'list') return
 
-        const updated = { ...interactive }
-        updated.globalButtons = [...(interactive.globalButtons || [])]
-        if (updated.globalButtons[index]) {
-            updated.globalButtons[index].title = title
+        const updatedButtons = [...(interactive.globalButtons || [])]
+        if (updatedButtons[index]) {
+            updatedButtons[index].title = title
+        }
+
+        const updated: ListInteractive = {
+            ...interactive,
+            globalButtons: updatedButtons,
         }
 
         base.setNodeData(nodeId, { interactive: updated })
