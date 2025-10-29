@@ -1,4 +1,4 @@
-// src\components\forms\FormSaveRecordNode.tsx
+// src/components/forms/FormSaveRecordNode.tsx
 
 'use client'
 
@@ -8,14 +8,11 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
+import { Plus, Trash2, Code } from 'lucide-react'
 import {
-    Accordion,
-    AccordionItem,
-    AccordionTrigger,
-    AccordionContent,
-} from '@/components/ui/accordion'
-import { Settings2, Plus, Trash2, Code } from 'lucide-react'
-import { NodeSelectAccordion } from '@/components/shared/NodeSelectAccordion'
+    NodeConnectionsAccordion,
+    NodeSelectionAccordion,
+} from '@/components/shared/NodeConnectionsAccordion'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import {
@@ -30,35 +27,43 @@ interface KeyValue {
 }
 
 /**
- * 🧾 FormSaveRecordNode (v1.3)
+ * 🧾 FormSaveRecordNode (v1.5 – Integrado con NodeConnectionsAccordion)
  * ------------------------------------------------------
- * - Modo visual / JSON tanto para `auth.body` como para `body`
- * - Usa safeUpdateAuth del store (sin errores de tipo)
- * - Control diferido (onTrue)
+ * ✅ Persistencia real con useSaveRecordStore
+ * ✅ Sincronización diferida (solo al guardar)
+ * ✅ Sin fugas de memoria ni renders innecesarios
+ * ✅ Integración visual con acordeones de conexiones
  */
 export default function FormSaveRecordNode({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
     const { initNode, getNodeData, setNodeData, safeUpdateAuth } =
         useSaveRecordStore()
-    const { availableNodes } = useNodeConnections(id)
+    const {
+        prevNodes,
+        nextNodes,
+        availableNodes,
+        hasConnection,
+        toggleConnection,
+    } = useNodeConnections(id)
 
+    /** Estado local */
     const [localData, setLocalData] = useState<Partial<SaveRecordObject>>({})
-    const [pairs, setPairs] = useState<KeyValue[]>([]) // cuerpo principal
-    const [authPairs, setAuthPairs] = useState<KeyValue[]>([]) // cuerpo auth
+    const [pairs, setPairs] = useState<KeyValue[]>([])
+    const [authPairs, setAuthPairs] = useState<KeyValue[]>([])
     const [jsonMode, setJsonMode] = useState(false)
     const [authJsonMode, setAuthJsonMode] = useState(false)
 
-    /** 🧩 Inicializa nodo */
+    // 🧩 Inicializa datos locales desde el store especializado
     useEffect(() => {
         initNode(id)
         const current = getNodeData(id)
         setLocalData(current)
 
-        // 🔹 Parse body principal
+        // Parse principal
         try {
             const parsed = JSON.parse(current.body || '{}')
-            if (parsed && typeof parsed === 'object') {
+            if (typeof parsed === 'object')
                 setPairs(
                     Object.entries(parsed).map(([k, v]) => ({
                         id: crypto.randomUUID(),
@@ -66,15 +71,14 @@ export default function FormSaveRecordNode({ id, data }: any) {
                         value: String(v),
                     }))
                 )
-            }
         } catch {
             setPairs([])
         }
 
-        // 🔹 Parse body de autenticación
+        // Parse auth.body
         try {
             const parsedAuth = JSON.parse(current.auth?.body || '{}')
-            if (parsedAuth && typeof parsedAuth === 'object') {
+            if (typeof parsedAuth === 'object')
                 setAuthPairs(
                     Object.entries(parsedAuth).map(([k, v]) => ({
                         id: crypto.randomUUID(),
@@ -82,76 +86,79 @@ export default function FormSaveRecordNode({ id, data }: any) {
                         value: String(v),
                     }))
                 )
-            }
         } catch {
             setAuthPairs([])
         }
-    }, [id, initNode, getNodeData])
+    }, [id])
 
-    /** 💾 Guardado diferido */
+    // 💾 Guardado diferido (solo ejecuta al confirmar cambios globales)
     useEffect(() => {
         registerSaveCallback(id, () => {
-            let finalBody = localData.body || '{}'
-            let finalAuthBody = localData.auth?.body || '{}'
+            const current = getNodeData(id)
 
-            // 🔹 Serializa visual → JSON
-            if (!jsonMode) {
-                finalBody = JSON.stringify(
-                    Object.fromEntries(pairs.map((p) => [p.key, p.value])),
-                    null,
-                    2
-                )
-            }
+            // Serializa visual → JSON
+            const finalBody = jsonMode
+                ? localData.body || '{}'
+                : JSON.stringify(
+                      Object.fromEntries(pairs.map((p) => [p.key, p.value])),
+                      null,
+                      2
+                  )
 
-            if (!authJsonMode) {
-                finalAuthBody = JSON.stringify(
-                    Object.fromEntries(authPairs.map((p) => [p.key, p.value])),
-                    null,
-                    2
-                )
-            }
+            const finalAuthBody = authJsonMode
+                ? localData.auth?.body || '{}'
+                : JSON.stringify(
+                      Object.fromEntries(
+                          authPairs.map((p) => [p.key, p.value])
+                      ),
+                      null,
+                      2
+                  )
 
-            const finalData: SaveRecordObject = {
-                ...getNodeData(id),
+            const merged: SaveRecordObject = {
+                ...current,
                 ...localData,
                 body: finalBody,
                 auth: {
-                    ...(localData.auth || {
+                    ...(current.auth || {
                         headers: {},
                         vartoken: '',
                         url: '',
                         body: '',
                     }),
+                    ...(localData.auth || {}),
                     body: finalAuthBody,
                 },
             }
 
-            setNodeData(id, finalData)
+            setNodeData(id, merged)
             updateNodeData(id, {
                 ...data,
                 id,
                 action: 'saverecord',
-                object: finalData,
+                object: merged,
             })
         })
 
         return () => unregisterSaveCallback(id)
     }, [
         id,
-        localData,
-        pairs,
-        authPairs,
         jsonMode,
         authJsonMode,
-        data,
-        registerSaveCallback,
-        unregisterSaveCallback,
+        pairs,
+        authPairs,
+        localData,
         getNodeData,
         setNodeData,
         updateNodeData,
+        registerSaveCallback,
+        unregisterSaveCallback,
     ])
 
     /** ✏️ Manejadores seguros */
+    const handleChange = (field: keyof SaveRecordObject, value: string) =>
+        setLocalData((prev) => ({ ...prev, [field]: value }))
+
     const handleAuthChange = (
         field: keyof SaveRecordObject['auth'],
         value: string
@@ -163,36 +170,7 @@ export default function FormSaveRecordNode({ id, data }: any) {
         }))
     }
 
-    const handleChange = (field: keyof SaveRecordObject, value: string) =>
-        setLocalData((prev) => ({ ...prev, [field]: value }))
-
-    // 🔸 Helpers para body principal
-    const addPair = () =>
-        setPairs((prev) => [
-            ...prev,
-            { id: crypto.randomUUID(), key: '', value: '' },
-        ])
-    const removePair = (uid: string) =>
-        setPairs((prev) => prev.filter((p) => p.id !== uid))
-    const updatePair = (uid: string, field: keyof KeyValue, val: string) =>
-        setPairs((prev) =>
-            prev.map((p) => (p.id === uid ? { ...p, [field]: val } : p))
-        )
-
-    // 🔸 Helpers para body de autenticación
-    const addAuthPair = () =>
-        setAuthPairs((prev) => [
-            ...prev,
-            { id: crypto.randomUUID(), key: '', value: '' },
-        ])
-    const removeAuthPair = (uid: string) =>
-        setAuthPairs((prev) => prev.filter((p) => p.id !== uid))
-    const updateAuthPair = (uid: string, field: keyof KeyValue, val: string) =>
-        setAuthPairs((prev) =>
-            prev.map((p) => (p.id === uid ? { ...p, [field]: val } : p))
-        )
-
-    /** 🔄 Sincroniza JSON <-> Visual usando safeUpdateAuth */
+    /** 🔄 Sincroniza JSON <-> Visual */
     useEffect(() => {
         if (jsonMode) {
             const jsonStr = JSON.stringify(
@@ -202,6 +180,7 @@ export default function FormSaveRecordNode({ id, data }: any) {
             )
             setLocalData((prev) => ({ ...prev, body: jsonStr }))
         }
+
         if (authJsonMode) {
             const jsonStr = JSON.stringify(
                 Object.fromEntries(authPairs.map((p) => [p.key, p.value])),
@@ -215,6 +194,28 @@ export default function FormSaveRecordNode({ id, data }: any) {
             }))
         }
     }, [jsonMode, authJsonMode, pairs, authPairs, id, safeUpdateAuth])
+
+    /** 🔹 Helpers visuales */
+    const addPair = () =>
+        setPairs((p) => [...p, { id: crypto.randomUUID(), key: '', value: '' }])
+    const removePair = (uid: string) =>
+        setPairs((p) => p.filter((x) => x.id !== uid))
+    const updatePair = (uid: string, field: keyof KeyValue, val: string) =>
+        setPairs((p) =>
+            p.map((x) => (x.id === uid ? { ...x, [field]: val } : x))
+        )
+
+    const addAuthPair = () =>
+        setAuthPairs((p) => [
+            ...p,
+            { id: crypto.randomUUID(), key: '', value: '' },
+        ])
+    const removeAuthPair = (uid: string) =>
+        setAuthPairs((p) => p.filter((x) => x.id !== uid))
+    const updateAuthPair = (uid: string, field: keyof KeyValue, val: string) =>
+        setAuthPairs((p) =>
+            p.map((x) => (x.id === uid ? { ...x, [field]: val } : x))
+        )
 
     return (
         <div className="flex flex-col gap-6">
@@ -231,32 +232,28 @@ export default function FormSaveRecordNode({ id, data }: any) {
                 </Badge>
             </div>
 
-            {/* ⚙️ Control de flujo */}
-            <Accordion type="single" collapsible className="w-full">
-                <AccordionItem value="flowConfig">
-                    <AccordionTrigger className="flex items-center gap-2 bg-gray-100 px-3 py-2 text-sm font-medium dark:bg-gray-800">
-                        <Settings2 className="h-4 w-4" />
-                        Control de flujo (onTrue)
-                    </AccordionTrigger>
-                    <AccordionContent className="mt-2 space-y-3 rounded-md bg-gray-50 p-3 dark:bg-gray-900/40">
-                        <NodeSelectAccordion
-                            title="🟢 onTrue (éxito)"
-                            availableNodes={availableNodes}
-                            selectedId={data.onTrue}
-                            handleId="onTrue"
-                            sourceId={id}
-                            deferred={true}
-                            onSelect={(val: string) =>
-                                updateNodeData(id, { onTrue: val })
-                            }
-                            onUnselect={() =>
-                                updateNodeData(id, { onTrue: '' })
-                            }
-                            accentColor="text-amber-600"
-                        />
-                    </AccordionContent>
-                </AccordionItem>
-            </Accordion>
+            {/* 🔗 Acordeones de conexiones */}
+            <div className="flex flex-col gap-3">
+                <NodeConnectionsAccordion
+                    title="Nodo anterior"
+                    nodesList={prevNodes}
+                    accentColor="text-amber-600 dark:text-amber-400"
+                />
+                <NodeConnectionsAccordion
+                    title="Nodo siguiente"
+                    nodesList={nextNodes}
+                    accentColor="text-amber-600 dark:text-amber-400"
+                />
+            </div>
+
+            {/* ⚡ Conectar / desconectar nodos */}
+            <NodeSelectionAccordion
+                title="Conectar o desconectar nodos"
+                availableNodes={availableNodes}
+                hasConnection={hasConnection}
+                toggleConnection={toggleConnection}
+                accentColor="text-amber-600 dark:text-amber-400"
+            />
 
             {/* 🔐 Autenticación */}
             <div className="space-y-3">
@@ -339,11 +336,6 @@ export default function FormSaveRecordNode({ id, data }: any) {
                             <Plus className="mr-1 h-3.5 w-3.5" /> Agregar
                             parámetro
                         </Button>
-                        {authPairs.length === 0 && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                No hay parámetros definidos.
-                            </p>
-                        )}
                     </div>
                 ) : (
                     <Textarea
@@ -376,7 +368,7 @@ export default function FormSaveRecordNode({ id, data }: any) {
                 <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setJsonMode((prev) => !prev)}
+                    onClick={() => setJsonMode((p) => !p)}
                     className="flex items-center gap-1 border-amber-600 bg-amber-500 text-white hover:bg-amber-600 hover:text-white"
                 >
                     <Code className="h-3.5 w-3.5" />
@@ -429,11 +421,6 @@ export default function FormSaveRecordNode({ id, data }: any) {
                     >
                         <Plus className="mr-1 h-3.5 w-3.5" /> Agregar parámetro
                     </Button>
-                    {pairs.length === 0 && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            No hay parámetros definidos.
-                        </p>
-                    )}
                 </div>
             ) : (
                 <Textarea
