@@ -6,7 +6,7 @@ import { useEffect } from 'react'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
 import { useSaveRecordStore } from '@/store/useSaveRecordStore'
 import { useSwitchConditionStore } from '@/store/useSwitchConditionStore'
-import { createConnectionIfMissing } from '@/lib/edgeUtils'
+import { createConnectionIfMissingGlobal } from '@/hooks/useNodeConnections'
 import type {
     QuickReplyInteractive,
     ListInteractive,
@@ -14,21 +14,18 @@ import type {
 } from '@/types/getDataComplete'
 
 /**
- * 🧠 FlowAutoEdgeSync (v3.5 — soporta GETDATA + SIMPLETEXT)
+ * 🧠 FlowAutoEdgeSync (v3.6 — Deferred & Global Handle-Safe)
  * ------------------------------------------------------------------
- * - QuickReply → crea edges por cada opción (nextNodeId)
- * - List → crea edges por cada opción de cada item
- * - GetData → crea edges según `conditions` y `setvariables`
- * - SimpleText → crea edge simple por variable asignada (si aplica)
- * - SaveRecord / SwitchCondition → sin cambios
- * - Usa createConnectionIfMissing (seguro e idempotente)
+ * - Sincroniza todos los tipos (QR, List, GETDATA, SIMPLETEXT)
+ * - Espera 400 ms post-guardado para asegurar render de handles
+ * - Usa createConnectionIfMissingGlobal (garantiza idempotencia)
  */
 export function FlowAutoEdgeSync() {
     const { setAfterSaveCallback: setGetData } = useGetDataCompleteBaseStore()
     const { setAfterSaveCallback: setSaveRecord } = useSaveRecordStore()
     const { setAfterSaveCallback: setSwitch } = useSwitchConditionStore()
 
-    // 🟣 GetDataComplete (QuickReply + List + GetData + SimpleText)
+    // 🟣 GetDataComplete
     useEffect(() => {
         setGetData((nodeId, data) => {
             const obj = data as Partial<GetDataCompleteObject>
@@ -36,84 +33,94 @@ export function FlowAutoEdgeSync() {
                 | QuickReplyInteractive
                 | ListInteractive
                 | undefined
-
             if (!obj) return
-            const type = obj.type?.toUpperCase()
+            const type = obj.interactive?.type?.toUpperCase()
 
-            // 💬 QUICK_REPLY
-            if (interactive?.type === 'quick_reply') {
-                interactive.options?.forEach((opt) => {
-                    if (opt.nextNodeId) {
-                        createConnectionIfMissing(
-                            nodeId,
-                            opt.nextNodeId,
-                            opt.postbackText
-                        )
-                    }
-                })
-                return
-            }
-
-            // 🔵 LIST
-            if (interactive?.type === 'list') {
-                interactive.items?.forEach((item) => {
-                    item.options?.forEach((opt) => {
-                        const nextId = (opt as any).nextNodeId
-                        if (nextId) {
-                            createConnectionIfMissing(
+            setTimeout(() => {
+                // 💬 QUICK_REPLY
+                if (interactive?.type === 'quick_reply') {
+                    interactive.options?.forEach((opt) => {
+                        if (opt.nextNodeId)
+                            createConnectionIfMissingGlobal(
                                 nodeId,
-                                nextId,
+                                opt.nextNodeId,
                                 opt.postbackText
                             )
-                        }
                     })
-                })
-                return
-            }
-
-            // 🧾 GETDATA → crea edges dinámicos por conditions o setvariables
-            if (type === 'GETDATA' || type === 'getdata') {
-                const { conditions = {}, setvariables = {} } = obj
-                Object.entries(conditions).forEach(([key, targetId]) => {
-                    if (targetId)
-                        createConnectionIfMissing(
-                            nodeId,
-                            targetId,
-                            `cond:${key}`
-                        )
-                })
-                Object.entries(setvariables).forEach(([key, val]) => {
-                    if (val)
-                        createConnectionIfMissing(nodeId, val, `setvar:${key}`)
-                })
-                return
-            }
-
-            // 🗒️ SIMPLETEXT → crea edge directo si hay variable destino
-            if (type === 'SIMPLETEXT' || type === 'simple_text') {
-                const { variable } = obj
-                if (variable) {
-                    createConnectionIfMissing(nodeId, variable, 'onComplete')
+                    return
                 }
-            }
+
+                // 🔵 LIST
+                if (interactive?.type === 'list') {
+                    interactive.items?.forEach((item) =>
+                        item.options?.forEach((opt) => {
+                            const nextId = (opt as any).nextNodeId
+                            if (nextId)
+                                createConnectionIfMissingGlobal(
+                                    nodeId,
+                                    nextId,
+                                    opt.postbackText
+                                )
+                        })
+                    )
+                    return
+                }
+
+                // 🧾 GETDATA
+                if (type === 'GETDATA') {
+                    Object.entries(obj.conditions || {}).forEach(
+                        ([key, targetId]) => {
+                            if (targetId)
+                                createConnectionIfMissingGlobal(
+                                    nodeId,
+                                    targetId as string,
+                                    key
+                                )
+                        }
+                    )
+                }
+
+                // 🗒️ SIMPLETEXT
+                if (type === 'SIMPLETEXT') {
+                    Object.keys(obj.setvariables || {}).forEach((k) => {
+                        const target = (obj.setvariables as any)[k]
+                        if (target)
+                            createConnectionIfMissingGlobal(nodeId, target, k)
+                    })
+                }
+            }, 400)
         })
     }, [setGetData])
 
-    // 🟢 SaveRecord → edge onSuccess
+    // 🟢 SaveRecord
     useEffect(() => {
         setSaveRecord((nodeId, data) => {
-            if (!data.nextNodeId) return
-            createConnectionIfMissing(nodeId, data.nextNodeId, 'onSuccess')
+            setTimeout(() => {
+                if (data.nextNodeId)
+                    createConnectionIfMissingGlobal(
+                        nodeId,
+                        data.nextNodeId,
+                        'onSuccess'
+                    )
+            }, 400)
         })
     }, [setSaveRecord])
 
-    // 🔴 SwitchCondition → edges SI / NO / otros
+    // 🔴 SwitchCondition
     useEffect(() => {
         setSwitch((nodeId, cfg) => {
-            Object.entries(cfg.connections || {}).forEach(([val, target]) => {
-                if (target)
-                    createConnectionIfMissing(nodeId, target, `on:${val}`)
-            })
+            setTimeout(() => {
+                Object.entries(cfg.connections || {}).forEach(
+                    ([val, target]) => {
+                        if (target)
+                            createConnectionIfMissingGlobal(
+                                nodeId,
+                                target,
+                                `on:${val}`
+                            )
+                    }
+                )
+            }, 400)
         })
     }, [setSwitch])
 

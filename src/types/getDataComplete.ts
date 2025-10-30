@@ -32,6 +32,9 @@ export interface GetDataCompleteNodeFull {
 /* -------------------------------------------------------------------------- */
 
 export interface GetDataCompleteObject {
+    id?: string | number
+
+    action?: string
     /** 🧩 Variables a establecer en flujo */
     setvariables: Record<string, string>
 

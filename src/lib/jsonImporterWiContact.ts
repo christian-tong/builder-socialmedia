@@ -1,14 +1,15 @@
 // src\lib\jsonImporterWiContact.ts
-
 import type { Edge, Node } from 'reactflow'
 import { useVariantTypeStore } from '@/store/useVariantTypeStore'
+import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
+import type { GetDataCompleteObject } from '@/types/getDataComplete'
 
 /**
- * 🔁 Convierte JSON WiContact u OSM_WSP → { nodes, edges }
- * --------------------------------------------------------------
- * - Detecta automáticamente estructuras OSM o WiContact.
- * - Crea nodos compatibles con el builder actual (MenuNode, etc.).
- * - Sincroniza useVariantTypeStore con variantes y opciones.
+ * 🔁 convertWiContactToFlow (v4.4 – Stable Global Edge IDs + Safe Handles)
+ * ------------------------------------------------------------------------
+ * - IDs 100% únicos con crypto.randomUUID()
+ * - Ignora handles no definidos aún (previene error #008)
+ * - Mantiene compatibilidad con GetDataComplete y auto-sync Zustand
  */
 export function convertWiContactToFlow(json: any): {
     nodes: Node[]
@@ -21,10 +22,15 @@ export function convertWiContactToFlow(json: any): {
     const nodes: Node<any>[] = []
     const edges: Edge<any>[] = []
     const conditionMap = new Map<string, Record<string, string>>()
+    const pendingEdges: Edge[] = []
 
     const variantStore = useVariantTypeStore.getState()
+    const gdcBaseStore = useGetDataCompleteBaseStore.getState()
 
-    /** 🔗 Helper: evita duplicados */
+    /** 🆔 Genera IDs únicos globales */
+    const edgeGlobalUID = () => crypto.randomUUID()
+
+    /** 🔗 Helper seguro: evita duplicados y valida handle */
     const addEdge = (
         source: string,
         target?: string,
@@ -32,24 +38,51 @@ export function convertWiContactToFlow(json: any): {
         label?: string
     ) => {
         if (!target) return
-        const id = `${source}-${handle || 'auto'}-${target}`
-        if (edges.some((e) => e.id === id)) return
-        edges.push({
+        if (!source) return
+        if (source === target) return
+
+        const id = `edge-${source}-${handle || 'auto'}-${target}-${edgeGlobalUID()}`
+        const exists = edges.some(
+            (e) =>
+                e.source === source &&
+                e.target === target &&
+                e.sourceHandle === handle
+        )
+        if (exists) return
+
+        const edge: Edge = {
             id,
             source,
             target,
             sourceHandle: handle,
             label,
             type: 'smoothstep',
-        })
+            animated: true,
+            style: { strokeWidth: 1.8 },
+        }
+
+        // Si el handle parece no existir aún (ej. list-0, back), lo marcamos como pendiente
+        if (
+            handle &&
+            (handle.startsWith('list-') ||
+                handle.startsWith('qr-') ||
+                handle === 'back')
+        ) {
+            pendingEdges.push(edge)
+        } else {
+            edges.push(edge)
+        }
     }
+
+    console.groupCollapsed('🧩 [Importer] WiContact → Flow (v4.4)')
+    console.log('Total steps:', steps.length)
 
     // ========================
     // 🧱 PASADA 1: CREAR NODOS
     // ========================
     for (const step of steps) {
-        const { id, action, object = {} } = step
-        const lower = String(action || '').toLowerCase()
+        const { id, action = '', object = {} } = step
+        const lower = String(action).toLowerCase()
 
         switch (lower) {
             case 'startstep':
@@ -63,6 +96,7 @@ export function convertWiContactToFlow(json: any): {
 
             case 'simpletext':
             case 'simple_text':
+            case 'simpletextnode':
                 nodes.push({
                     id,
                     type: 'simpleTextNode',
@@ -70,6 +104,9 @@ export function convertWiContactToFlow(json: any): {
                     data: {
                         label: id,
                         groodText: object.groodText || '',
+                        description: decodeURIComponent(
+                            object.description || ''
+                        ),
                         message: decodeURIComponent(
                             object.text || object.prompt || ''
                         ),
@@ -85,7 +122,6 @@ export function convertWiContactToFlow(json: any): {
                     data: {
                         label: id,
                         skill: object.skill ? Number(object.skill) : null,
-                        skillLabel: '',
                         timeoutMessage: decodeURIComponent(
                             object.timeoutMessage || ''
                         ),
@@ -99,27 +135,26 @@ export function convertWiContactToFlow(json: any): {
                 })
                 break
 
-            case 'timecondition':
-                {
-                    const cond: string = object.condition || ''
-                    const [days, times] = cond.split(',')
-                    const [dayStart, dayEnd] = (days || '').split('-')
-                    const [startTime, endTime] = (times || '').split('-')
-                    nodes.push({
-                        id,
-                        type: 'timeConditionNode',
-                        position: { x: 0, y: 0 },
-                        data: {
-                            label: id,
-                            condition: cond,
-                            dayStart: dayStart || '',
-                            dayEnd: dayEnd || '',
-                            startTime: startTime || '',
-                            endTime: endTime || '',
-                        },
-                    })
-                }
+            case 'timecondition': {
+                const cond: string = object.condition || ''
+                const [days, times] = cond.split(',')
+                const [dayStart, dayEnd] = (days || '').split('-')
+                const [startTime, endTime] = (times || '').split('-')
+                nodes.push({
+                    id,
+                    type: 'timeConditionNode',
+                    position: { x: 0, y: 0 },
+                    data: {
+                        label: id,
+                        condition: cond,
+                        dayStart: dayStart || '',
+                        dayEnd: dayEnd || '',
+                        startTime: startTime || '',
+                        endTime: endTime || '',
+                    },
+                })
                 break
+            }
 
             case 'hangup':
                 nodes.push({
@@ -130,89 +165,98 @@ export function convertWiContactToFlow(json: any): {
                 })
                 break
 
-            // 🟣 WiContact o OSM menú interactivo
+            // 🟣 GetDataComplete / MenuNode
             case 'getdatacomplete':
             case 'getdata':
             case 'getdata_v2':
             case 'get_data':
-                {
-                    // --- Compatibilidad OSM/WiContact ---
-                    const interactive = object.interactive ?? {}
-                    const prompt = object.prompt || ''
-                    const setvars = object.setvariables || {}
-                    const conditions = object.conditions || {}
+            case 'menu': {
+                const interactive = object.interactive ?? {}
+                const setvars = object.setvariables || {}
+                const conditions = object.conditions || {}
 
-                    // tipo list / quick_reply
-                    const isList =
-                        interactive.type === 'list' ||
-                        Object.keys(setvars).length > 4 // heurística básica
-                    const variantType = isList ? 'list' : 'quick_reply'
+                const isList =
+                    interactive.type === 'list' ||
+                    Object.keys(setvars).length > 4
+                const variantType = isList ? 'list' : 'quick_reply'
 
-                    // opciones: usar interactive o setvariables
-                    const rawOptions =
-                        interactive?.options ??
-                        interactive?.items?.[0]?.options ??
-                        Object.entries(setvars).map(([key, title]) => ({
-                            postbackText: key,
-                            title,
-                        }))
-
-                    const options = rawOptions.map((opt: any, i: number) => ({
-                        postbackText: String(opt.postbackText ?? i + 1),
-                        title: decodeURIComponent(opt.title || ''),
-                        type: opt.type || 'text',
+                const rawOptions =
+                    interactive?.options ??
+                    interactive?.items?.[0]?.options ??
+                    Object.entries(setvars).map(([key, title]) => ({
+                        postbackText: key,
+                        title,
                     }))
 
-                    // texto principal
-                    const message = decodeURIComponent(
-                        interactive.body ||
-                            interactive.content?.text ||
-                            prompt ||
-                            ''
-                    )
+                const options = rawOptions.map((opt: any, i: number) => ({
+                    postbackText: String(opt.postbackText ?? i + 1),
+                    title: decodeURIComponent(opt.title || ''),
+                    type: opt.type || 'text',
+                }))
 
-                    // sincronizar store Zustand
-                    variantStore.setVariantType(id, variantType)
-                    variantStore.setVariantOptions(id, options)
-                    variantStore.setVariantConditions(id, conditions)
+                const prompt = decodeURIComponent(
+                    interactive.body ||
+                        interactive.content?.text ||
+                        object.prompt ||
+                        ''
+                )
 
-                    conditionMap.set(id, conditions)
+                const description = decodeURIComponent(object.description || '')
 
-                    nodes.push({
-                        id,
-                        type: 'menuNode',
-                        position: { x: 0, y: 0 },
-                        data: {
-                            label: id,
-                            variable: object.variable || '',
-                            variantType,
-                            object: {
-                                ...object,
-                                interactive: {
-                                    ...interactive,
-                                    type: variantType,
-                                    options: !isList ? rawOptions : undefined,
-                                    items: isList
-                                        ? interactive.items
-                                        : undefined,
-                                },
-                            },
-                            message,
-                            options,
-                        },
-                    })
+                const fullObject: GetDataCompleteObject = {
+                    id,
+                    action: 'getdatacomplete',
+                    alias: object.alias || '',
+                    variable: object.variable || '',
+                    groodText: object.groodText || '',
+                    prompt,
+                    description,
+                    setvar: object.setvar || '',
+                    condition: object.condition || '',
+                    iterations: object.iterations || '',
+                    timeOut: object.timeOut || '',
+                    saveHidden: object.saveHidden ?? false,
+                    setvariables: setvars,
+                    conditions,
+                    interactive: {
+                        ...interactive,
+                        type: variantType,
+                        options: !isList ? options : undefined,
+                        items: isList ? interactive.items || [] : undefined,
+                    },
                 }
+
+                gdcBaseStore.initNode(id)
+                gdcBaseStore.setNodeData(id, fullObject)
+                variantStore.setVariantType(id, variantType)
+                variantStore.setVariantOptions(id, options)
+                variantStore.setVariantConditions(id, conditions)
+                conditionMap.set(id, conditions)
+
+                nodes.push({
+                    id,
+                    type: 'menuNode',
+                    position: { x: 0, y: 0 },
+                    data: {
+                        label: id,
+                        alias: fullObject.alias,
+                        variable: fullObject.variable,
+                        message: fullObject.prompt,
+                        saveHidden: fullObject.saveHidden,
+                        object: fullObject,
+                    },
+                })
                 break
+            }
 
             default:
-                // 👇 Ignorar nodos no soportados (mysqlquery, saverecord, etc.)
                 nodes.push({
                     id,
                     type: 'simpleTextNode',
                     position: { x: 0, y: 0 },
                     data: {
                         label: `${id} (${action})`,
-                        message: '[No soportado]',
+                        message: '[Acción no soportada]',
                     },
                 })
                 break
@@ -238,7 +282,6 @@ export function convertWiContactToFlow(json: any): {
             const conds = object.conditions || {}
             const interactive = object.interactive ?? {}
             const setvars = object.setvariables || {}
-
             const isList =
                 interactive.type === 'list' || Object.keys(setvars).length > 4
             const rawOptions =
@@ -250,32 +293,32 @@ export function convertWiContactToFlow(json: any): {
                 }))
 
             rawOptions.forEach((opt: any) => {
-                const target = conds?.[opt.postbackText]
+                const key = String(opt.postbackText)
+                const target = conds?.[key]
                 if (target)
-                    addEdge(
-                        id,
-                        target,
-                        `${variantTypeHandle(isList)}-${opt.postbackText}`
-                    )
+                    addEdge(id, target, `${variantTypeHandle(isList)}-${key}`)
             })
         }
     }
 
-    // 🔄 Menú anterior (condición '0')
     for (const [childId, conds] of conditionMap.entries()) {
         const parentId = conds['0']
         if (parentId) addEdge(childId, parentId, 'back', '🔙 Menú anterior')
     }
 
-    // posiciones iniciales
     nodes.forEach((node, i) => {
         node.position = { x: (i % 5) * 320, y: Math.floor(i / 5) * 220 }
     })
 
-    return { nodes, edges }
+    // ✅ Merge final de edges y pendientes
+    const finalEdges = [...edges, ...pendingEdges]
+
+    console.log('✅ Total Edges:', finalEdges.length)
+    console.groupEnd()
+
+    return { nodes, edges: finalEdges }
 }
 
-/** 🔧 Prefijo correcto */
 function variantTypeHandle(isList: boolean) {
     return isList ? 'list' : 'qr'
 }

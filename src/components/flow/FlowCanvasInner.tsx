@@ -1,8 +1,8 @@
 // src\components\flow\FlowCanvasInner.tsx
-
+// src/components/flow/FlowCanvasInner.tsx
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect, useState } from 'react'
 import ReactFlow, {
     Background,
     BackgroundVariant,
@@ -18,20 +18,18 @@ import { useFlowHandlers } from '@/hooks/useFlowHandlers'
 import { useFlowStyleStore } from '@/store/useFlowStyleStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { FlowStylePanel } from './FlowStylePanel'
-import { useVariantFlowSync } from '@/store/useVariantFlowSync'
 import { useFlowStore } from '@/store/useFlowStore'
 import { useShallow } from 'zustand/react/shallow'
-
-// ✅ Importar el sincronizador global
-import { FlowAutoEdgeSync } from '@/components/flow/FlowAutoEdgeSync'
+import { convertWiContactToFlow } from '@/lib/jsonImporterWiContact'
 
 /**
- * 🧩 FlowCanvasInner — versión optimizada para fluidez
- * ------------------------------------------------------
- * - Minimiza renders al arrastrar nodos (60 FPS).
- * - Usa shallow selector para evitar renders globales.
- * - Estilos y handlers memoizados para máxima estabilidad.
- * - 🧠 Incluye FlowAutoEdgeSync (edges automáticos tras guardar nodos)
+ * 🧩 FlowCanvasInner (v6.1 Final — Importa JSON dinámico y crea en 2 fases)
+ * -------------------------------------------------------------------------
+ * - El usuario sube un archivo JSON (WiContact)
+ * - Se crean los nodos primero
+ * - Luego de 600 ms se crean los edges (cuando ya existen los handles)
+ * - Evita el error: "Couldn't create edge for source handle id"
+ * - Mantiene compatibilidad total con todos tus nodos
  */
 export default function FlowCanvasInner() {
     const { theme } = useThemeStore()
@@ -45,12 +43,55 @@ export default function FlowCanvasInner() {
     } = useFlowStyleStore()
     const { handlers } = useFlowHandlers()
 
-    // ✅ lee nodos/edges del store sin provocar rerenders
-    const nodes = useFlowStore(useShallow((state) => state.nodes))
-    const edges = useFlowStore(useShallow((state) => state.edges))
+    const nodes = useFlowStore(useShallow((s) => s.nodes))
+    const edges = useFlowStore(useShallow((s) => s.edges))
+    const { setNodes, setEdges } = useFlowStore()
 
-    // 🧠 sincronización controlada (pausada durante drag)
-    useVariantFlowSync()
+    const [phase, setPhase] = useState<'idle' | 'nodes' | 'edges'>('idle')
+    const [uploadedJson, setUploadedJson] = useState<any | null>(null)
+
+    /**
+     * 🗂️ Simula el archivo subido:
+     * En producción, este JSON llega desde tu uploader (ej. file input, drag & drop, API, etc.)
+     * Aquí puedes reemplazar por tu propio hook o prop.
+     */
+    useEffect(() => {
+        async function loadUploadedJson() {
+            const input = (window as any).__wicontactJson // ejemplo: variable global
+            if (input) setUploadedJson(input)
+        }
+        loadUploadedJson()
+    }, [])
+
+    /**
+     * 🧱 1️⃣ Fase: creación de nodos
+     * 🔗 2️⃣ Fase: creación de edges diferida
+     */
+    useEffect(() => {
+        if (!uploadedJson) return
+        const { nodes: builtNodes, edges: builtEdges } =
+            convertWiContactToFlow(uploadedJson)
+
+        // --- FASE 1: crear solo nodos ---
+        setNodes(builtNodes)
+        setEdges([]) // limpia edges antiguos
+        setPhase('nodes')
+
+        // --- FASE 2: crear edges después de que los nodos ya existen ---
+        const timer = setTimeout(() => {
+            const validIds = new Set(builtNodes.map((n) => n.id))
+            const safeEdges = builtEdges.filter(
+                (e) => validIds.has(e.source) && validIds.has(e.target)
+            )
+            setEdges(safeEdges)
+            setPhase('edges')
+            console.info(
+                `✅ Nodos: ${builtNodes.length} | Edges: ${safeEdges.length}`
+            )
+        }, 600)
+
+        return () => clearTimeout(timer)
+    }, [uploadedJson])
 
     // 🎨 Fondo del lienzo
     const bgVariant =
@@ -60,7 +101,7 @@ export default function FlowCanvasInner() {
               ? BackgroundVariant.Lines
               : BackgroundVariant.Cross
 
-    // 🔳 Estilo de línea (punteada / discontinua / normal)
+    // 🔳 Tipo de trazo (línea normal, discontinua o punteada)
     const dash = useMemo(() => {
         switch (edgeAspect) {
             case 'dashed':
@@ -72,7 +113,7 @@ export default function FlowCanvasInner() {
         }
     }, [edgeAspect])
 
-    // 🎨 Edge con estilo dinámico global
+    // 🎨 Aplica estilos globales a los edges
     const styledEdges: Edge[] = useMemo(
         () =>
             edges.map((e) => ({
@@ -92,10 +133,7 @@ export default function FlowCanvasInner() {
 
     return (
         <>
-            {/* 🔁 Sincronizador invisible de edges automáticos */}
-            <FlowAutoEdgeSync />
-
-            {/* 🎨 Panel de estilo del flujo */}
+            {/* 🎨 Panel de estilo */}
             <FlowStylePanel />
 
             {/* 🌊 Canvas principal */}
@@ -131,6 +169,13 @@ export default function FlowCanvasInner() {
                 />
                 <Controls />
             </ReactFlow>
+
+            {/* 🧭 Estado del builder */}
+            <div className="absolute right-4 bottom-2 text-xs opacity-70">
+                {uploadedJson
+                    ? `Fase actual: ${phase}`
+                    : 'Sube un archivo WiContact.json para comenzar'}
+            </div>
         </>
     )
 }

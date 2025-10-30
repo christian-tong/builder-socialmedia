@@ -18,7 +18,6 @@ import FormGetDataCompleteBase from '@/components/forms/Menu/FormGetDataComplete
 export const nodeFormRegistry: Record<string, any> = {
     startNode: FormStartNode,
     menuNode: FormGetDataCompleteBase,
-    // menuNode: FormMenuNode,
     simpleTextNode: FormSimpleTextNode,
     derivateNode: FormDerivateNode,
     timeConditionNode: FormTimeConditionNode,
