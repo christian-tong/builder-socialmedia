@@ -130,14 +130,12 @@ function GetDataPreview({ object }: { object: GetDataCompleteObject }) {
 
     return (
         <div className="mt-2 space-y-1 text-xs">
-            {/* 🪶 Prompt principal */}
             {prompt && (
                 <div className="rounded-md bg-amber-900/40 p-2 text-[11px] text-amber-100/80 italic">
                     {decodeURIComponent(prompt || 'Sin prompt definido')}
                 </div>
             )}
 
-            {/* 🔗 Opciones con handle dinámico */}
             {entries.map(([key, val]) => (
                 <div
                     key={key}
@@ -168,16 +166,51 @@ function GetDataPreview({ object }: { object: GetDataCompleteObject }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🗒️ SimpleTextPreview                                                      */
+/* 🗒️ SimpleTextPreview — AHORA con opciones dinámicas                        */
 /* -------------------------------------------------------------------------- */
-function SimpleTextPreview({
-    interactive,
-}: {
-    interactive: SimpleTextInteractive
-}) {
+function SimpleTextPreview({ object }: { object: GetDataCompleteObject }) {
+    const { prompt, description, setvariables } = object || {}
+    const entries = Object.entries(setvariables || {})
+
     return (
-        <div className="mt-2 text-[11px] text-emerald-100/90 italic">
-            {decodeURIComponent(interactive.prompt || 'Texto vacío')}
+        <div className="mt-2 space-y-1 text-xs">
+            {prompt && (
+                <div className="rounded-md bg-emerald-900/40 p-2 text-[11px] text-emerald-100/80 italic">
+                    {decodeURIComponent(prompt || 'Sin prompt definido')}
+                </div>
+            )}
+
+            {description && (
+                <div className="text-[10px] text-emerald-200/70 italic">
+                    {decodeURIComponent(description || '')}
+                </div>
+            )}
+
+            {entries.map(([key, val]) => (
+                <div
+                    key={key}
+                    className="relative flex items-center justify-between rounded-md bg-emerald-800/40 px-2 py-1 text-gray-100"
+                >
+                    <div className="flex items-center gap-2 pr-6">
+                        <span className="text-[10px] opacity-70">#{key}</span>
+                        <span className="truncate">
+                            {decodeURIComponent(val || '')}
+                        </span>
+                    </div>
+
+                    <Handle
+                        type="source"
+                        position={Position.Right}
+                        id={key}
+                        className="absolute !h-2.5 !w-2.5 !bg-emerald-400"
+                        style={{
+                            top: '50%',
+                            right: '-6px',
+                            transform: 'translateY(-50%)',
+                        }}
+                    />
+                </div>
+            ))}
         </div>
     )
 }
@@ -198,7 +231,30 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
         | SimpleTextInteractive
         | undefined
 
-    const type = interactive?.type || 'quick_reply'
+    // 🔧 Normaliza tipo a formato consistente (mayúsculas para GETDATA/SIMPLETEXT)
+    const typeRaw =
+        interactive?.type ||
+        nodeData?.type ||
+        (nodeData?.setvariables ? 'SIMPLETEXT' : 'quick_reply')
+
+    const normalizedType = (():
+        | 'quick_reply'
+        | 'list'
+        | 'GETDATA'
+        | 'SIMPLETEXT' => {
+        switch (typeRaw?.toUpperCase()) {
+            case 'GETDATA':
+            case 'GETDATA':
+                return 'GETDATA'
+            case 'SIMPLETEXT':
+            case 'SIMPLE_TEXT':
+                return 'SIMPLETEXT'
+            case 'LIST':
+                return 'list'
+            default:
+                return 'quick_reply'
+        }
+    })()
 
     interface NodeVisualConfig {
         color: string
@@ -237,7 +293,7 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
         },
     }
 
-    const config = CONFIG_MAP[type] ?? CONFIG_MAP.quick_reply
+    const config = CONFIG_MAP[normalizedType]
     const handleTarget =
         orientation === 'vertical' ? Position.Top : Position.Left
 
@@ -268,26 +324,26 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
                 </div>
 
                 {/* 💬 Contenido principal */}
-                {interactive?.type === 'quick_reply' && (
+                {normalizedType === 'quick_reply' && (
                     <QuickReplyPreview
-                        interactive={interactive}
+                        interactive={interactive as QuickReplyInteractive}
                         handleColor="!bg-purple-400"
                     />
                 )}
 
-                {interactive?.type === 'list' && (
+                {normalizedType === 'list' && (
                     <ListPreview
-                        interactive={interactive}
+                        interactive={interactive as ListInteractive}
                         handleColor="!bg-blue-400"
                     />
                 )}
 
-                {interactive?.type === 'GETDATA' && (
+                {normalizedType === 'GETDATA' && (
                     <GetDataPreview object={nodeData} />
                 )}
 
-                {interactive?.type === 'SIMPLETEXT' && (
-                    <SimpleTextPreview interactive={interactive} />
+                {normalizedType === 'SIMPLETEXT' && (
+                    <SimpleTextPreview object={nodeData} />
                 )}
 
                 {/* 🎯 Handle de entrada */}

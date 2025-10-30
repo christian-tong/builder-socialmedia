@@ -1,10 +1,12 @@
 // src\types\getDataComplete.ts
 
 /**
- * 🧠 GetDataComplete Types (v6.3)
+ * 🧠 GetDataComplete Types (v6.4)
  * ------------------------------------------------------------
- * Compatibilidad extendida: soporta variantes minúsculas y mayúsculas
- * ('GETDATA' | 'getdata' | 'SIMPLETEXT' | 'simple_text')
+ * Compatibilidad extendida:
+ *  - Soporta variantes mayúsculas/minúsculas
+ *  - Añade propiedad `description` para SIMPLETEXT y GETDATA
+ *  - Mantiene compatibilidad con versiones anteriores del flujo
  * ------------------------------------------------------------
  */
 
@@ -18,6 +20,7 @@ export interface GetDataCompleteNodeFull {
     source: string
     interactiveVersion?: number
     object: GetDataCompleteObject
+    /** 📝 Descripción visible del nodo (metadato opcional) */
     description?: string
     isTemplate?: boolean
     onTimeOut?: string
@@ -29,17 +32,37 @@ export interface GetDataCompleteNodeFull {
 /* -------------------------------------------------------------------------- */
 
 export interface GetDataCompleteObject {
+    /** 🧩 Variables a establecer en flujo */
     setvariables: Record<string, string>
+
+    /** 🔀 Condición o expresión */
     condition: string
+
+    /** 🧾 Texto secundario o nota */
     groodText?: string
+
+    /** 🔤 Variable principal asociada */
     setvar: string
+
+    /** 📥 Variable destino */
     variable: string
+
+    /** 🧱 Persistencia */
     saveHidden: boolean
+
+    /** 🏷️ Alias descriptivo */
     alias: string
+
+    /** 🔗 Condiciones (key → targetId) */
     conditions: Record<string, string>
+
+    /** 🔁 Número de iteraciones */
     iterations: string
+
+    /** ⏱️ Tiempo de espera */
     timeOut: string
-    /** Compatibilidad minúsculas/mayúsculas */
+
+    /** 🔠 Tipo de nodo */
     type?:
         | 'quick_reply'
         | 'list'
@@ -48,10 +71,13 @@ export interface GetDataCompleteObject {
         | 'SIMPLETEXT'
         | 'simple_text'
 
-    /** 💬 prompt: usado en SIMPLETEXT o GETDATA */
+    /** 💬 Prompt o texto principal (usado en SIMPLETEXT o GETDATA) */
     prompt?: string
 
-    /** 💬 bloque interactivo (solo quick_reply o list) */
+    /** 📝 Descripción extendida del nodo (solo SIMPLETEXT/GETDATA) */
+    description?: string
+
+    /** 💬 Bloque interactivo (solo quick_reply o list) */
     interactive?: InteractiveBlock
 }
 
@@ -110,11 +136,15 @@ export interface ListOption {
 export interface GetDataInteractive {
     type: 'GETDATA'
     prompt?: string
+    /** 📝 Nueva compatibilidad para descripción */
+    description?: string
 }
 
 export interface SimpleTextInteractive {
     type: 'SIMPLETEXT'
     prompt: string
+    /** 📝 Nueva compatibilidad para descripción */
+    description?: string
 }
 
 /* -------------------------------------------------------------------------- */
@@ -156,7 +186,6 @@ export function createEmptyInteractive(
         | 'SIMPLETEXT'
         | 'simple_text' = 'quick_reply'
 ): InteractiveBlock {
-    // Normaliza a forma interna consistente
     const normalized = type.toUpperCase() as
         | 'GETDATA'
         | 'SIMPLETEXT'
@@ -179,9 +208,9 @@ export function createEmptyInteractive(
                 items: [{ title: 'Elija una opción', options: [] }],
             }
         case 'GETDATA':
-            return { type: 'GETDATA', prompt: '' }
+            return { type: 'GETDATA', prompt: '', description: '' }
         case 'SIMPLETEXT':
-            return { type: 'SIMPLETEXT', prompt: '' }
+            return { type: 'SIMPLETEXT', prompt: '', description: '' }
         default:
             return {
                 type: 'quick_reply',
@@ -192,6 +221,10 @@ export function createEmptyInteractive(
     }
 }
 
+/**
+ * 🏗️ Crea un objeto vacío de tipo GetDataComplete
+ * Incluye soporte para descripción extendida.
+ */
 export function createEmptyGetDataCompleteObject(): GetDataCompleteObject {
     return {
         setvariables: {},
@@ -207,9 +240,13 @@ export function createEmptyGetDataCompleteObject(): GetDataCompleteObject {
         type: 'quick_reply',
         interactive: createEmptyInteractive('quick_reply') as InteractiveBlock,
         prompt: '',
+        description: '',
     }
 }
 
+/**
+ * 🏗️ Crea un nodo GetDataComplete vacío
+ */
 export function createEmptyGetDataCompleteNode(
     id: string
 ): GetDataCompleteNodeFull {
@@ -223,5 +260,6 @@ export function createEmptyGetDataCompleteNode(
         source: 'GetData',
         interactiveVersion: 6,
         object: createEmptyGetDataCompleteObject(),
+        description: '',
     }
 }
