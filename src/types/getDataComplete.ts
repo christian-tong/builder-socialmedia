@@ -1,16 +1,10 @@
 // src\types\getDataComplete.ts
 
 /**
- * 🧠 GetDataComplete Types (v5)
+ * 🧠 GetDataComplete Types (v6.3)
  * ------------------------------------------------------------
- * Define los tipos base, variantes y utilidades para el nodo
- * interactivo `getdatacomplete`, usado dentro de React Flow.
- *
- * Compatible con:
- *  - QuickReply (bloques interactivos tipo botones)
- *  - List (bloques interactivos tipo menú)
- *  - GetData (input directo / selección simple)
- *  - SimpleText (texto plano con lista de opciones)
+ * Compatibilidad extendida: soporta variantes minúsculas y mayúsculas
+ * ('GETDATA' | 'getdata' | 'SIMPLETEXT' | 'simple_text')
  * ------------------------------------------------------------
  */
 
@@ -24,7 +18,6 @@ export interface GetDataCompleteNodeFull {
     source: string
     interactiveVersion?: number
     object: GetDataCompleteObject
-    // 🧩 Nuevos campos opcionales
     description?: string
     isTemplate?: boolean
     onTimeOut?: string
@@ -46,24 +39,24 @@ export interface GetDataCompleteObject {
     conditions: Record<string, string>
     iterations: string
     timeOut: string
+    /** Compatibilidad minúsculas/mayúsculas */
+    type?:
+        | 'quick_reply'
+        | 'list'
+        | 'GETDATA'
+        | 'getdata'
+        | 'SIMPLETEXT'
+        | 'simple_text'
 
-    /**
-     * 🔎 Bloque discriminado por `type`
-     * Puede ser:
-     *  - quick_reply
-     *  - list
-     *  - GETDATA
-     *  - SIMPLETEXT
-     */
-    type?: 'quick_reply' | 'list' | 'GETDATA' | 'SIMPLETEXT'
-
-    /** 💬 Contenido del bloque según el tipo */
-    interactive?: InteractiveBlock
+    /** 💬 prompt: usado en SIMPLETEXT o GETDATA */
     prompt?: string
+
+    /** 💬 bloque interactivo (solo quick_reply o list) */
+    interactive?: InteractiveBlock
 }
 
 /* -------------------------------------------------------------------------- */
-/* 💬 Bloque interactivo base (discriminado por type)                         */
+/* 💬 Bloques interactivos                                                   */
 /* -------------------------------------------------------------------------- */
 
 export type InteractiveBlock =
@@ -71,10 +64,6 @@ export type InteractiveBlock =
     | ListInteractive
     | GetDataInteractive
     | SimpleTextInteractive
-
-/* -------------------------------------------------------------------------- */
-/* 🟢 Variante QUICK_REPLY                                                    */
-/* -------------------------------------------------------------------------- */
 
 export interface QuickReplyInteractive {
     msgid: string
@@ -93,10 +82,6 @@ export interface QuickReplyOption {
     description?: string
     nextNodeId?: string
 }
-
-/* -------------------------------------------------------------------------- */
-/* 🔵 Variante LIST                                                           */
-/* -------------------------------------------------------------------------- */
 
 export interface ListInteractive {
     type: 'list'
@@ -122,25 +107,11 @@ export interface ListOption {
     description?: string
 }
 
-/* -------------------------------------------------------------------------- */
-/* 🟡 Variante GETDATA                                                        */
-/* -------------------------------------------------------------------------- */
-/**
- * Representa un bloque de entrada directa o selección numérica.
- * Ejemplo: confirmar, autorizar, elegir sector, etc.
- */
 export interface GetDataInteractive {
     type: 'GETDATA'
     prompt?: string
 }
 
-/* -------------------------------------------------------------------------- */
-/* 🟠 Variante SIMPLETEXT                                                     */
-/* -------------------------------------------------------------------------- */
-/**
- * Representa un mensaje plano con texto largo y opciones numeradas.
- * Ejemplo: “Elija su empresa eléctrica: 1. Luz del Sur, 2. Enel...”
- */
 export interface SimpleTextInteractive {
     type: 'SIMPLETEXT'
     prompt: string
@@ -168,28 +139,39 @@ export function isGetDataInteractive(
     return interactive.type === 'GETDATA'
 }
 
-export function isSimpleTextInteractive(
-    interactive: InteractiveBlock
-): interactive is SimpleTextInteractive {
-    return interactive.type === 'SIMPLETEXT'
-}
-
 /* -------------------------------------------------------------------------- */
-/* 🏗️ Factories por defecto (para inicializar formularios o nodos nuevos)     */
+/* 🏗️ Factories                                                              */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * ✅ Compatibilidad extendida:
+ * Acepta tanto 'GETDATA' | 'SIMPLETEXT' como 'getdata' | 'simple_text'
+ */
 export function createEmptyInteractive(
-    type: 'quick_reply' | 'list' | 'GETDATA' | 'SIMPLETEXT' = 'quick_reply'
+    type:
+        | 'quick_reply'
+        | 'list'
+        | 'GETDATA'
+        | 'getdata'
+        | 'SIMPLETEXT'
+        | 'simple_text' = 'quick_reply'
 ): InteractiveBlock {
-    switch (type) {
-        case 'quick_reply':
+    // Normaliza a forma interna consistente
+    const normalized = type.toUpperCase() as
+        | 'GETDATA'
+        | 'SIMPLETEXT'
+        | 'QUICK_REPLY'
+        | 'LIST'
+
+    switch (normalized) {
+        case 'QUICK_REPLY':
             return {
                 type: 'quick_reply',
                 msgid: 'qr_default',
                 content: { text: '', type: 'text' },
                 options: [],
             }
-        case 'list':
+        case 'LIST':
             return {
                 type: 'list',
                 body: '',
@@ -200,6 +182,13 @@ export function createEmptyInteractive(
             return { type: 'GETDATA', prompt: '' }
         case 'SIMPLETEXT':
             return { type: 'SIMPLETEXT', prompt: '' }
+        default:
+            return {
+                type: 'quick_reply',
+                msgid: 'qr_default',
+                content: { text: '', type: 'text' },
+                options: [],
+            }
     }
 }
 
@@ -216,7 +205,8 @@ export function createEmptyGetDataCompleteObject(): GetDataCompleteObject {
         iterations: '1',
         timeOut: '60000',
         type: 'quick_reply',
-        interactive: createEmptyInteractive('quick_reply'),
+        interactive: createEmptyInteractive('quick_reply') as InteractiveBlock,
+        prompt: '',
     }
 }
 
@@ -231,7 +221,7 @@ export function createEmptyGetDataCompleteNode(
         onError: '',
         onFalse: '',
         source: 'GetData',
-        interactiveVersion: 5,
+        interactiveVersion: 6,
         object: createEmptyGetDataCompleteObject(),
     }
 }

@@ -1,21 +1,26 @@
+// src\components\nodes\MenuNode.tsx
+
 'use client'
 
-import React from 'react'
+import React, { JSX } from 'react'
 import { motion } from 'framer-motion'
 import { Handle, Position } from 'reactflow'
 import { Card } from '@/components/ui/card'
 import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
-import type {
+import {
     QuickReplyInteractive,
     ListInteractive,
+    GetDataInteractive,
+    SimpleTextInteractive,
     ListOption,
 } from '@/types/getDataComplete'
+import { MessageSquare, ListTree, FileText, StickyNote } from 'lucide-react'
 
-/* ------------------------------------------------------------
- 🧩 Subcomponente: QuickReplyPreview
------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* 🟣 Subcomponente: QuickReplyPreview                                         */
+/* -------------------------------------------------------------------------- */
 function QuickReplyPreview({
     interactive,
     handleColor,
@@ -57,9 +62,9 @@ function QuickReplyPreview({
     )
 }
 
-/* ------------------------------------------------------------
- 🧩 Subcomponente: ListPreview
------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* 🔵 Subcomponente: ListPreview                                              */
+/* -------------------------------------------------------------------------- */
 function ListPreview({
     interactive,
     handleColor,
@@ -73,7 +78,6 @@ function ListPreview({
         <div className="relative mt-1 space-y-1 text-xs">
             {items.map((item, iIdx) => (
                 <div key={iIdx}>
-                    {/* 🏷️ Título del grupo */}
                     <div className="mb-0.5 truncate text-[10px] font-semibold text-blue-300/80">
                         {decodeURIComponent(item.title || `Grupo ${iIdx + 1}`)}
                     </div>
@@ -97,7 +101,6 @@ function ListPreview({
                                 )}
                             </div>
 
-                            {/* 🎯 Handle de conexión */}
                             <Handle
                                 type="source"
                                 position={Position.Right}
@@ -117,9 +120,35 @@ function ListPreview({
     )
 }
 
-/* ------------------------------------------------------------
- 💬 Componente principal: MenuNode
------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* 🧾 Subcomponente: GetDataPreview                                           */
+/* -------------------------------------------------------------------------- */
+function GetDataPreview({ interactive }: { interactive: GetDataInteractive }) {
+    return (
+        <div className="mt-2 text-[11px] text-amber-200/90 italic">
+            {decodeURIComponent(interactive.prompt || 'Sin prompt definido')}
+        </div>
+    )
+}
+
+/* -------------------------------------------------------------------------- */
+/* 🗒️ Subcomponente: SimpleTextPreview                                        */
+/* -------------------------------------------------------------------------- */
+function SimpleTextPreview({
+    interactive,
+}: {
+    interactive: SimpleTextInteractive
+}) {
+    return (
+        <div className="mt-2 text-[11px] text-emerald-100/90 italic">
+            {decodeURIComponent(interactive.prompt || 'Texto vacío')}
+        </div>
+    )
+}
+
+/* -------------------------------------------------------------------------- */
+/* 💬 Componente principal: MenuNode                                          */
+/* -------------------------------------------------------------------------- */
 export function MenuNode({ id, data }: { id: string; data: any }) {
     const { orientation } = useFlowOrientationStore()
     const { getNodeData } = useGetDataCompleteBaseStore()
@@ -129,17 +158,54 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
     const interactive = nodeData?.interactive as
         | QuickReplyInteractive
         | ListInteractive
+        | GetDataInteractive
+        | SimpleTextInteractive
         | undefined
 
     const type = interactive?.type || 'quick_reply'
-    const isList = type === 'list'
 
-    // 🎨 Colores base
-    const colorBase = isList ? 'blue' : 'purple'
-    const bgClass = isList
-        ? 'bg-blue-950 border-blue-600'
-        : 'bg-purple-950 border-purple-600'
-    const handleColor = '!bg-emerald-400'
+    // 🧠 Tipo de configuración visual
+    interface NodeVisualConfig {
+        color: string
+        bg: string
+        icon: JSX.Element
+        label: string
+    }
+
+    // 🎨 Config visual según tipo
+    const CONFIG_MAP: Record<
+        'quick_reply' | 'list' | 'GETDATA' | 'SIMPLETEXT',
+        NodeVisualConfig
+    > = {
+        quick_reply: {
+            color: 'purple',
+            bg: 'bg-purple-950 border-purple-600',
+            icon: <MessageSquare size={14} className="text-purple-400" />,
+            label: 'Quick Reply',
+        },
+        list: {
+            color: 'blue',
+            bg: 'bg-blue-950 border-blue-600',
+            icon: <ListTree size={14} className="text-blue-400" />,
+            label: 'List',
+        },
+        GETDATA: {
+            color: 'amber',
+            bg: 'bg-amber-950 border-amber-600',
+            icon: <FileText size={14} className="text-amber-400" />,
+            label: 'GetData',
+        },
+        SIMPLETEXT: {
+            color: 'emerald',
+            bg: 'bg-emerald-950 border-emerald-600',
+            icon: <StickyNote size={14} className="text-emerald-400" />,
+            label: 'SimpleText',
+        },
+    }
+
+    // 🧩 Selección segura
+    const config: NodeVisualConfig =
+        CONFIG_MAP[type as keyof typeof CONFIG_MAP] ?? CONFIG_MAP.quick_reply
 
     const handleTarget =
         orientation === 'vertical' ? Position.Top : Position.Left
@@ -157,58 +223,48 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
                     setSelectedNode({ id, type: 'menuNode', data })
                 }}
                 data-id={id}
-                className={`relative w-[260px] cursor-pointer rounded-xl border select-none ${bgClass} p-3 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg`}
+                className={`relative w-[260px] cursor-pointer rounded-xl border select-none ${config.bg} p-3 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg`}
             >
-                {/* 🏷️ Encabezado */}
-                <div className="flex flex-col border-b border-white/10 pb-1">
-                    <span className="text-xs tracking-wide text-white/70 uppercase">
-                        {isList ? 'List' : 'Quick Reply'}
-                    </span>
-                    <span className="truncate text-sm font-semibold">
+                {/* 🏷️ Header */}
+                <div className="flex items-center justify-between border-b border-white/10 pb-1">
+                    <div className="flex items-center gap-2 text-xs tracking-wide text-white/70 uppercase">
+                        {config.icon}
+                        <span>{config.label}</span>
+                    </div>
+                    <span className="truncate text-[11px] opacity-70">
                         {nodeData.alias || nodeData.variable || id}
                     </span>
                 </div>
 
                 {/* 💬 Contenido principal */}
-                {interactive &&
-                    type === 'quick_reply' &&
-                    'content' in interactive && (
-                        <div className="mt-1 line-clamp-3 text-[11px] whitespace-pre-wrap text-gray-200/90 italic">
-                            {interactive.content?.text}
-                        </div>
-                    )}
-
-                {interactive &&
-                    isList &&
-                    (interactive as ListInteractive)?.body && (
-                        <div className="mt-1 line-clamp-3 text-[11px] whitespace-pre-wrap text-gray-200/90 italic">
-                            {decodeURIComponent(
-                                (interactive as ListInteractive).body || ''
-                            )}
-                        </div>
-                    )}
-
-                {/* 🧩 Opciones */}
-                {!isList && interactive && 'options' in interactive && (
+                {interactive?.type === 'quick_reply' && (
                     <QuickReplyPreview
-                        interactive={interactive as QuickReplyInteractive}
-                        handleColor={handleColor}
+                        interactive={interactive}
+                        handleColor="!bg-purple-400"
                     />
                 )}
 
-                {isList && (
+                {interactive?.type === 'list' && (
                     <ListPreview
-                        interactive={interactive as ListInteractive}
-                        handleColor={handleColor}
+                        interactive={interactive}
+                        handleColor="!bg-blue-400"
                     />
                 )}
 
-                {/* 🎯 Handle de entrada principal */}
+                {interactive?.type === 'GETDATA' && (
+                    <GetDataPreview interactive={interactive} />
+                )}
+
+                {interactive?.type === 'SIMPLETEXT' && (
+                    <SimpleTextPreview interactive={interactive} />
+                )}
+
+                {/* 🎯 Handle de entrada */}
                 <Handle
                     type="target"
                     position={handleTarget}
                     id="in"
-                    className={`!bg-${colorBase}-400`}
+                    className={`!bg-${config.color}-400`}
                 />
 
                 {/* 🟢🔴🟠 Handles globales */}

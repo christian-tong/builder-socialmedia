@@ -3,7 +3,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { Input, Label } from '@/components/ui'
+import { Label } from '@/components/ui'
 import { NodeConnectionsAccordion } from '@/components/shared/NodeConnectionsAccordion'
 import { NodeFlowConnectionsManager } from '@/components/shared/NodeFlowConnectionsManager'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
@@ -15,6 +15,7 @@ import {
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
 import { FormGetDataCompleteQR } from './FormGetDataCompleteQR'
 import { FormGetDataCompleteList } from './FormGetDataCompleteList'
+import { FormGetDataCompleteSimpleText } from './FormGetDataCompleteSimpleText'
 import {
     Select,
     SelectTrigger,
@@ -22,15 +23,14 @@ import {
     SelectContent,
     SelectItem,
 } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
+import { FormGetDataCompleteGetData } from './FormGetDataCompleteGetData'
 
 /**
- * 🧩 FormGetDataCompleteBase (v3.0 — Unified Interactive)
- * --------------------------------------------------------
- * - Soporta QuickReply y List
+ * 🧩 FormGetDataCompleteBase (v4.1 — Unified Interactive + Type-safe Variants)
+ * -------------------------------------------------------------------------
+ * - Soporta QuickReply, List, GETDATA y SIMPLETEXT
+ * - Corrige inconsistencia de tipos (mayúsculas/minúsculas)
  * - Aplica patrón de sincronización diferida (solo al guardar)
- * - Crea edges automáticos de opciones QuickReply
- * - Integra formularios dinámicos basados en tipo interactivo
  */
 export default function FormGetDataCompleteBase({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
@@ -91,10 +91,18 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
         })
     }
 
-    const handleInteractiveTypeChange = (value: 'quick_reply' | 'list') => {
+    /**
+     * 🧠 Cambiar tipo de interacción dinámicamente
+     * Incluye variantes: quick_reply | list | GETDATA | SIMPLETEXT
+     */
+    const handleInteractiveTypeChange = (
+        value: 'quick_reply' | 'list' | 'GETDATA' | 'SIMPLETEXT'
+    ) => {
         const interactive = createEmptyInteractive(value)
         handleChange('interactive', interactive)
     }
+
+    const type = localData.interactive?.type || 'quick_reply'
 
     return (
         <div className="flex flex-col gap-6">
@@ -117,13 +125,12 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
 
             {/* ⚙️ Configuración general */}
             <div className="space-y-3">
-                {/* 🔘 Selector de tipo interactivo */}
                 <div className="pt-2">
                     <Label className="mb-1 block text-sm font-medium">
                         Tipo interactivo
                     </Label>
                     <Select
-                        value={localData.interactive?.type || 'quick_reply'}
+                        value={type}
                         onValueChange={handleInteractiveTypeChange}
                     >
                         <SelectTrigger className="w-full">
@@ -131,21 +138,23 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="quick_reply">
-                                Quick Reply
+                                💬 Quick Reply
                             </SelectItem>
-                            <SelectItem value="list">List</SelectItem>
+                            <SelectItem value="list">📋 List</SelectItem>
+                            <SelectItem value="GETDATA">🧾 GetData</SelectItem>
+                            <SelectItem value="SIMPLETEXT">
+                                🗒️ Simple Text
+                            </SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
             </div>
 
-            {/* 🧱 Form dinámico */}
-            {localData.interactive?.type === 'quick_reply' && (
-                <FormGetDataCompleteQR id={id} />
-            )}
-            {localData.interactive?.type === 'list' && (
-                <FormGetDataCompleteList id={id} />
-            )}
+            {/* 🧱 Formularios dinámicos según tipo */}
+            {type === 'quick_reply' && <FormGetDataCompleteQR id={id} />}
+            {type === 'list' && <FormGetDataCompleteList id={id} />}
+            {type === 'GETDATA' && <FormGetDataCompleteGetData id={id} />}
+            {type === 'SIMPLETEXT' && <FormGetDataCompleteSimpleText id={id} />}
         </div>
     )
 }

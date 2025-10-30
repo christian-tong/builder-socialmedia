@@ -5,6 +5,7 @@ D:.
 ¦   
 +---components
 ¦   +---flow
+¦   ¦       FlowAutoEdgeSync.tsx
 ¦   ¦       FlowCanvas.tsx
 ¦   ¦       FlowCanvasInner.tsx
 ¦   ¦       FlowSidebar.tsx
@@ -12,13 +13,27 @@ D:.
 ¦   ¦       NodeConfigSidebar.tsx
 ¦   ¦       
 ¦   +---forms
+¦   ¦   ¦   FormChatBotIARequestNode.tsx
 ¦   ¦   ¦   FormDerivateNode.tsx
 ¦   ¦   ¦   FormEndNode.tsx
+¦   ¦   ¦   FormGenerateTokenNode.tsx
 ¦   ¦   ¦   FormMenuNode.tsx
+¦   ¦   ¦   FormMySQLQueryNode.tsx
+¦   ¦   ¦   FormNoOpNode.tsx
+¦   ¦   ¦   FormSaveRecordNode.tsx
 ¦   ¦   ¦   FormSimpleTextNode.tsx
 ¦   ¦   ¦   FormStartNode.tsx
+¦   ¦   ¦   FormSwitchConditionNode.tsx
 ¦   ¦   ¦   FormTimeConditionNode.tsx
+¦   ¦   ¦   FormVariablesNode.tsx
 ¦   ¦   ¦   
+¦   ¦   +---Menu
+¦   ¦   ¦       FormGetDataCompleteBase.tsx
+¦   ¦   ¦       FormGetDataCompleteGetData.tsx
+¦   ¦   ¦       FormGetDataCompleteList.tsx
+¦   ¦   ¦       FormGetDataCompleteQR.tsx
+¦   ¦   ¦       FormGetDataCompleteSimpleText.tsx
+¦   ¦   ¦       
 ¦   ¦   +---Variants
 ¦   ¦       +---Menu
 ¦   ¦               index.ts
@@ -33,12 +48,20 @@ D:.
 ¦   ¦       SidebarRight.tsx
 ¦   ¦       
 ¦   +---nodes
+¦   ¦       ChatBotIARequestNode.tsx
 ¦   ¦       DerivateNode.tsx
 ¦   ¦       EndNode.tsx
+¦   ¦       GenerateTokenNode.tsx
+¦   ¦       GetDataCompleteNode.tsx
 ¦   ¦       MenuNode.tsx
+¦   ¦       MySQLQueryNode.tsx
+¦   ¦       NoOpNode.tsx
+¦   ¦       SaveRecordNode.tsx
 ¦   ¦       SimpleTextNode.tsx
 ¦   ¦       StartNode.tsx
+¦   ¦       SwitchConditionNode.tsx
 ¦   ¦       TimeConditionNode.tsx
+¦   ¦       VariablesNode.tsx
 ¦   ¦       
 ¦   +---shared
 ¦   ¦       BeforeUnloadModal.tsx
@@ -50,8 +73,10 @@ D:.
 ¦   ¦       LogoWimprove.tsx
 ¦   ¦       MenuNodeFormLayout.tsx
 ¦   ¦       NodeConnectionsAccordion.tsx
+¦   ¦       NodeFlowConnectionsManager.tsx
 ¦   ¦       NodeSelectAccordion.tsx
-¦   ¦       useVariantOptions.ts
+¦   ¦       OptionFlowManager.tsx
+¦   ¦       VariableMentionsText.tsx
 ¦   ¦       VariantBaseConfigFields.tsx
 ¦   ¦       VariantOptionAccordion.tsx
 ¦   ¦       
@@ -90,11 +115,13 @@ D:.
 ¦       useMenuNodeSync.ts
 ¦       useNodeConnections.ts
 ¦       useTheme.ts
+¦       useVariableMentions.ts
 ¦       useVariantOptions.ts
 ¦       useVariantOptionsManager.ts
 ¦       
 +---lib
 ¦       autoLayout.ts
+¦       edgeUtils.ts
 ¦       flowValidations.ts
 ¦       jsonExportImport.ts
 ¦       jsonFlowGenerator.ts
@@ -121,24 +148,40 @@ D:.
 ¦           errorHandler.ts
 ¦           
 +---store
-¦       useFlowOrientationStore.ts
-¦       useFlowStore.ts
-¦       useFlowStyleStore.ts
-¦       useNodeConfigStore.ts
-¦       useSidebarStore.ts
-¦       useThemeStore.ts
-¦       useVariantFlowSync.ts
-¦       useVariantTypeStore.ts
-¦       
+¦   ¦   useChatBotIAStore.ts
+¦   ¦   useFlowOrientationStore.ts
+¦   ¦   useFlowStore.ts
+¦   ¦   useFlowStyleStore.ts
+¦   ¦   useGenerateTokenStore.ts
+¦   ¦   useMySQLQueryStore.ts
+¦   ¦   useNodeConfigStore.ts
+¦   ¦   usePendingConnectionsStore.ts
+¦   ¦   useSaveRecordStore.ts
+¦   ¦   useSidebarStore.ts
+¦   ¦   useSwitchConditionStore.ts
+¦   ¦   useThemeStore.ts
+¦   ¦   useVariablesStore.ts
+¦   ¦   useVariantFlowSync.ts
+¦   ¦   useVariantTypeStore.ts
+¦   ¦   
+¦   +---GetDataComplete
+¦           useGetDataCompleteBaseStore.ts
+¦           useGetDataCompleteGetDataStore.ts
+¦           useGetDataCompleteListStore.ts
+¦           useGetDataCompleteQRStore.ts
+¦           useGetDataCompleteSimpleTextStore.ts
+¦           
 +---styles
 ¦       globals.css
 ¦       
 +---types
 ¦       dagre.d.ts
 ¦       flow.ts
+¦       getDataComplete.ts
 ¦       sj.ts
 ¦       
 +---utils
         generateNodeId.ts
         getNestedValue.ts
+        processVariablesInText.ts
         
