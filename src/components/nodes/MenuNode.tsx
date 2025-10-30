@@ -15,11 +15,12 @@ import {
     GetDataInteractive,
     SimpleTextInteractive,
     ListOption,
+    GetDataCompleteObject,
 } from '@/types/getDataComplete'
 import { MessageSquare, ListTree, FileText, StickyNote } from 'lucide-react'
 
 /* -------------------------------------------------------------------------- */
-/* 🟣 Subcomponente: QuickReplyPreview                                         */
+/* 💬 QuickReplyPreview                                                       */
 /* -------------------------------------------------------------------------- */
 function QuickReplyPreview({
     interactive,
@@ -63,7 +64,7 @@ function QuickReplyPreview({
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🔵 Subcomponente: ListPreview                                              */
+/* 📋 ListPreview                                                             */
 /* -------------------------------------------------------------------------- */
 function ListPreview({
     interactive,
@@ -121,18 +122,53 @@ function ListPreview({
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🧾 Subcomponente: GetDataPreview                                           */
+/* 🧾 GetDataPreview — con handles dinámicos por setvariables                 */
 /* -------------------------------------------------------------------------- */
-function GetDataPreview({ interactive }: { interactive: GetDataInteractive }) {
+function GetDataPreview({ object }: { object: GetDataCompleteObject }) {
+    const { setvariables, prompt } = object || {}
+    const entries = Object.entries(setvariables || {})
+
     return (
-        <div className="mt-2 text-[11px] text-amber-200/90 italic">
-            {decodeURIComponent(interactive.prompt || 'Sin prompt definido')}
+        <div className="mt-2 space-y-1 text-xs">
+            {/* 🪶 Prompt principal */}
+            {prompt && (
+                <div className="rounded-md bg-amber-900/40 p-2 text-[11px] text-amber-100/80 italic">
+                    {decodeURIComponent(prompt || 'Sin prompt definido')}
+                </div>
+            )}
+
+            {/* 🔗 Opciones con handle dinámico */}
+            {entries.map(([key, val]) => (
+                <div
+                    key={key}
+                    className="relative flex items-center justify-between rounded-md bg-amber-800/40 px-2 py-1 text-gray-100"
+                >
+                    <div className="flex items-center gap-2 pr-6">
+                        <span className="text-[10px] opacity-70">#{key}</span>
+                        <span className="truncate">
+                            {decodeURIComponent(val || '')}
+                        </span>
+                    </div>
+
+                    <Handle
+                        type="source"
+                        position={Position.Right}
+                        id={key}
+                        className="absolute !h-2.5 !w-2.5 !bg-amber-400"
+                        style={{
+                            top: '50%',
+                            right: '-6px',
+                            transform: 'translateY(-50%)',
+                        }}
+                    />
+                </div>
+            ))}
         </div>
     )
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🗒️ Subcomponente: SimpleTextPreview                                        */
+/* 🗒️ SimpleTextPreview                                                      */
 /* -------------------------------------------------------------------------- */
 function SimpleTextPreview({
     interactive,
@@ -147,14 +183,14 @@ function SimpleTextPreview({
 }
 
 /* -------------------------------------------------------------------------- */
-/* 💬 Componente principal: MenuNode                                          */
+/* 💬 MenuNode Principal                                                     */
 /* -------------------------------------------------------------------------- */
 export function MenuNode({ id, data }: { id: string; data: any }) {
     const { orientation } = useFlowOrientationStore()
     const { getNodeData } = useGetDataCompleteBaseStore()
     const { setSelectedNode } = useNodeConfigStore()
 
-    const nodeData = getNodeData(id)
+    const nodeData = getNodeData(id) as GetDataCompleteObject
     const interactive = nodeData?.interactive as
         | QuickReplyInteractive
         | ListInteractive
@@ -164,7 +200,6 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
 
     const type = interactive?.type || 'quick_reply'
 
-    // 🧠 Tipo de configuración visual
     interface NodeVisualConfig {
         color: string
         bg: string
@@ -172,7 +207,6 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
         label: string
     }
 
-    // 🎨 Config visual según tipo
     const CONFIG_MAP: Record<
         'quick_reply' | 'list' | 'GETDATA' | 'SIMPLETEXT',
         NodeVisualConfig
@@ -203,10 +237,7 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
         },
     }
 
-    // 🧩 Selección segura
-    const config: NodeVisualConfig =
-        CONFIG_MAP[type as keyof typeof CONFIG_MAP] ?? CONFIG_MAP.quick_reply
-
+    const config = CONFIG_MAP[type] ?? CONFIG_MAP.quick_reply
     const handleTarget =
         orientation === 'vertical' ? Position.Top : Position.Left
 
@@ -252,7 +283,7 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
                 )}
 
                 {interactive?.type === 'GETDATA' && (
-                    <GetDataPreview interactive={interactive} />
+                    <GetDataPreview object={nodeData} />
                 )}
 
                 {interactive?.type === 'SIMPLETEXT' && (

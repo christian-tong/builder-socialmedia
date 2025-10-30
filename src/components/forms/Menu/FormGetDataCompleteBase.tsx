@@ -26,11 +26,11 @@ import {
 import { FormGetDataCompleteGetData } from './FormGetDataCompleteGetData'
 
 /**
- * 🧩 FormGetDataCompleteBase (v4.1 — Unified Interactive + Type-safe Variants)
+ * 🧩 FormGetDataCompleteBase (v4.3 — Full Edge Sync: QR + LIST + GETDATA)
  * -------------------------------------------------------------------------
  * - Soporta QuickReply, List, GETDATA y SIMPLETEXT
- * - Corrige inconsistencia de tipos (mayúsculas/minúsculas)
- * - Aplica patrón de sincronización diferida (solo al guardar)
+ * - Crea automáticamente edges para GETDATA igual que QR/List
+ * - Mantiene patrón de sincronización diferida
  */
 export default function FormGetDataCompleteBase({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
@@ -44,31 +44,63 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
         {}
     )
 
+    /* -------------------------------------------------------------------------- */
+    /* 🧠 Inicialización y carga local                                            */
+    /* -------------------------------------------------------------------------- */
     useEffect(() => {
         initNode(id)
         setLocalData(getNodeData(id))
     }, [id])
 
-    // 💾 Guardar cambios diferidos
     useEffect(() => {
         const saveFn = () => {
             const current = getNodeData(id)
             setNodeData(id, current)
             updateNodeData(id, { ...data, object: current })
 
-            // 🧩 Post-save: crear edges (solo QR)
-            if (current.interactive?.type === 'quick_reply') {
-                current.interactive.options.forEach((opt) => {
-                    if (opt.nextNodeId) {
-                        createConnectionIfMissing(
-                            opt.nextNodeId,
-                            opt.postbackText
-                        )
-                    }
+            const type = current.interactive?.type
+
+            // 💬 QUICK_REPLY → crea edges por opción
+            if (type === 'quick_reply' && current.interactive) {
+                const qr = current.interactive
+                if ('options' in qr && Array.isArray(qr.options)) {
+                    qr.options.forEach((opt) => {
+                        if (opt.nextNodeId) {
+                            createConnectionIfMissing(
+                                opt.nextNodeId,
+                                opt.postbackText
+                            )
+                        }
+                    })
+                }
+            }
+
+            // 📋 LIST → crea edges según items[].options[].nextNodeId
+            if (type === 'list' && current.interactive) {
+                const list = current.interactive
+                if ('items' in list && Array.isArray(list.items)) {
+                    list.items.forEach((item) => {
+                        item.options?.forEach((opt) => {
+                            if ((opt as any).nextNodeId) {
+                                createConnectionIfMissing(
+                                    (opt as any).nextNodeId,
+                                    opt.postbackText
+                                )
+                            }
+                        })
+                    })
+                }
+            }
+
+            // 🧾 GETDATA → crea edges por cada condición válida
+            if (type === 'GETDATA') {
+                const conditions = current.conditions || {}
+                Object.entries(conditions).forEach(([key, targetId]) => {
+                    if (targetId)
+                        createConnectionIfMissing(targetId as string, key)
                 })
             }
 
-            // 🔁 Callback global si existe
             onAfterSave?.(id, current)
         }
 
@@ -82,7 +114,9 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
         updateNodeData,
     ])
 
-    // ✏️ Edición local
+    /* -------------------------------------------------------------------------- */
+    /* ✏️ Edición local                                                          */
+    /* -------------------------------------------------------------------------- */
     const handleChange = (field: keyof GetDataCompleteObject, value: any) => {
         setLocalData((prev) => {
             const updated = { ...prev, [field]: value }
@@ -91,10 +125,9 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
         })
     }
 
-    /**
-     * 🧠 Cambiar tipo de interacción dinámicamente
-     * Incluye variantes: quick_reply | list | GETDATA | SIMPLETEXT
-     */
+    /* -------------------------------------------------------------------------- */
+    /* 🧩 Cambio de tipo interactivo dinámico                                     */
+    /* -------------------------------------------------------------------------- */
     const handleInteractiveTypeChange = (
         value: 'quick_reply' | 'list' | 'GETDATA' | 'SIMPLETEXT'
     ) => {
@@ -104,6 +137,9 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
 
     const type = localData.interactive?.type || 'quick_reply'
 
+    /* -------------------------------------------------------------------------- */
+    /* 🧱 Render                                                                 */
+    /* -------------------------------------------------------------------------- */
     return (
         <div className="flex flex-col gap-6">
             {/* 🔗 Conexiones principales */}
@@ -120,7 +156,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                 updateNodeData={updateNodeData}
                 connections={['onTrue', 'onFalse', 'onError']}
                 accentColor="text-purple-600"
-                deferred={true}
+                deferred
             />
 
             {/* ⚙️ Configuración general */}

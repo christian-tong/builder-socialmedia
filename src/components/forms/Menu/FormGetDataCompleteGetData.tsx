@@ -2,66 +2,81 @@
 
 'use client'
 
-import React, { useEffect } from 'react'
-import { Label, Input, Textarea, Switch } from '@/components/ui'
+import React, { useCallback } from 'react'
+import { Label, Input, Textarea, Switch, Button } from '@/components/ui'
+import { Plus, Trash2 } from 'lucide-react'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
+import { useGetDataCompleteGetDataStore } from '@/store/GetDataComplete/useGetDataCompleteGetDataStore'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
-import { NodeFlowConnectionsManager } from '@/components/shared/NodeFlowConnectionsManager'
+import { OptionFlowManager } from '@/components/shared/OptionFlowManager'
 import type { GetDataCompleteObject } from '@/types/getDataComplete'
 
 /**
- * 🧾 FormGetDataCompleteGetData (v1.0)
- * ------------------------------------------------------------
- * - Variante GETDATA del sistema GetDataComplete
- * - Campos base: condition, setvar, variable, alias, iterations, timeout
- * - Incluye prompt (para consultas o mensajes dinámicos)
- * - Sincronización diferida → guarda al triggerAfterSave
+ * 🧾 FormGetDataCompleteGetData (v3.5 — Full Auto Edge Sync)
+ * --------------------------------------------------------------------
+ * ✅ Estandarizado con el patrón QuickReply (deferred + auto-edge-sync)
+ * ✅ Cada opción crea edge automáticamente al seleccionar un nodo destino
+ * ✅ Sincronización diferida: datos del store → vista Flow
+ * ✅ Comportamiento uniforme con FlowAutoEdgeSync y NodeSelectAccordion
  */
 export function FormGetDataCompleteGetData({ id }: { id: string }) {
-    const { getNodeData, setNodeData, triggerAfterSave } =
-        useGetDataCompleteBaseStore()
-    const { availableNodes } = useNodeConnections(id)
+    const { getNodeData, triggerAfterSave } = useGetDataCompleteBaseStore()
+    const {
+        updatePrompt,
+        updateField,
+        toggleSaveHidden,
+        addSetVariable,
+        updateSetVariable,
+        removeSetVariable,
+        updateConditionLink,
+    } = useGetDataCompleteGetDataStore()
+    const { availableNodes, createConnectionIfMissing } = useNodeConnections(id)
 
     const nodeData = getNodeData(id)
-    const interactive = nodeData.interactive
-    if (!interactive || interactive.type !== 'GETDATA') return null
-
-    /* -------------------------------------------------------------------------- */
-    /* 🧠 Helpers                                                                 */
-    /* -------------------------------------------------------------------------- */
-    const handleFieldChange = (
-        field: keyof GetDataCompleteObject,
-        val: string
-    ) => {
-        setNodeData(id, { [field]: encodeURIComponent(val) } as any)
-        triggerAfterSave(id)
-    }
-
-    const handleToggleSaveHidden = (checked: boolean) => {
-        setNodeData(id, { saveHidden: checked })
-        triggerAfterSave(id)
-    }
-
-    const handlePromptChange = (val: string) => {
-        const updated = {
-            ...interactive,
-            prompt: encodeURIComponent(val),
-        }
-        setNodeData(id, { interactive: updated })
-        triggerAfterSave(id)
-    }
 
     /* -------------------------------------------------------------------------- */
     /* 🧱 Campos base comunes                                                     */
     /* -------------------------------------------------------------------------- */
     const baseFields = [
-        { key: 'condition', label: '🧩 Condition', placeholder: '[1-3]' },
+        {
+            key: 'condition',
+            label: '🧩 Condition',
+            placeholder: '^(?!.*timeout).*',
+        },
         { key: 'setvar', label: '🏷️ SetVar', placeholder: 'RESULTADO' },
         { key: 'variable', label: '🔡 Variable', placeholder: 'DatoObtenido' },
         { key: 'alias', label: '🪪 Alias', placeholder: 'Alias descriptivo' },
         { key: 'iterations', label: '🔁 Iterations', placeholder: '1' },
         { key: 'timeOut', label: '⏱️ Timeout (ms)', placeholder: '60000' },
     ] as const
+
+    /* -------------------------------------------------------------------------- */
+    /* ⚡ Handlers                                                               */
+    /* -------------------------------------------------------------------------- */
+    const handleFieldChange = useCallback(
+        (field: string, val: string) => {
+            updateField(id, field as any, val)
+            triggerAfterSave(id)
+        },
+        [id, updateField, triggerAfterSave]
+    )
+
+    const handleToggleSaveHidden = useCallback(
+        (checked: boolean) => {
+            toggleSaveHidden(id, checked)
+            triggerAfterSave(id)
+        },
+        [id, toggleSaveHidden, triggerAfterSave]
+    )
+
+    const handleSelectConditionLink = useCallback(
+        (key: string, targetId: string) => {
+            updateConditionLink(id, key, targetId)
+            if (targetId) createConnectionIfMissing(targetId, key)
+            triggerAfterSave(id)
+        },
+        [id, updateConditionLink, createConnectionIfMissing, triggerAfterSave]
+    )
 
     /* -------------------------------------------------------------------------- */
     /* 🧱 Render                                                                 */
@@ -96,10 +111,7 @@ export function FormGetDataCompleteGetData({ id }: { id: string }) {
                                     (nodeData[f.key] as string) || ''
                                 )}
                                 onChange={(e) =>
-                                    handleFieldChange(
-                                        f.key as any,
-                                        e.target.value
-                                    )
+                                    handleFieldChange(f.key, e.target.value)
                                 }
                                 placeholder={f.placeholder}
                                 className="text-xs"
@@ -112,31 +124,115 @@ export function FormGetDataCompleteGetData({ id }: { id: string }) {
             {/* 💬 PROMPT PRINCIPAL */}
             <section>
                 <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    💬 Prompt de consulta o mensaje dinámico
+                    💬 Descripcion
                 </Label>
                 <Textarea
-                    value={decodeURIComponent(interactive.prompt || '')}
-                    onChange={(e) => handlePromptChange(e.target.value)}
-                    placeholder="Ej: Consultando base de datos o variable..."
+                    value={decodeURIComponent(nodeData.prompt || '')}
+                    onChange={(e) => {
+                        updatePrompt(id, e.target.value)
+                        triggerAfterSave(id)
+                    }}
+                    placeholder="Ej: Confirmacion Correo ..."
                     rows={4}
                     className="font-mono text-xs"
                 />
             </section>
 
-            {/* 🔗 CONEXIONES onTrue / onFalse */}
-            <section>
-                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    🔗 Conexiones de flujo
-                </Label>
-                <NodeFlowConnectionsManager
-                    id={id}
-                    data={nodeData}
-                    availableNodes={availableNodes}
-                    updateNodeData={(id, d) => setNodeData(id, d)}
-                    connections={['onTrue', 'onFalse']}
-                    accentColor="text-amber-600"
-                    deferred
-                />
+            {/* 🧩 OPCIONES (SetVariables + Conditions) */}
+            <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        🧩 Opciones de selección (setvariables)
+                    </Label>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addSetVariable(id)}
+                        className="border-amber-600 text-amber-600 hover:bg-amber-50"
+                    >
+                        <Plus className="mr-1 h-4 w-4" /> Añadir opción
+                    </Button>
+                </div>
+
+                <div className="space-y-3">
+                    {Object.entries(nodeData.setvariables || {}).map(
+                        ([key, val], idx) => (
+                            <div
+                                key={key}
+                                className="rounded-md border border-gray-200 p-3 dark:border-gray-700"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-xs text-gray-500">
+                                        Opción {idx + 1}
+                                    </Label>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() =>
+                                            removeSetVariable(id, key)
+                                        }
+                                        className="text-red-500 hover:text-red-700"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+
+                                {/* 🔑 Key / Value */}
+                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                    <div>
+                                        <Label className="text-xs text-gray-500">
+                                            Clave
+                                        </Label>
+                                        <Input
+                                            value={key}
+                                            disabled
+                                            className="bg-gray-100 text-xs dark:bg-gray-800"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label className="text-xs text-gray-500">
+                                            Valor
+                                        </Label>
+                                        <Input
+                                            value={decodeURIComponent(
+                                                val || ''
+                                            )}
+                                            onChange={(e) =>
+                                                updateSetVariable(
+                                                    id,
+                                                    key,
+                                                    encodeURIComponent(
+                                                        e.target.value
+                                                    )
+                                                )
+                                            }
+                                            placeholder="Ej: Electricidad"
+                                            className="text-xs"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* 🔗 Conexión del flujo (edge automático) */}
+                                <div className="mt-3">
+                                    <OptionFlowManager
+                                        id={id}
+                                        optionKey={key}
+                                        selectedId={nodeData.conditions?.[key]}
+                                        onSelect={(targetId) =>
+                                            handleSelectConditionLink(
+                                                key,
+                                                targetId
+                                            )
+                                        }
+                                        availableNodes={availableNodes}
+                                        accentColor="text-amber-600"
+                                        deferred
+                                    />
+                                </div>
+                            </div>
+                        )
+                    )}
+                </div>
             </section>
         </div>
     )

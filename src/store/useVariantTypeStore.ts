@@ -37,13 +37,11 @@ interface VariantTypeState {
 }
 
 /**
- * 🧠 useVariantTypeStore (versión reforzada y global)
- * -----------------------------------------------------
- * - Evita limpiar conditions mientras el formulario se monta.
- * - Garantiza unicidad de postbackText en cada nodo.
- * - Corrige duplicados automáticamente.
- * - Mantiene integridad entre opciones y conexiones.
- * - Compatible con identificadores globales de handles.
+ * 🧠 useVariantTypeStore (v2.5 – Extended with GETDATA + SIMPLETEXT)
+ * -----------------------------------------------------------------
+ * - Mantiene sincronización entre variantes QR, LIST, GETDATA y SIMPLETEXT.
+ * - Asegura unicidad y coherencia de condiciones.
+ * - Compatible con el sistema de handles dinámicos (MenuNode + Flow).
  */
 export const useVariantTypeStore = create<VariantTypeState>((set, get) => ({
     nodes: {},
@@ -78,7 +76,7 @@ export const useVariantTypeStore = create<VariantTypeState>((set, get) => ({
 
             const currentConditions = { ...prev.conditions }
 
-            // 🧩 1. Validar unicidad de postbackText dentro del nodo
+            // 🧩 Validar unicidad de postbackText dentro del nodo
             const usedKeys = new Set<string>()
             const sanitizedOptions = options.map((opt, index) => {
                 let key = String(opt.postbackText ?? index)
@@ -95,21 +93,11 @@ export const useVariantTypeStore = create<VariantTypeState>((set, get) => ({
                 return { ...opt, postbackText: key }
             })
 
-            // 🧩 2. Detectar opciones eliminadas (limpieza segura de condiciones)
+            // 🧹 Limpiar condiciones huérfanas
             const prevKeys = prev.options.map((o) => String(o.postbackText))
             const newKeys = sanitizedOptions.map((o) => String(o.postbackText))
             const removedKeys = prevKeys.filter((k) => !newKeys.includes(k))
-
-            if (removedKeys.length > 0) {
-                removedKeys.forEach((key) => {
-                    if (key in currentConditions) {
-                        console.warn(
-                            `[useVariantTypeStore] 🧹 Eliminando condición huérfana '${key}' del nodo ${nodeId}`
-                        )
-                        delete currentConditions[key]
-                    }
-                })
-            }
+            removedKeys.forEach((key) => delete currentConditions[key])
 
             return {
                 nodes: {
@@ -164,7 +152,6 @@ export const useVariantTypeStore = create<VariantTypeState>((set, get) => ({
                 options: [],
                 conditions: {},
             }
-
             return {
                 nodes: {
                     ...state.nodes,
@@ -188,14 +175,32 @@ export const useVariantTypeStore = create<VariantTypeState>((set, get) => ({
 }))
 
 /**
- * 🔧 Helper global para IDs únicos de handles de variantes
+ * 🔧 getVariantHandleId (v2.0)
  * -------------------------------------------------------
- * Ejemplo:
- *   getVariantHandleId('GetDataComplete0001', 'quick_reply', '1')
- *   → "GetDataComplete0001::quick_reply::option-1"
+ * Genera el ID del handle para cada tipo de variante.
+ * - QuickReply/List → usa postbackText directamente.
+ * - GETDATA → usa key del setvariable (coincide con MenuNode).
+ * - SIMPLETEXT → handle genérico único.
  */
-export const getVariantHandleId = (
+export function getVariantHandleId(
     nodeId: string,
     variantType: string,
-    key: string | number
-): string => `${nodeId}::${variantType}::option-${String(key)}`
+    handleId?: string | null
+): string | null {
+    if (!handleId) return null
+
+    switch (variantType) {
+        case 'quick_reply':
+        case 'list':
+            return handleId // usa el mismo postbackText
+
+        case 'GETDATA':
+            return handleId // clave del setvariable tal cual
+
+        case 'SIMPLETEXT':
+            return handleId // un solo handle (por ej. "onComplete")
+
+        default:
+            return handleId
+    }
+}
