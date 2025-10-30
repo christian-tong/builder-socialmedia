@@ -117,48 +117,6 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
 
             {/* ⚙️ Configuración general */}
             <div className="space-y-3">
-                <Label>🧩 Variable</Label>
-                <Input
-                    value={localData.variable || ''}
-                    onChange={(e) => handleChange('variable', e.target.value)}
-                    placeholder="Ej: PrimeraOpcion"
-                />
-
-                <Label>🔠 Alias</Label>
-                <Input
-                    value={localData.alias || ''}
-                    onChange={(e) => handleChange('alias', e.target.value)}
-                    placeholder="Alias"
-                />
-
-                <Label>💾 SetVar</Label>
-                <Input
-                    value={localData.setvar || ''}
-                    onChange={(e) => handleChange('setvar', e.target.value)}
-                    placeholder="PRIMER_NIVEL"
-                />
-
-                <Label>⏳ Timeout (ms)</Label>
-                <Input
-                    type="number"
-                    value={localData.timeOut || ''}
-                    onChange={(e) => handleChange('timeOut', e.target.value)}
-                />
-
-                {/* Switch Guardar oculto */}
-                <div className="flex items-center justify-between py-1">
-                    <Label className="text-sm font-medium text-gray-700">
-                        Guardar oculto
-                    </Label>
-                    <Switch
-                        checked={localData.saveHidden ?? true}
-                        onCheckedChange={(checked) =>
-                            handleChange('saveHidden', checked)
-                        }
-                        className="transition-colors duration-200 ease-in-out data-[state=checked]:bg-[#198754] data-[state=unchecked]:bg-gray-300"
-                    />
-                </div>
-
                 {/* 🔘 Selector de tipo interactivo */}
                 <div className="pt-2">
                     <Label className="mb-1 block text-sm font-medium">

@@ -20,19 +20,24 @@ import { useGetDataCompleteListStore } from '@/store/GetDataComplete/useGetDataC
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import { OptionFlowManager } from '@/components/shared/OptionFlowManager'
 import type { ListInteractive, ListOption } from '@/types/getDataComplete'
+import { Switch } from '@/components/ui/switch'
 
 /**
- * 🔵 FormGetDataCompleteList (v2.8 — Select numérico + descripción)
+ * 🔵 FormGetDataCompleteList (v3.7 — Configuración base + saveHidden + opciones)
  * ------------------------------------------------------------
- * - Cada grupo usa números únicos (1–9,0) por opción
- * - Primer valor = 1 por defecto
- * - Los números ya usados aparecen deshabilitados
+ * - Añade interruptor para `saveHidden`
+ * - Mantiene la edición de campos base, items y opciones
  */
 export function FormGetDataCompleteList({ id }: { id: string }) {
     const { getNodeData, setNodeData, triggerAfterSave } =
         useGetDataCompleteBaseStore()
-    const { addListItem, addOption, removeOption } =
-        useGetDataCompleteListStore()
+    const {
+        addListItem,
+        removeOption,
+        updateField,
+        updateSetVariables,
+        toggleSaveHidden,
+    } = useGetDataCompleteListStore()
     const { availableNodes, createConnectionIfMissing } = useNodeConnections(id)
 
     const nodeData = getNodeData(id)
@@ -85,120 +90,87 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
     )
 
     /* -------------------------------------------------------------------------- */
+    /* 🧱 CAMPOS BASE DEL NODO                                                   */
+    /* -------------------------------------------------------------------------- */
+    const baseFields = [
+        { key: 'condition', label: '🧩 Condition', placeholder: '[0-5]' },
+        {
+            key: 'groodText',
+            label: '💬 GroodText',
+            placeholder: 'Texto positivo...',
+        },
+        { key: 'setvar', label: '🏷️ SetVar', placeholder: 'TERCER_NIVEL' },
+        { key: 'variable', label: '🔡 Variable', placeholder: 'TerceraOpcion' },
+        { key: 'alias', label: '🪪 Alias', placeholder: 'Alias descriptivo' },
+        { key: 'iterations', label: '🔁 Iterations', placeholder: '1' },
+        { key: 'timeOut', label: '⏱️ Timeout (ms)', placeholder: '60000' },
+    ] as const
+
+    const handleFieldChange = (field: string, val: string) => {
+        updateField(id, field as any, val)
+        triggerAfterSave(id)
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* 💾 SAVE HIDDEN SWITCH                                                     */
+    /* -------------------------------------------------------------------------- */
+    const handleToggleSaveHidden = (checked: boolean) => {
+        toggleSaveHidden(id, checked)
+        triggerAfterSave(id)
+    }
+
+    /* -------------------------------------------------------------------------- */
     /* 🧩 BODY                                                                    */
     /* -------------------------------------------------------------------------- */
     const handleBodyChange = (val: string) =>
         updateInteractive((d) => (d.body = val))
 
     /* -------------------------------------------------------------------------- */
-    /* 🔘 GLOBAL BUTTONS                                                          */
-    /* -------------------------------------------------------------------------- */
-    const handleAddGlobalButton = () =>
-        updateInteractive((d) => {
-            d.globalButtons = d.globalButtons || []
-            d.globalButtons.push({ type: 'text', title: '' })
-        })
-
-    const handleRemoveGlobalButton = (i: number) =>
-        updateInteractive((d) => d.globalButtons?.splice(i, 1))
-
-    const handleGlobalButtonChange = (i: number, val: string) =>
-        updateInteractive((d) => {
-            if (d.globalButtons?.[i])
-                d.globalButtons[i].title = encodeURIComponent(val)
-        })
-
-    /* -------------------------------------------------------------------------- */
-    /* 🧩 ITEMS Y OPCIONES                                                        */
-    /* -------------------------------------------------------------------------- */
-    const handleItemTitleChange = (itemIdx: number, val: string) =>
-        updateInteractive((d) => {
-            d.items[itemIdx].title = encodeURIComponent(val)
-        })
-
-    const handleOptionChange = (
-        itemIdx: number,
-        optIdx: number,
-        field: keyof ListOption,
-        val: string
-    ) =>
-        updateInteractive((d) => {
-            const opt = d.items[itemIdx].options[optIdx]
-            d.items[itemIdx].options[optIdx] = {
-                ...opt,
-                [field]:
-                    field === 'title' || field === 'description'
-                        ? encodeURIComponent(val)
-                        : val,
-                type: 'text',
-            }
-        })
-
-    /** 🔢 Cambiar número (postbackText) */
-    const handleOptionDigitChange = (
-        itemIdx: number,
-        optIdx: number,
-        digit: string
-    ) => {
-        updateInteractive((d) => {
-            const opt = d.items[itemIdx].options[optIdx]
-            d.items[itemIdx].options[optIdx] = {
-                ...opt,
-                postbackText: digit,
-                type: 'text',
-            }
-        })
-        triggerAfterSave(id)
-    }
-
-    const handleSelectNextNode = (
-        itemIdx: number,
-        optIdx: number,
-        targetId: string
-    ) => {
-        updateInteractive((d) => {
-            const opt = d.items[itemIdx].options[optIdx]
-            ;(opt as any).nextNodeId = targetId
-            if (targetId) createConnectionIfMissing(targetId, opt.postbackText)
-        })
-        triggerAfterSave(id)
-    }
-
-    const handleAddOption = (itemIdx: number) => {
-        updateInteractive((d) => {
-            const currentItem = d.items[itemIdx]
-            const usedDigits = new Set(
-                currentItem.options.map((o) => o.postbackText)
-            )
-            const nextAvailableDigit = DIGITS.find((d) => !usedDigits.has(d))
-            if (!nextAvailableDigit) return
-
-            // Crear la nueva opción directamente aquí
-            currentItem.options.push({
-                postbackText: nextAvailableDigit,
-                type: 'text',
-                title: '',
-                description: '',
-            })
-        })
-        triggerAfterSave(id)
-    }
-
-    const handleRemoveOption = (itemIdx: number, optIdx: number) => {
-        removeOption(id, itemIdx, optIdx)
-        triggerAfterSave(id)
-    }
-
-    const handleAddItem = () => {
-        addListItem(id)
-        triggerAfterSave(id)
-    }
-
-    /* -------------------------------------------------------------------------- */
     /* 🧱 RENDER                                                                 */
     /* -------------------------------------------------------------------------- */
     return (
         <div className="mt-6 space-y-6">
+            {/* ⚙️ CONFIGURACIÓN BASE DEL NODO */}
+            <section className="space-y-3">
+                <Label className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    ⚙️ Configuración base del nodo
+                </Label>
+
+                {/* 🔘 SWITCH SAVE HIDDEN */}
+                <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40">
+                    <Switch
+                        checked={!!nodeData.saveHidden}
+                        onCheckedChange={handleToggleSaveHidden}
+                    />
+                    <Label className="text-sm text-gray-700 dark:text-gray-300">
+                        🔒 Guardar oculto (saveHidden)
+                    </Label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                    {baseFields.map((f) => (
+                        <div key={f.key}>
+                            <Label className="text-xs text-gray-500">
+                                {f.label}
+                            </Label>
+                            <Input
+                                value={decodeURIComponent(
+                                    (nodeData[f.key] as string) || ''
+                                )}
+                                onChange={(e) =>
+                                    handleFieldChange(
+                                        f.key,
+                                        encodeURIComponent(e.target.value)
+                                    )
+                                }
+                                placeholder={f.placeholder}
+                                className="text-xs"
+                            />
+                        </div>
+                    ))}
+                </div>
+            </section>
+
             {/* 💬 BODY */}
             <section>
                 <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -215,7 +187,7 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                 />
             </section>
 
-            {/* 🔘 GLOBAL BUTTONS */}
+            {/* 🔘 BOTONES GLOBALES */}
             <section>
                 <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -224,7 +196,15 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={handleAddGlobalButton}
+                        onClick={() =>
+                            updateInteractive((d) => {
+                                d.globalButtons = d.globalButtons || []
+                                d.globalButtons.push({
+                                    type: 'text',
+                                    title: '',
+                                })
+                            })
+                        }
                         className="border-sky-600 text-sky-600 hover:bg-sky-50"
                     >
                         <Plus className="mr-1 h-4 w-4" /> Añadir
@@ -240,7 +220,13 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                             <Input
                                 value={decodeURIComponent(b.title || '')}
                                 onChange={(e) =>
-                                    handleGlobalButtonChange(i, e.target.value)
+                                    updateInteractive((d) => {
+                                        if (d.globalButtons?.[i])
+                                            d.globalButtons[i].title =
+                                                encodeURIComponent(
+                                                    e.target.value
+                                                )
+                                    })
                                 }
                                 placeholder="Título del botón"
                                 className="text-sm"
@@ -248,7 +234,11 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRemoveGlobalButton(i)}
+                                onClick={() =>
+                                    updateInteractive((d) =>
+                                        d.globalButtons?.splice(i, 1)
+                                    )
+                                }
                                 className="text-red-500 hover:text-red-700"
                             >
                                 <Trash2 className="h-4 w-4" />
@@ -277,10 +267,10 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                             <Input
                                 value={decodeURIComponent(item.title || '')}
                                 onChange={(e) =>
-                                    handleItemTitleChange(
-                                        itemIdx,
-                                        e.target.value
-                                    )
+                                    updateInteractive((d) => {
+                                        d.items[itemIdx].title =
+                                            encodeURIComponent(e.target.value)
+                                    })
                                 }
                                 placeholder="Ej: Elija una opción"
                                 className="text-sm font-semibold"
@@ -290,7 +280,27 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleAddOption(itemIdx)}
+                                    onClick={() => {
+                                        updateInteractive((d) => {
+                                            const currentItem = d.items[itemIdx]
+                                            const used = new Set(
+                                                currentItem.options.map(
+                                                    (o) => o.postbackText
+                                                )
+                                            )
+                                            const next = DIGITS.find(
+                                                (d) => !used.has(d)
+                                            )
+                                            if (!next) return
+                                            currentItem.options.push({
+                                                postbackText: next,
+                                                type: 'text',
+                                                title: '',
+                                                description: '',
+                                            })
+                                        })
+                                        triggerAfterSave(id)
+                                    }}
                                     className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
                                 >
                                     <Plus className="mr-1 h-4 w-4" /> Añadir
@@ -298,6 +308,7 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                 </Button>
                             </div>
 
+                            {/* Opciones */}
                             <div className="mt-4 space-y-3">
                                 {item.options.map((opt, optIdx) => (
                                     <div
@@ -311,19 +322,21 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() =>
-                                                    handleRemoveOption(
+                                                onClick={() => {
+                                                    removeOption(
+                                                        id,
                                                         itemIdx,
                                                         optIdx
                                                     )
-                                                }
+                                                    triggerAfterSave(id)
+                                                }}
                                                 className="text-red-500 hover:text-red-700"
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </div>
 
-                                        {/* Campos de opción */}
+                                        {/* Campos */}
                                         <div className="mt-2 grid grid-cols-2 gap-2">
                                             <div>
                                                 <Label className="text-xs text-gray-500">
@@ -331,13 +344,19 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                                 </Label>
                                                 <Select
                                                     value={opt.postbackText}
-                                                    onValueChange={(digit) =>
-                                                        handleOptionDigitChange(
-                                                            itemIdx,
-                                                            optIdx,
-                                                            digit
+                                                    onValueChange={(digit) => {
+                                                        updateInteractive(
+                                                            (d) => {
+                                                                d.items[
+                                                                    itemIdx
+                                                                ].options[
+                                                                    optIdx
+                                                                ].postbackText =
+                                                                    digit
+                                                            }
                                                         )
-                                                    }
+                                                        triggerAfterSave(id)
+                                                    }}
                                                 >
                                                     <SelectTrigger className="h-8 border-emerald-500 text-xs">
                                                         <SelectValue placeholder="Seleccionar..." />
@@ -370,11 +389,18 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                                         opt.title || ''
                                                     )}
                                                     onChange={(e) =>
-                                                        handleOptionChange(
-                                                            itemIdx,
-                                                            optIdx,
-                                                            'title',
-                                                            e.target.value
+                                                        updateInteractive(
+                                                            (d) => {
+                                                                d.items[
+                                                                    itemIdx
+                                                                ].options[
+                                                                    optIdx
+                                                                ].title =
+                                                                    encodeURIComponent(
+                                                                        e.target
+                                                                            .value
+                                                                    )
+                                                            }
                                                         )
                                                     }
                                                     placeholder="Ej: Instalación"
@@ -382,7 +408,8 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                                 />
                                             </div>
                                         </div>
-                                        <div className="col-span-2">
+
+                                        <div className="col-span-2 mt-1">
                                             <Label className="text-xs text-gray-500">
                                                 description
                                             </Label>
@@ -391,12 +418,16 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                                     opt.description || ''
                                                 )}
                                                 onChange={(e) =>
-                                                    handleOptionChange(
-                                                        itemIdx,
-                                                        optIdx,
-                                                        'description',
-                                                        e.target.value
-                                                    )
+                                                    updateInteractive((d) => {
+                                                        d.items[
+                                                            itemIdx
+                                                        ].options[
+                                                            optIdx
+                                                        ].description =
+                                                            encodeURIComponent(
+                                                                e.target.value
+                                                            )
+                                                    })
                                                 }
                                                 placeholder="Ej: Sobre la instalación del baño portátil"
                                                 className="text-xs"
@@ -412,11 +443,19 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                                     (opt as any).nextNodeId
                                                 }
                                                 onSelect={(targetId) =>
-                                                    handleSelectNextNode(
-                                                        itemIdx,
-                                                        optIdx,
-                                                        targetId
-                                                    )
+                                                    updateInteractive((d) => {
+                                                        ;(
+                                                            d.items[itemIdx]
+                                                                .options[
+                                                                optIdx
+                                                            ] as any
+                                                        ).nextNodeId = targetId
+                                                        if (targetId)
+                                                            createConnectionIfMissing(
+                                                                targetId,
+                                                                opt.postbackText
+                                                            )
+                                                    })
                                                 }
                                                 availableNodes={availableNodes}
                                                 accentColor="text-sky-600"

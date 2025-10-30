@@ -1,8 +1,7 @@
 // src/components/forms/Menu/FormGetDataCompleteQR.tsx
-
 'use client'
 
-import React, { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useCallback } from 'react'
 import {
     Label,
     Input,
@@ -13,9 +12,11 @@ import {
     SelectContent,
     SelectValue,
     SelectItem,
+    Switch,
 } from '@/components/ui'
 import { Plus, Trash2 } from 'lucide-react'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
+import { useGetDataCompleteQRStore } from '@/store/GetDataComplete/useGetDataCompleteQRStore'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import { OptionFlowManager } from '@/components/shared/OptionFlowManager'
 import type {
@@ -24,47 +25,45 @@ import type {
 } from '@/types/getDataComplete'
 
 /**
- * 💬 FormGetDataCompleteQR (v2.3 OptionFlow + EdgeSync)
+ * 💬 FormGetDataCompleteQR (v3.6 — Campos base + SaveHidden + OptionFlow)
  * ------------------------------------------------------------
- * - Cada opción puede tener su conexión individual (nextNodeId)
- * - Crea edges automáticos al seleccionar el nodo siguiente
- * - Llama al callback global `triggerAfterSave(id)` para mantener la vista sincronizada
- * - Sin duplicar conexiones (usa createConnectionIfMissing)
+ * - Control completo de configuración QR
+ * - Campos base: condition, groodText, setvar, variable, alias, iterations, timeOut
+ * - SaveHidden con Switch estilo Bootstrap
+ * - Manejo de opciones con conexión visual individual
  */
 export function FormGetDataCompleteQR({ id }: { id: string }) {
     const { getNodeData, setNodeData, triggerAfterSave } =
         useGetDataCompleteBaseStore()
     const { availableNodes, createConnectionIfMissing } = useNodeConnections(id)
+    const { updateField, updateSetVariables, toggleSaveHidden } =
+        useGetDataCompleteQRStore()
 
     const nodeData = getNodeData(id)
     const interactive = nodeData.interactive
-    if (interactive.type !== 'quick_reply') return null
+    if (!interactive || interactive.type !== 'quick_reply') return null
 
-    const qr: QuickReplyInteractive = interactive
+    const qr = interactive as QuickReplyInteractive
     const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const
 
-    // 🧠 Dígitos usados actualmente
+    // 🧠 dígitos usados
     const usedDigits = useMemo(
         () => new Set(qr.options.map((o) => o.postbackText)),
         [qr.options]
     )
-
-    // ➕ Calcula siguiente número disponible
     const nextAvailableDigit = useMemo(
         () => DIGITS.find((d) => !usedDigits.has(d)),
         [usedDigits]
     )
 
-    // ✅ Inicializa con una opción si está vacío
+    // ✅ inicialización mínima
     useEffect(() => {
         if (qr.options.length === 0) {
             const first: QuickReplyOption = {
                 postbackText: '1',
                 type: 'text',
                 title: '',
-                nextNodeId: undefined,
             }
-
             const updated: QuickReplyInteractive = {
                 ...qr,
                 options: [first],
@@ -72,32 +71,63 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
                 msgid: qr.msgid || 'qr_default',
                 content: { ...qr.content, type: 'text' },
             }
-
             setNodeData(id, { interactive: updated })
         }
     }, [])
 
-    // 🔄 Función inmutable para actualizar interactive
-    const updateInteractive = (
-        updater: (draft: QuickReplyInteractive) => void
-    ) => {
-        const draft: QuickReplyInteractive = {
-            ...qr,
-            content: { ...qr.content },
-            options: qr.options.map((o) => ({ ...o })),
-        }
-        updater(draft)
-        setNodeData(id, { interactive: draft })
+    // 🔄 actualización segura
+    const updateInteractive = useCallback(
+        (updater: (draft: QuickReplyInteractive) => void) => {
+            const draft: QuickReplyInteractive = {
+                ...qr,
+                content: { ...qr.content },
+                options: qr.options.map((o) => ({ ...o })),
+            }
+            updater(draft)
+            setNodeData(id, { interactive: draft })
+        },
+        [qr, setNodeData, id]
+    )
+
+    /* -------------------------------------------------------------------------- */
+    /* 🧱 CAMPOS BASE DEL NODO                                                    */
+    /* -------------------------------------------------------------------------- */
+    const baseFields = [
+        { key: 'condition', label: '🧩 Condition', placeholder: '[1-3]' },
+        {
+            key: 'groodText',
+            label: '💬 GroodText',
+            placeholder: 'Texto positivo...',
+        },
+        { key: 'setvar', label: '🏷️ SetVar', placeholder: 'PRIMER_NIVEL' },
+        { key: 'variable', label: '🔡 Variable', placeholder: 'PrimeraOpcion' },
+        { key: 'alias', label: '🪪 Alias', placeholder: 'Alias descriptivo' },
+        { key: 'iterations', label: '🔁 Iterations', placeholder: '1' },
+        { key: 'timeOut', label: '⏱️ Timeout (ms)', placeholder: '60000' },
+    ] as const
+
+    const handleFieldChange = (field: string, val: string) => {
+        updateField(id, field as any, val)
+        triggerAfterSave(id)
     }
 
-    /** 🧾 Cambios generales */
+    const handleToggleSaveHidden = (checked: boolean) => {
+        toggleSaveHidden(id, checked)
+        triggerAfterSave(id)
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* 🧩 INTERACTIVE BODY                                                       */
+    /* -------------------------------------------------------------------------- */
     const handleMsgIdChange = (value: string) =>
         updateInteractive((d) => (d.msgid = value))
 
     const handleContentTextChange = (value: string) =>
         updateInteractive((d) => (d.content.text = value))
 
-    /** 🔢 Cambiar dígito de opción */
+    /* -------------------------------------------------------------------------- */
+    /* 🔘 OPCIONES QUICK REPLY                                                   */
+    /* -------------------------------------------------------------------------- */
     const handleChangeOptionDigit = (index: number, digit: string) => {
         updateInteractive((d) => {
             const current = d.options[index]
@@ -106,7 +136,6 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
         triggerAfterSave(id)
     }
 
-    /** ✍️ Editar campo genérico de opción */
     const handleChangeOption = (
         index: number,
         field: keyof QuickReplyOption,
@@ -118,23 +147,15 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
         })
     }
 
-    /** 🧭 Seleccionar nodo siguiente → crea edge automático */
     const handleSelectNextNode = (index: number, targetId: string) => {
         updateInteractive((d) => {
             const opt = d.options[index]
-            opt.nextNodeId = targetId
-
-            if (targetId) {
-                // 🔗 Crea conexión visual si no existe
-                createConnectionIfMissing(targetId, opt.postbackText)
-            }
+            ;(opt as any).nextNodeId = targetId
+            if (targetId) createConnectionIfMissing(targetId, opt.postbackText)
         })
-
-        // 🚀 Ejecuta el callback global (crea edges pendientes si los hay)
         triggerAfterSave(id)
     }
 
-    /** ➕ Añadir nueva opción */
     const addOption = () => {
         if (!nextAvailableDigit) return
         updateInteractive((d) => {
@@ -142,13 +163,11 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
                 postbackText: nextAvailableDigit,
                 type: 'text',
                 title: '',
-                nextNodeId: undefined,
             })
         })
         triggerAfterSave(id)
     }
 
-    /** 🗑️ Eliminar opción */
     const removeOption = (index: number) => {
         updateInteractive((d) => {
             d.options.splice(index, 1)
@@ -156,30 +175,58 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
         triggerAfterSave(id)
     }
 
-    // 🧱 Renderizado
+    /* -------------------------------------------------------------------------- */
+    /* 🧱 RENDER                                                                 */
+    /* -------------------------------------------------------------------------- */
     return (
-        <div className="mt-6 space-y-4">
-            {/* 🧾 Configuración general */}
-            <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    💬 Quick Reply – Configuración
+        <div className="mt-6 space-y-6">
+            {/* ⚙️ CONFIGURACIÓN BASE */}
+            <section className="space-y-3">
+                <Label className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    ⚙️ Configuración base del nodo
                 </Label>
-            </div>
 
-            {/* msgid */}
-            <div className="space-y-1">
-                <Label className="text-xs text-gray-500">msgid</Label>
-                <Input
-                    value={qr.msgid}
-                    onChange={(e) => handleMsgIdChange(e.target.value)}
-                    placeholder="qr1, qr_default, ..."
-                    className="text-sm"
-                />
-            </div>
+                {/* 🔒 SaveHidden */}
+                <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40">
+                    <Switch
+                        checked={!!nodeData.saveHidden}
+                        onCheckedChange={handleToggleSaveHidden}
+                    />
+                    <Label className="text-sm text-gray-700 dark:text-gray-300">
+                        🔒 Guardar oculto (saveHidden)
+                    </Label>
+                </div>
 
-            {/* content.text */}
-            <div className="space-y-1">
-                <Label className="text-xs text-gray-500">content.text</Label>
+                {/* Campos base */}
+                <div className="grid grid-cols-2 gap-3">
+                    {baseFields.map((f) => (
+                        <div key={f.key}>
+                            <Label className="text-xs text-gray-500">
+                                {f.label}
+                            </Label>
+                            <Input
+                                value={decodeURIComponent(
+                                    (nodeData[f.key] as string) || ''
+                                )}
+                                onChange={(e) =>
+                                    handleFieldChange(
+                                        f.key,
+                                        encodeURIComponent(e.target.value)
+                                    )
+                                }
+                                placeholder={f.placeholder}
+                                className="text-xs"
+                            />
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* 💬 CONTENIDO PRINCIPAL */}
+            <section>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    💬 Mensaje principal (content.text)
+                </Label>
                 <Textarea
                     value={qr.content.text}
                     onChange={(e) => handleContentTextChange(e.target.value)}
@@ -187,10 +234,10 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
                     rows={4}
                     className="font-mono text-xs"
                 />
-            </div>
+            </section>
 
-            {/* 🔘 Opciones dinámicas */}
-            <div className="space-y-3">
+            {/* 🧩 OPCIONES */}
+            <section className="space-y-3">
                 <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         Opciones (postbackText / title / conexión)
@@ -228,7 +275,6 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
                             </div>
 
                             <div className="grid grid-cols-3 gap-2">
-                                {/* postbackText */}
                                 <div>
                                     <Label className="text-xs text-gray-500">
                                         postbackText
@@ -262,7 +308,6 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
                                     </Select>
                                 </div>
 
-                                {/* title */}
                                 <div className="col-span-2">
                                     <Label className="text-xs text-gray-500">
                                         title
@@ -292,13 +337,13 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
                                     }
                                     availableNodes={availableNodes}
                                     accentColor="text-emerald-600"
-                                    deferred={true}
+                                    deferred
                                 />
                             </div>
                         </div>
                     ))}
                 </div>
-            </div>
+            </section>
         </div>
     )
 }

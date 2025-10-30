@@ -1,5 +1,4 @@
 // src/store/GetDataComplete/useGetDataCompleteListStore.ts
-
 'use client'
 
 import { create } from 'zustand'
@@ -38,17 +37,42 @@ interface ListStoreState {
         index: number,
         title: string
     ) => void
+
+    /* ---------------------------------------------------------------------- */
+    /* 🧱 Campos base del objeto principal                                    */
+    /* ---------------------------------------------------------------------- */
+
+    /** ✏️ Actualiza el valor de un campo genérico del nodo */
+    updateField: (
+        nodeId: string,
+        field:
+            | 'condition'
+            | 'groodText'
+            | 'setvar'
+            | 'variable'
+            | 'alias'
+            | 'iterations'
+            | 'timeOut',
+        value: string
+    ) => void
+
+    /** ⚙️ Actualiza setvariables (pares clave-valor) */
+    updateSetVariables: (nodeId: string, vars: Record<string, string>) => void
+
+    /** 🧩 Alterna el valor booleano de saveHidden */
+    toggleSaveHidden: (nodeId: string, value: boolean) => void
 }
 
 /**
- * 🔵 useGetDataCompleteListStore (v2.2 – Fully Typed)
+ * 🔵 useGetDataCompleteListStore (v3.6 – Extended + saveHidden)
  * ------------------------------------------------------------
- * - Maneja items, options y globalButtons del tipo ListInteractive
- * - Sincroniza con useGetDataCompleteBaseStore
- * - Tipado completo con seguridad ante nodos inexistentes o tipo inválido
+ * - Controla items, opciones, botones globales y campos base del nodo
+ * - Añade manejo completo del campo booleano `saveHidden`
  */
 export const useGetDataCompleteListStore = create<ListStoreState>(() => ({
-    /** 🧱 Añade un nuevo bloque de opciones */
+    /* ---------------------------------------------------------------------- */
+    /* 🧩 FUNCIONES EXISTENTES                                                 */
+    /* ---------------------------------------------------------------------- */
     addListItem: (nodeId, title = 'Elija una opción') => {
         const base = useGetDataCompleteBaseStore.getState()
         const node: GetDataCompleteObject = base.getNodeData(nodeId)
@@ -63,7 +87,6 @@ export const useGetDataCompleteListStore = create<ListStoreState>(() => ({
         base.setNodeData(nodeId, { interactive: updated })
     },
 
-    /** 🧱 Añade una nueva opción dentro de un bloque */
     addOption: (nodeId, itemIndex) => {
         const base = useGetDataCompleteBaseStore.getState()
         const node: GetDataCompleteObject = base.getNodeData(nodeId)
@@ -89,7 +112,6 @@ export const useGetDataCompleteListStore = create<ListStoreState>(() => ({
         base.setNodeData(nodeId, { interactive: updated })
     },
 
-    /** 🗑️ Elimina una opción dentro de un bloque */
     removeOption: (nodeId, itemIndex, optionIndex) => {
         const base = useGetDataCompleteBaseStore.getState()
         const node: GetDataCompleteObject = base.getNodeData(nodeId)
@@ -109,7 +131,6 @@ export const useGetDataCompleteListStore = create<ListStoreState>(() => ({
         base.setNodeData(nodeId, { interactive: updated })
     },
 
-    /** 🔘 Añade un nuevo botón global */
     addGlobalButton: (nodeId, title = '') => {
         const base = useGetDataCompleteBaseStore.getState()
         const node: GetDataCompleteObject = base.getNodeData(nodeId)
@@ -126,7 +147,6 @@ export const useGetDataCompleteListStore = create<ListStoreState>(() => ({
         base.setNodeData(nodeId, { interactive: updated })
     },
 
-    /** 🗑️ Elimina un botón global */
     removeGlobalButton: (nodeId, index) => {
         const base = useGetDataCompleteBaseStore.getState()
         const node: GetDataCompleteObject = base.getNodeData(nodeId)
@@ -143,7 +163,6 @@ export const useGetDataCompleteListStore = create<ListStoreState>(() => ({
         base.setNodeData(nodeId, { interactive: updated })
     },
 
-    /** ✏️ Actualiza título de un botón global */
     updateGlobalButtonTitle: (nodeId, index, title) => {
         const base = useGetDataCompleteBaseStore.getState()
         const node: GetDataCompleteObject = base.getNodeData(nodeId)
@@ -161,5 +180,48 @@ export const useGetDataCompleteListStore = create<ListStoreState>(() => ({
         }
 
         base.setNodeData(nodeId, { interactive: updated })
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* 🧱 CAMPOS BASE DEL NODO PRINCIPAL                                       */
+    /* ---------------------------------------------------------------------- */
+
+    updateField: (nodeId, field, value) => {
+        const base = useGetDataCompleteBaseStore.getState()
+        const current: GetDataCompleteObject = base.getNodeData(nodeId)
+        if (!current) return
+
+        const updated: GetDataCompleteObject = {
+            ...current,
+            [field]: value,
+        }
+
+        base.setNodeData(nodeId, updated)
+    },
+
+    updateSetVariables: (nodeId, vars) => {
+        const base = useGetDataCompleteBaseStore.getState()
+        const current: GetDataCompleteObject = base.getNodeData(nodeId)
+        if (!current) return
+
+        const updated: GetDataCompleteObject = {
+            ...current,
+            setvariables: { ...vars },
+        }
+
+        base.setNodeData(nodeId, updated)
+    },
+
+    toggleSaveHidden: (nodeId, value) => {
+        const base = useGetDataCompleteBaseStore.getState()
+        const current: GetDataCompleteObject = base.getNodeData(nodeId)
+        if (!current) return
+
+        const updated: GetDataCompleteObject = {
+            ...current,
+            saveHidden: value,
+        }
+
+        base.setNodeData(nodeId, updated)
     },
 }))

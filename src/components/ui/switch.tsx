@@ -1,29 +1,43 @@
-import * as React from "react"
-import * as SwitchPrimitive from "@radix-ui/react-switch"
+'use client'
 
-import { cn } from "@/lib/utils"
+import * as React from 'react'
+import * as SwitchPrimitive from '@radix-ui/react-switch'
+import { cn } from '@/lib/utils'
 
-function Switch({
-  className,
-  ...props
-}: React.ComponentProps<typeof SwitchPrimitive.Root>) {
-  return (
+/**
+ * 🟢 Switch (v2.0 – estilo Bootstrap)
+ * -----------------------------------------------------
+ * - Verde Bootstrap (bg-[#198754]) cuando está activo
+ * - Gris claro cuando está inactivo
+ * - Puntero blanco con sombra
+ * - Transición suave y accesible
+ */
+const Switch = React.forwardRef<
+    React.ElementRef<typeof SwitchPrimitive.Root>,
+    React.ComponentPropsWithoutRef<typeof SwitchPrimitive.Root>
+>(({ className, ...props }, ref) => (
     <SwitchPrimitive.Root
-      data-slot="switch"
-      className={cn(
-        "peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-input/80 inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
-        className
-      )}
-      {...props}
-    >
-      <SwitchPrimitive.Thumb
-        data-slot="switch-thumb"
+        ref={ref}
+        data-slot="switch"
         className={cn(
-          "bg-background dark:data-[state=unchecked]:bg-foreground dark:data-[state=checked]:bg-primary-foreground pointer-events-none block size-4 rounded-full ring-0 transition-transform data-[state=checked]:translate-x-[calc(100%-2px)] data-[state=unchecked]:translate-x-0"
+            'peer relative inline-flex h-[1.25rem] w-[2.5rem] shrink-0 cursor-pointer items-center rounded-full border border-transparent transition-all duration-300 outline-none',
+            // 🎨 Fondo dinámico estilo Bootstrap
+            'data-[state=checked]:bg-[#198754] data-[state=unchecked]:bg-gray-300',
+            'focus-visible:ring-2 focus-visible:ring-[#198754]/40 disabled:cursor-not-allowed disabled:opacity-50',
+            className
         )}
-      />
+        {...props}
+    >
+        <SwitchPrimitive.Thumb
+            data-slot="switch-thumb"
+            className={cn(
+                'pointer-events-none block h-[1rem] w-[1rem] rounded-full bg-white shadow-md transition-transform duration-300',
+                // 🟢 Movimiento del thumb
+                'data-[state=checked]:translate-x-[1.25rem] data-[state=unchecked]:translate-x-[0.125rem]'
+            )}
+        />
     </SwitchPrimitive.Root>
-  )
-}
+))
+Switch.displayName = 'Switch'
 
 export { Switch }
