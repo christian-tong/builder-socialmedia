@@ -1,5 +1,4 @@
 // src\components\forms\FormTimeConditionNode.tsx
-
 'use client'
 
 import React, { useEffect } from 'react'
@@ -37,8 +36,8 @@ const DAYS = [
  * 🕓 FormTimeConditionNode
  * --------------------------------------------------
  * - Define días y horas de condición
+ * - Autoparsea "condition" al cargar desde JSON
  * - Usa lógica modular de conexiones
- * - Mismo estilo que el resto de formularios
  */
 export default function FormTimeConditionNode({
     id,
@@ -58,7 +57,23 @@ export default function FormTimeConditionNode({
         toggleConnection,
     } = useNodeConnections(id)
 
-    // 🧩 Genera la condición automática (ej: mon-fri,09:00-18:00)
+    /**
+     * 🧩 1️⃣ Parse automático cuando llega una condición preexistente (desde importador)
+     * Ej: "mon-fri,09:00-19:00" → descompone en dayStart, dayEnd, startTime, endTime
+     */
+    useEffect(() => {
+        if (data.condition && !data.dayStart) {
+            const [days, hours] = data.condition.split(',')
+            const [dayStart, dayEnd] = days.split('-')
+            const [startTime, endTime] = hours.split('-')
+            updateNodeData(id, { dayStart, dayEnd, startTime, endTime })
+        }
+    }, [data.condition, data.dayStart, id, updateNodeData])
+
+    /**
+     * 🧩 2️⃣ Genera la condición combinada en tiempo real
+     * Ej: mon-fri,09:00-18:00
+     */
     useEffect(() => {
         if (data.dayStart && data.dayEnd && data.startTime && data.endTime) {
             const condition = `${data.dayStart}-${data.dayEnd},${data.startTime}-${data.endTime}`
@@ -190,18 +205,6 @@ export default function FormTimeConditionNode({
                         />
                     </div>
                 </div>
-            </div>
-
-            {/* 🔹 Resultado */}
-            <div className="flex flex-col gap-2">
-                <Label className="text-sm font-medium">
-                    Condición generada
-                </Label>
-                <Input
-                    value={data.condition || ''}
-                    readOnly
-                    className="bg-gray-100 font-mono text-xs dark:bg-gray-800"
-                />
             </div>
         </div>
     )
