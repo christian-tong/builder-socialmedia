@@ -4,7 +4,6 @@ import FormChatBotIARequestNode from '@/components/forms/FormChatBotIARequestNod
 import FormDerivateNode from '@/components/forms/FormDerivateNode'
 import FormEndNode from '@/components/forms/FormEndNode'
 import FormGenerateTokenNode from '@/components/forms/FormGenerateTokenNode'
-import FormMenuNode from '@/components/forms/FormMenuNode'
 import FormMySQLQueryNode from '@/components/forms/FormMySQLQueryNode'
 import FormNoOpNode from '@/components/forms/FormNoOpNode'
 import FormSaveRecordNode from '@/components/forms/FormSaveRecordNode'

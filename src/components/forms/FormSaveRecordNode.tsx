@@ -1,6 +1,5 @@
 // src/components/forms/FormSaveRecordNode.tsx
 
-// src/components/forms/FormSaveRecordNode.tsx
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -28,12 +27,12 @@ interface KeyValue {
 }
 
 /**
- * 🧾 FormSaveRecordNode (v1.6 – Tipado seguro)
+ * 🧾 FormSaveRecordNode (v1.7 – Extensión visual “data”)
  * ------------------------------------------------------
- * ✅ Tipos compatibles con SaveRecordObject
- * ✅ Corrección completa de setLocalData
- * ✅ Sin errores TS2345
- * ✅ Mismo comportamiento funcional
+ * ✅ Tipado seguro
+ * ✅ Conserva el comportamiento funcional
+ * ✅ [object Object] en modo visual si existe objeto anidado
+ * ✅ JSON completo en modo JSON
  */
 export default function FormSaveRecordNode({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
@@ -69,7 +68,10 @@ export default function FormSaveRecordNode({ id, data }: any) {
                     Object.entries(parsed).map(([k, v]) => ({
                         id: crypto.randomUUID(),
                         key: k,
-                        value: String(v),
+                        value:
+                            typeof v === 'object'
+                                ? '[object Object]'
+                                : String(v),
                     }))
                 )
         } catch {
@@ -92,19 +94,38 @@ export default function FormSaveRecordNode({ id, data }: any) {
         }
     }, [id])
 
+    // 🔧 Helper: reconstruye body manteniendo objetos anidados
+    const reconstructBody = (pairs: KeyValue[], originalBody?: string) => {
+        try {
+            const base = JSON.parse(originalBody || '{}')
+            const result: Record<string, any> = { ...base }
+
+            pairs.forEach((p) => {
+                // Si el campo ya es un objeto (como data), se conserva
+                if (p.key in result && typeof result[p.key] === 'object') {
+                    return
+                }
+                result[p.key] = p.value
+            })
+
+            return JSON.stringify(result, null, 2)
+        } catch {
+            return JSON.stringify(
+                Object.fromEntries(pairs.map((p) => [p.key, p.value])),
+                null,
+                2
+            )
+        }
+    }
+
     // 💾 Guardado diferido (solo ejecuta al confirmar cambios globales)
     useEffect(() => {
         registerSaveCallback(id, () => {
             const current = getNodeData(id)
 
-            // Serializa visual → JSON
             const finalBody = jsonMode
                 ? localData.body || '{}'
-                : JSON.stringify(
-                      Object.fromEntries(pairs.map((p) => [p.key, p.value])),
-                      null,
-                      2
-                  )
+                : reconstructBody(pairs, current.body)
 
             const finalAuthBody = authJsonMode
                 ? localData.auth?.body || '{}'
@@ -244,7 +265,7 @@ export default function FormSaveRecordNode({ id, data }: any) {
                 </Badge>
             </div>
 
-            {/* 🔗 Acordeones de conexiones */}
+            {/* 🔗 Conexiones */}
             <div className="flex flex-col gap-3">
                 <NodeConnectionsAccordion
                     title="Nodo anterior"
@@ -438,7 +459,7 @@ export default function FormSaveRecordNode({ id, data }: any) {
                 <Textarea
                     value={localData.body || ''}
                     onChange={(e) => handleChange('body', e.target.value)}
-                    placeholder='{"field_167":"${SECTOR}","field_169":"${NOMBRE_APELLIDOS}"}'
+                    placeholder='{"field_167":"${SECTOR}","data":{"gestionId":"${TX_GESTIONID}"}}'
                     className="font-mono text-xs"
                     rows={8}
                 />

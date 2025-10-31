@@ -1,4 +1,6 @@
 // src\lib\jsonImporterWiContact.ts
+
+// src/lib/jsonImporterWiContact.ts
 import type { Edge, Node } from 'reactflow'
 import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
@@ -6,11 +8,12 @@ import type { GetDataCompleteObject } from '@/types/getDataComplete'
 import { nodeTypes } from '@/config/nodesConfig'
 
 /**
- * 🔁 convertWiContactToFlow (v5.1 – Filtra nodos soportados + Log de faltantes)
+ * 🔁 convertWiContactToFlow (v5.2 – SaveRecord Integration Ready)
  * ------------------------------------------------------------------------
- * ✅ Muestra solo los nodos compatibles con tu proyecto actual.
- * ✅ Imprime en consola los tipos que faltan implementar.
- * ✅ Mantiene compatibilidad con WiContact y osm_wsp.json.
+ * ✅ Integración completa con useSaveRecordStore (fase estructural)
+ * ✅ Muestra solo nodos compatibles y loguea los faltantes
+ * ✅ Mantiene compatibilidad con WiContact y osm_wsp.json
+ * ✅ Evita duplicados y errores de referencia
  */
 export function convertWiContactToFlow(json: any): {
     nodes: Node[]
@@ -59,7 +62,7 @@ export function convertWiContactToFlow(json: any): {
         })
     }
 
-    console.groupCollapsed('🧩 [Importer v5.1] WiContact / osm_wsp → Flow')
+    console.groupCollapsed('🧩 [Importer v5.2] WiContact / osm_wsp → Flow')
     console.log('Total steps:', steps.length)
 
     // ========================
@@ -113,7 +116,7 @@ export function convertWiContactToFlow(json: any): {
             case 'getdata':
             case 'getdata_v2':
             case 'get_data':
-            case 'menu':
+            case 'menu': {
                 nodeType = 'menuNode'
                 const interactive = object.interactive ?? {}
                 const setvars = object.setvariables || {}
@@ -161,6 +164,7 @@ export function convertWiContactToFlow(json: any): {
                 variantStore.setVariantConditions(id, conditions)
                 nodeData = { label: id, object: fullObject }
                 break
+            }
 
             case 'chatbotiarequest':
                 nodeType = 'chatBotIARequestNode'
@@ -172,14 +176,46 @@ export function convertWiContactToFlow(json: any): {
                 }
                 break
 
-            case 'saverecord':
+            // 🧾 SaveRecord Integration (v5.2)
+            case 'saverecord': {
                 nodeType = 'saveRecordNode'
+
+                // 🧠 Importa dinámicamente el store
+                const saveRecordStore =
+                    require('@/store/useSaveRecordStore').useSaveRecordStore.getState()
+
+                const auth = {
+                    headers: object?.auth?.headers || {},
+                    vartoken: object?.auth?.vartoken || '',
+                    body: object?.auth?.body || '{}',
+                    url: object?.auth?.url || '',
+                }
+
+                const body = object?.body || '{}'
+
+                // 🧱 Construcción del objeto completo
+                const fullObject = {
+                    auth,
+                    body,
+                    nextNodeId: step?.onTrue || undefined,
+                }
+
+                // 🔹 Guardar en store (persistente)
+                saveRecordStore.initNode(id)
+                saveRecordStore.setNodeData(id, fullObject)
+
+                // 🔹 Datos visuales para React Flow
                 nodeData = {
                     label: id,
-                    table: object.table || '',
-                    values: object.values || {},
+                    ...fullObject,
                 }
+
+                console.log(
+                    `💾 [Importer] SaveRecord inicializado: ${id}`,
+                    fullObject
+                )
                 break
+            }
 
             case 'variables':
                 nodeType = 'variablesNode'
@@ -219,7 +255,7 @@ export function convertWiContactToFlow(json: any): {
                 continue
         }
 
-        // ✅ Solo agregamos nodos que existen en nodeTypes registrados
+        // ✅ Solo agregamos nodos registrados en nodeTypes
         if (nodeType && nodeTypes[nodeType]) {
             nodes.push({
                 id,
@@ -261,6 +297,16 @@ export function convertWiContactToFlow(json: any): {
         console.table([...unsupported].map((t) => ({ tipo: t })))
     } else {
         console.log('✅ Todos los tipos de nodos están soportados.')
+    }
+
+    // 🧠 Snapshot opcional del SaveRecordStore
+    try {
+        const { useSaveRecordStore } = require('@/store/useSaveRecordStore')
+        console.groupCollapsed('🧾 SaveRecordStore Snapshot')
+        console.log(useSaveRecordStore.getState().nodes)
+        console.groupEnd()
+    } catch {
+        /* ignora si no está disponible */
     }
 
     console.groupEnd()

@@ -12,13 +12,6 @@ import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useSaveRecordStore } from '@/store/useSaveRecordStore'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 
-/**
- * 🧾 SaveRecordNode (v1.4 – Integrado con useNodeConnections)
- * ------------------------------------------------------------
- * ✅ Refleja conexiones reales (prev / next)
- * ✅ Mantiene el patrón diferido (solo renderiza datos guardados)
- * ✅ Estructura coherente con SimpleTextNode
- */
 export default function SaveRecordNode({ id, data }: any) {
     const { setSelectedNode } = useNodeConfigStore()
     const { orientation } = useFlowOrientationStore()
@@ -27,11 +20,27 @@ export default function SaveRecordNode({ id, data }: any) {
 
     const nodeData = getNodeData(id)
     const url = nodeData?.auth?.url?.trim() || '(sin URL)'
-    const bodyPreview = nodeData?.body
-        ? nodeData.body.length > 100
-            ? nodeData.body.slice(0, 100) + '...'
-            : nodeData.body
-        : '{}'
+
+    // 🔹 Preprocesar body para mostrarlo con saltos de línea y solo 5 primeras líneas
+    let formattedBody = '{}'
+    if (nodeData?.body) {
+        try {
+            const json = JSON.parse(nodeData.body)
+            const pretty = JSON.stringify(json, null, 2)
+            const lines = pretty.split('\n')
+            formattedBody =
+                lines.length > 5
+                    ? lines.slice(0, 5).join('\n') + '\n...'
+                    : pretty
+        } catch {
+            // Si no es JSON válido, solo recortar el texto plano
+            const lines = nodeData.body.split('\n')
+            formattedBody =
+                lines.length > 5
+                    ? lines.slice(0, 5).join('\n') + '\n...'
+                    : nodeData.body
+        }
+    }
 
     const targetPosition =
         orientation === 'vertical' ? Position.Top : Position.Left
@@ -64,17 +73,25 @@ export default function SaveRecordNode({ id, data }: any) {
 
                 {/* 🔸 Contenido */}
                 <div className="space-y-1 px-3 py-2 text-[11px] leading-tight text-gray-200">
-                    <div>
+                    <div className="flex items-start gap-1">
                         <span className="font-semibold text-amber-300">
                             URL:
-                        </span>{' '}
-                        {url}
+                        </span>
+                        <span
+                            className="block max-w-[190px] truncate"
+                            title={url}
+                        >
+                            {url}
+                        </span>
                     </div>
+
                     <div className="rounded-md border border-amber-700/40 bg-amber-900/30 px-2 py-1 font-mono text-[10px] whitespace-pre-wrap text-amber-200">
                         <span className="font-semibold text-amber-400">
                             Body:
-                        </span>{' '}
-                        {bodyPreview}
+                        </span>
+                        <pre className="mt-0.5 max-h-[80px] overflow-hidden whitespace-pre-wrap">
+                            {formattedBody}
+                        </pre>
                     </div>
                 </div>
 

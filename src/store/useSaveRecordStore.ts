@@ -39,11 +39,11 @@ interface SaveRecordState {
 }
 
 /**
- * 🧩 useSaveRecordStore (v2.0 — con post-save callback)
+ * 🧩 useSaveRecordStore (v2.1 — preserva objetos anidados en body)
  * ------------------------------------------------------------
- * ✅ Compatible con FlowAutoEdgeSync
- * ✅ Patrón diferido seguro
- * ✅ Callbacks reutilizables por tipo de nodo
+ * ✅ Evita que body convierta objetos a "[object Object]"
+ * ✅ Conserva estructura JSON completa
+ * ✅ Total compatibilidad con el patrón diferido
  */
 export const useSaveRecordStore = create<SaveRecordState>((set, get) => ({
     nodes: {},
@@ -72,7 +72,25 @@ export const useSaveRecordStore = create<SaveRecordState>((set, get) => ({
             get().initNode(nodeId)
             return get().nodes[nodeId]
         }
-        return node
+
+        // Asegura que body sea siempre un string JSON válido
+        try {
+            if (typeof node.body === 'object') {
+                return {
+                    ...node,
+                    body: JSON.stringify(node.body, null, 2),
+                }
+            }
+
+            // Si es string pero no es JSON válido, mantenerlo
+            JSON.parse(node.body)
+            return node
+        } catch {
+            return {
+                ...node,
+                body: JSON.stringify({ raw: node.body || '' }, null, 2),
+            }
+        }
     },
 
     /** 💾 Merge y guardado seguro */
@@ -84,18 +102,45 @@ export const useSaveRecordStore = create<SaveRecordState>((set, get) => ({
                 nextNodeId: undefined,
             }
 
+            let normalizedBody = data.body ?? current.body
+
+            // 🔧 Si viene como objeto, serializarlo
+            if (typeof normalizedBody === 'object') {
+                try {
+                    normalizedBody = JSON.stringify(normalizedBody, null, 2)
+                } catch {
+                    normalizedBody = '{}'
+                }
+            }
+
+            // 🔧 Si es string pero parece JSON inválido, intentar repararlo
+            if (typeof normalizedBody === 'string') {
+                try {
+                    JSON.parse(normalizedBody)
+                } catch {
+                    normalizedBody = JSON.stringify(
+                        { value: normalizedBody },
+                        null,
+                        2
+                    )
+                }
+            }
+
             const merged: SaveRecordObject = {
                 ...current,
                 ...data,
+                body: normalizedBody,
                 auth: { ...current.auth, ...(data.auth || {}) },
             }
 
             const updated = { ...state.nodes, [nodeId]: merged }
+
             if (state.debug)
                 console.log(
                     `💾 [SaveRecordStore] Nodo actualizado: ${nodeId}`,
                     merged
                 )
+
             return { nodes: updated }
         })
     },
