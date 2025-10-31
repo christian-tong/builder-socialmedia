@@ -3,13 +3,14 @@ import type { Edge, Node } from 'reactflow'
 import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
 import type { GetDataCompleteObject } from '@/types/getDataComplete'
+import { nodeTypes } from '@/config/nodesConfig'
 
 /**
- * 🔁 convertWiContactToFlow (v4.4 – Stable Global Edge IDs + Safe Handles)
+ * 🔁 convertWiContactToFlow (v5.1 – Filtra nodos soportados + Log de faltantes)
  * ------------------------------------------------------------------------
- * - IDs 100% únicos con crypto.randomUUID()
- * - Ignora handles no definidos aún (previene error #008)
- * - Mantiene compatibilidad con GetDataComplete y auto-sync Zustand
+ * ✅ Muestra solo los nodos compatibles con tu proyecto actual.
+ * ✅ Imprime en consola los tipos que faltan implementar.
+ * ✅ Mantiene compatibilidad con WiContact y osm_wsp.json.
  */
 export function convertWiContactToFlow(json: any): {
     nodes: Node[]
@@ -21,36 +22,32 @@ export function convertWiContactToFlow(json: any): {
 
     const nodes: Node<any>[] = []
     const edges: Edge<any>[] = []
-    const conditionMap = new Map<string, Record<string, string>>()
-    const pendingEdges: Edge[] = []
+    const unsupported: Set<string> = new Set()
 
-    const variantStore = useVariantTypeStore.getState()
     const gdcBaseStore = useGetDataCompleteBaseStore.getState()
+    const variantStore = useVariantTypeStore.getState()
 
-    /** 🆔 Genera IDs únicos globales */
     const edgeGlobalUID = () => crypto.randomUUID()
 
-    /** 🔗 Helper seguro: evita duplicados y valida handle */
+    /** 🔗 Helper seguro para edges */
     const addEdge = (
         source: string,
         target?: string,
         handle?: string,
         label?: string
     ) => {
-        if (!target) return
-        if (!source) return
-        if (source === target) return
-
+        if (!target || !source || source === target) return
         const id = `edge-${source}-${handle || 'auto'}-${target}-${edgeGlobalUID()}`
-        const exists = edges.some(
-            (e) =>
-                e.source === source &&
-                e.target === target &&
-                e.sourceHandle === handle
+        if (
+            edges.some(
+                (e) =>
+                    e.source === source &&
+                    e.target === target &&
+                    e.sourceHandle === handle
+            )
         )
-        if (exists) return
-
-        const edge: Edge = {
+            return
+        edges.push({
             id,
             source,
             target,
@@ -59,22 +56,10 @@ export function convertWiContactToFlow(json: any): {
             type: 'smoothstep',
             animated: true,
             style: { strokeWidth: 1.8 },
-        }
-
-        // Si el handle parece no existir aún (ej. list-0, back), lo marcamos como pendiente
-        if (
-            handle &&
-            (handle.startsWith('list-') ||
-                handle.startsWith('qr-') ||
-                handle === 'back')
-        ) {
-            pendingEdges.push(edge)
-        } else {
-            edges.push(edge)
-        }
+        })
     }
 
-    console.groupCollapsed('🧩 [Importer] WiContact → Flow (v4.4)')
+    console.groupCollapsed('🧩 [Importer v5.1] WiContact / osm_wsp → Flow')
     console.log('Total steps:', steps.length)
 
     // ========================
@@ -83,139 +68,83 @@ export function convertWiContactToFlow(json: any): {
     for (const step of steps) {
         const { id, action = '', object = {} } = step
         const lower = String(action).toLowerCase()
+        let nodeType: string | null = null
+        let nodeData: any = {}
 
         switch (lower) {
             case 'startstep':
-                nodes.push({
-                    id,
-                    type: 'startNode',
-                    position: { x: 0, y: 0 },
-                    data: { label: id },
-                })
+                nodeType = 'startNode'
+                nodeData = { label: id }
                 break
 
             case 'simpletext':
             case 'simple_text':
             case 'simpletextnode':
-                nodes.push({
-                    id,
-                    type: 'simpleTextNode',
-                    position: { x: 0, y: 0 },
-                    data: {
-                        label: id,
-                        groodText: object.groodText || '',
-                        description: decodeURIComponent(
-                            object.description || ''
-                        ),
-                        message: decodeURIComponent(
-                            object.text || object.prompt || ''
-                        ),
-                    },
-                })
+                nodeType = 'simpleTextNode'
+                nodeData = {
+                    label: id,
+                    message: decodeURIComponent(
+                        object.text || object.prompt || ''
+                    ),
+                }
                 break
 
             case 'derivate':
-                nodes.push({
-                    id,
-                    type: 'derivateNode',
-                    position: { x: 0, y: 0 },
-                    data: {
-                        label: id,
-                        skill: object.skill ? Number(object.skill) : null,
-                        timeoutMessage: decodeURIComponent(
-                            object.timeoutMessage || ''
-                        ),
-                        queueMessage: decodeURIComponent(
-                            object.queueMessage || ''
-                        ),
-                        inboundMessage: decodeURIComponent(
-                            object.inboundMessage || ''
-                        ),
-                    },
-                })
+                nodeType = 'derivateNode'
+                nodeData = {
+                    label: id,
+                    skill: object.skill ? Number(object.skill) : null,
+                    timeoutMessage: decodeURIComponent(
+                        object.timeoutMessage || ''
+                    ),
+                    queueMessage: decodeURIComponent(object.queueMessage || ''),
+                    inboundMessage: decodeURIComponent(
+                        object.inboundMessage || ''
+                    ),
+                }
                 break
 
-            case 'timecondition': {
-                const cond: string = object.condition || ''
-                const [days, times] = cond.split(',')
-                const [dayStart, dayEnd] = (days || '').split('-')
-                const [startTime, endTime] = (times || '').split('-')
-                nodes.push({
-                    id,
-                    type: 'timeConditionNode',
-                    position: { x: 0, y: 0 },
-                    data: {
-                        label: id,
-                        condition: cond,
-                        dayStart: dayStart || '',
-                        dayEnd: dayEnd || '',
-                        startTime: startTime || '',
-                        endTime: endTime || '',
-                    },
-                })
-                break
-            }
-
-            case 'hangup':
-                nodes.push({
-                    id,
-                    type: 'endNode',
-                    position: { x: 0, y: 0 },
-                    data: { label: id, hangupCause: object.HangupCause || '' },
-                })
+            case 'timecondition':
+                nodeType = 'timeConditionNode'
+                nodeData = { label: id, condition: object.condition || '' }
                 break
 
-            // 🟣 GetDataComplete / MenuNode
             case 'getdatacomplete':
             case 'getdata':
             case 'getdata_v2':
             case 'get_data':
-            case 'menu': {
+            case 'menu':
+                nodeType = 'menuNode'
                 const interactive = object.interactive ?? {}
                 const setvars = object.setvariables || {}
                 const conditions = object.conditions || {}
-
                 const isList =
                     interactive.type === 'list' ||
                     Object.keys(setvars).length > 4
                 const variantType = isList ? 'list' : 'quick_reply'
-
                 const rawOptions =
-                    interactive?.options ??
-                    interactive?.items?.[0]?.options ??
+                    interactive.options ??
+                    interactive.items?.[0]?.options ??
                     Object.entries(setvars).map(([key, title]) => ({
                         postbackText: key,
                         title,
                     }))
-
                 const options = rawOptions.map((opt: any, i: number) => ({
                     postbackText: String(opt.postbackText ?? i + 1),
                     title: decodeURIComponent(opt.title || ''),
-                    type: opt.type || 'text',
                 }))
-
                 const prompt = decodeURIComponent(
                     interactive.body ||
                         interactive.content?.text ||
                         object.prompt ||
                         ''
                 )
-
-                const description = decodeURIComponent(object.description || '')
-
                 const fullObject: GetDataCompleteObject = {
                     id,
                     action: 'getdatacomplete',
                     alias: object.alias || '',
                     variable: object.variable || '',
-                    groodText: object.groodText || '',
                     prompt,
-                    description,
-                    setvar: object.setvar || '',
-                    condition: object.condition || '',
-                    iterations: object.iterations || '',
-                    timeOut: object.timeOut || '',
-                    saveHidden: object.saveHidden ?? false,
                     setvariables: setvars,
                     conditions,
                     interactive: {
@@ -225,41 +154,81 @@ export function convertWiContactToFlow(json: any): {
                         items: isList ? interactive.items || [] : undefined,
                     },
                 }
-
                 gdcBaseStore.initNode(id)
                 gdcBaseStore.setNodeData(id, fullObject)
                 variantStore.setVariantType(id, variantType)
                 variantStore.setVariantOptions(id, options)
                 variantStore.setVariantConditions(id, conditions)
-                conditionMap.set(id, conditions)
-
-                nodes.push({
-                    id,
-                    type: 'menuNode',
-                    position: { x: 0, y: 0 },
-                    data: {
-                        label: id,
-                        alias: fullObject.alias,
-                        variable: fullObject.variable,
-                        message: fullObject.prompt,
-                        saveHidden: fullObject.saveHidden,
-                        object: fullObject,
-                    },
-                })
+                nodeData = { label: id, object: fullObject }
                 break
-            }
+
+            case 'chatbotiarequest':
+                nodeType = 'chatBotIARequestNode'
+                nodeData = {
+                    label: id,
+                    prompt: object.prompt || '',
+                    model: object.model || 'gpt-3.5-turbo',
+                    variable: object.variable || '',
+                }
+                break
+
+            case 'saverecord':
+                nodeType = 'saveRecordNode'
+                nodeData = {
+                    label: id,
+                    table: object.table || '',
+                    values: object.values || {},
+                }
+                break
+
+            case 'variables':
+                nodeType = 'variablesNode'
+                nodeData = { label: id, variables: object.variables || {} }
+                break
+
+            case 'mysqlquery':
+                nodeType = 'mysqlQueryNode'
+                nodeData = {
+                    label: id,
+                    query: object.query || '',
+                    assignTo: object.assignTo || '',
+                }
+                break
+
+            case 'generatetoken':
+                nodeType = 'generateTokenNode'
+                nodeData = {
+                    label: id,
+                    tokenName: object.tokenName || '',
+                    expiresIn: object.expiresIn || '',
+                }
+                break
+
+            case 'noop':
+                nodeType = 'noopNode'
+                nodeData = { label: id }
+                break
+
+            case 'hangup':
+                nodeType = 'endNode'
+                nodeData = { label: id, hangupCause: object.HangupCause || '' }
+                break
 
             default:
-                nodes.push({
-                    id,
-                    type: 'simpleTextNode',
-                    position: { x: 0, y: 0 },
-                    data: {
-                        label: `${id} (${action})`,
-                        message: '[Acción no soportada]',
-                    },
-                })
-                break
+                unsupported.add(lower)
+                continue
+        }
+
+        // ✅ Solo agregamos nodos que existen en nodeTypes registrados
+        if (nodeType && nodeTypes[nodeType]) {
+            nodes.push({
+                id,
+                type: nodeType,
+                position: { x: 0, y: 0 },
+                data: nodeData,
+            })
+        } else if (nodeType) {
+            unsupported.add(nodeType)
         }
     }
 
@@ -267,58 +236,33 @@ export function convertWiContactToFlow(json: any): {
     // 🔗 PASADA 2: CREAR EDGES
     // ==========================
     for (const step of steps) {
-        const { id, action, onTrue, onFalse, onError, object = {} } = step
-
+        const { id, onTrue, onFalse, onError, object = {} } = step
         addEdge(id, onTrue, 'onTrue')
         addEdge(id, onFalse, 'onFalse')
         addEdge(id, onError, 'onError')
-
-        const lower = String(action || '').toLowerCase()
-        if (
-            ['getdatacomplete', 'getdata', 'getdata_v2', 'get_data'].includes(
-                lower
-            )
-        ) {
-            const conds = object.conditions || {}
-            const interactive = object.interactive ?? {}
-            const setvars = object.setvariables || {}
-            const isList =
-                interactive.type === 'list' || Object.keys(setvars).length > 4
-            const rawOptions =
-                interactive.options ??
-                interactive.items?.[0]?.options ??
-                Object.entries(setvars).map(([key, title]) => ({
-                    postbackText: key,
-                    title,
-                }))
-
-            rawOptions.forEach((opt: any) => {
-                const key = String(opt.postbackText)
-                const target = conds?.[key]
-                if (target)
-                    addEdge(id, target, `${variantTypeHandle(isList)}-${key}`)
-            })
-        }
+        if (object?.nextNodeId) addEdge(id, object.nextNodeId, 'onSuccess')
     }
 
-    for (const [childId, conds] of conditionMap.entries()) {
-        const parentId = conds['0']
-        if (parentId) addEdge(childId, parentId, 'back', '🔙 Menú anterior')
-    }
-
-    nodes.forEach((node, i) => {
-        node.position = { x: (i % 5) * 320, y: Math.floor(i / 5) * 220 }
+    // 📍 Layout básico
+    nodes.forEach((n, i) => {
+        n.position = { x: (i % 5) * 320, y: Math.floor(i / 5) * 220 }
     })
 
-    // ✅ Merge final de edges y pendientes
-    const finalEdges = [...edges, ...pendingEdges]
+    console.log(
+        '✅ Nodos renderizados:',
+        nodes.length,
+        '| Edges:',
+        edges.length
+    )
 
-    console.log('✅ Total Edges:', finalEdges.length)
+    // 🧾 Log de tipos faltantes
+    if (unsupported.size > 0) {
+        console.warn('⚠️ Tipos de nodos no soportados detectados:')
+        console.table([...unsupported].map((t) => ({ tipo: t })))
+    } else {
+        console.log('✅ Todos los tipos de nodos están soportados.')
+    }
+
     console.groupEnd()
-
-    return { nodes, edges: finalEdges }
-}
-
-function variantTypeHandle(isList: boolean) {
-    return isList ? 'list' : 'qr'
+    return { nodes, edges }
 }
