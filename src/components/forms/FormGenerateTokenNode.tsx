@@ -24,7 +24,7 @@ import {
     type GenerateTokenObject,
 } from '@/store/useGenerateTokenStore'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Code } from 'lucide-react'
 
 interface KeyValue {
     id: string
@@ -32,6 +32,14 @@ interface KeyValue {
     value: string
 }
 
+/**
+ * 🪄 FormGenerateTokenNode (v1.6 – Fix ancho + JSON)
+ * -------------------------------------------------------
+ * ✅ Ajuste de ancho automático con grid fluido
+ * ✅ Corrige error TS de tipo body (string vs Record)
+ * ✅ Modo visual / JSON compatible con SaveRecord
+ * ✅ Mantiene diseño violeta coherente
+ */
 export default function FormGenerateTokenNode({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
@@ -46,6 +54,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
 
     const [localData, setLocalData] = useState<Partial<GenerateTokenObject>>({})
     const [pairs, setPairs] = useState<KeyValue[]>([])
+    const [jsonMode, setJsonMode] = useState(false)
 
     /** 🧩 Inicialización */
     useEffect(() => {
@@ -57,30 +66,49 @@ export default function FormGenerateTokenNode({ id, data }: any) {
             Object.entries(body).map(([k, v]) => ({
                 id: crypto.randomUUID(),
                 key: k,
-                value: v,
+                value: String(v),
             }))
         )
     }, [id])
 
-    /** 💾 Guardado diferido */
+    /** 💾 Guardado diferido (con tipos correctos) */
     useEffect(() => {
         registerSaveCallback(id, () => {
-            const mergedBody = Object.fromEntries(
-                pairs.map((p) => [p.key, p.value])
-            )
+            let parsedBody: Record<string, string> = {}
+
+            if (jsonMode) {
+                try {
+                    const raw = localData.body
+                    const bodyString =
+                        typeof raw === 'string'
+                            ? raw
+                            : JSON.stringify(raw ?? {}, null, 2)
+
+                    parsedBody = JSON.parse(bodyString)
+                } catch {
+                    parsedBody = {}
+                }
+            } else {
+                parsedBody = Object.fromEntries(
+                    pairs.map((p) => [p.key, p.value])
+                )
+            }
+
             const merged: GenerateTokenObject = {
                 ...getNodeData(id),
                 ...localData,
-                body: mergedBody,
+                body: parsedBody,
             }
+
             setNodeData(id, merged)
             updateNodeData(id, { ...data, object: merged })
         })
+
         return () => unregisterSaveCallback(id)
-    }, [id, pairs, localData])
+    }, [id, pairs, localData, jsonMode])
 
     /** ✏️ Helpers */
-    const handleChange = (field: keyof GenerateTokenObject, value: string) =>
+    const handleChange = (field: keyof GenerateTokenObject, value: any) =>
         setLocalData((prev) => ({ ...prev, [field]: value }))
 
     const addPair = () =>
@@ -93,7 +121,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
         )
 
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex w-full flex-col gap-6 overflow-x-auto">
             {/* 🔗 Conexiones */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
@@ -114,7 +142,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
             />
 
             {/* ⚙️ Configuración principal */}
-            <div className="space-y-3">
+            <div className="w-full space-y-3">
                 <Label className="text-sm font-semibold text-[#AA3E98]">
                     🪄 Modo
                 </Label>
@@ -137,57 +165,91 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                     value={localData.text || ''}
                     onChange={(e) => handleChange('text', e.target.value)}
                     placeholder="Clic aquí"
-                    className="border-[#AA3E98] text-xs focus-visible:ring-[#AA3E98]"
+                    className="w-full border-[#AA3E98] text-xs focus-visible:ring-[#AA3E98]"
                 />
 
-                <Label className="text-sm font-semibold text-[#AA3E98]">
-                    📦 Parámetros (body)
-                </Label>
-                <div className="flex flex-col gap-2">
-                    <div className="flex justify-between text-[11px] font-semibold text-[#AA3E98] uppercase">
-                        <span>KEY</span>
-                        <span>VALUE</span>
-                    </div>
-                    {pairs.map((p) => (
-                        <div
-                            key={p.id}
-                            className="flex items-center gap-2 border-b pb-1 dark:border-gray-800"
-                        >
-                            <Input
-                                value={p.key}
-                                onChange={(e) =>
-                                    updatePair(p.id, 'key', e.target.value)
-                                }
-                                placeholder="clave"
-                                className="border-[#AA3E98] text-xs"
-                            />
-                            <Input
-                                value={p.value}
-                                onChange={(e) =>
-                                    updatePair(p.id, 'value', e.target.value)
-                                }
-                                placeholder="valor"
-                                className="border-[#AA3E98] text-xs"
-                            />
-                            <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => removePair(p.id)}
-                                className="text-red-500 hover:text-red-600"
-                            >
-                                <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                        </div>
-                    ))}
+                {/* BODY */}
+                <div className="mt-3 flex items-center justify-between">
+                    <Label className="text-sm font-semibold text-[#AA3E98]">
+                        📦 Parámetros (body)
+                    </Label>
                     <Button
                         size="sm"
                         variant="outline"
-                        onClick={addPair}
-                        className="mt-1 border-[#AA3E98] bg-[#AA3E98] text-white hover:bg-[#922F84]"
+                        onClick={() => setJsonMode((p) => !p)}
+                        className="flex items-center gap-1 border-[#AA3E98] bg-[#AA3E98] text-white hover:bg-[#922F84]"
                     >
-                        <Plus className="mr-1 h-3.5 w-3.5" /> Agregar parámetro
+                        <Code className="h-3.5 w-3.5" />
+                        {jsonMode ? 'Modo Visual' : 'Modo JSON'}
                     </Button>
                 </div>
+
+                {!jsonMode ? (
+                    <div className="flex w-full flex-col gap-2 overflow-x-auto">
+                        <div className="flex justify-between text-[11px] font-semibold text-[#AA3E98] uppercase">
+                            <span>KEY</span>
+                            <span>VALUE</span>
+                        </div>
+
+                        {pairs.map((p) => (
+                            <div
+                                key={p.id}
+                                className="flex items-center gap-2 border-b pb-1 dark:border-gray-800"
+                            >
+                                <Input
+                                    value={p.key}
+                                    onChange={(e) =>
+                                        updatePair(p.id, 'key', e.target.value)
+                                    }
+                                    placeholder="clave"
+                                    className="min-w-0 flex-1 border-[#AA3E98] text-xs"
+                                />
+                                <Input
+                                    value={p.value}
+                                    onChange={(e) =>
+                                        updatePair(
+                                            p.id,
+                                            'value',
+                                            e.target.value
+                                        )
+                                    }
+                                    placeholder="valor"
+                                    className="min-w-0 flex-1 border-[#AA3E98] text-xs"
+                                />
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => removePair(p.id)}
+                                    className="text-red-500 hover:text-red-600"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                            </div>
+                        ))}
+
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={addPair}
+                            className="mt-1 border-[#AA3E98] bg-[#AA3E98] text-white hover:bg-[#922F84]"
+                        >
+                            <Plus className="mr-1 h-3.5 w-3.5" /> Agregar
+                            parámetro
+                        </Button>
+                    </div>
+                ) : (
+                    <Textarea
+                        value={
+                            typeof localData.body === 'string'
+                                ? localData.body
+                                : JSON.stringify(localData.body || {}, null, 2)
+                        }
+                        onChange={(e) => handleChange('body', e.target.value)}
+                        placeholder='{"skillNumber":"10008","gestionId":"${TX_GESTIONID}"}'
+                        className="w-full resize-y overflow-auto font-mono text-xs focus-visible:ring-[#AA3E98]"
+                        rows={8}
+                    />
+                )}
 
                 <Label className="mt-3 text-sm font-semibold text-[#AA3E98]">
                     📝 Script (HTML)
@@ -196,7 +258,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                     value={localData.script || ''}
                     onChange={(e) => handleChange('script', e.target.value)}
                     placeholder="Hola ${NOMBRE_APELLIDOS}, ..."
-                    className="font-mono text-xs focus-visible:ring-[#AA3E98]"
+                    className="w-full resize-y overflow-auto font-mono text-xs focus-visible:ring-[#AA3E98]"
                     rows={8}
                 />
             </div>

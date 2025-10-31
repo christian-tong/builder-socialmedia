@@ -166,6 +166,62 @@ export function convertWiContactToFlow(json: any): {
                 break
             }
 
+            case 'generatetoken': {
+                nodeType = 'generateTokenNode'
+
+                // 🧠 Acceso dinámico al store
+                const tokenStore =
+                    require('@/store/useGenerateTokenStore').useGenerateTokenStore.getState()
+
+                // 🧱 Normalización de datos del JSON
+                const mode = object?.mode || 'simpletext'
+                const text = object?.text || ''
+                const bodyRaw = object?.body || ''
+                const script = object?.script || ''
+
+                // 🧩 Transformar "body" de texto plano a objeto clave/valor
+                let bodyObj: Record<string, string> = {}
+                try {
+                    if (typeof bodyRaw === 'string' && bodyRaw.includes('=')) {
+                        bodyRaw.split(',').forEach((pair: string) => {
+                            const [key, val] = pair.split('=')
+                            if (key && val) bodyObj[key.trim()] = val.trim()
+                        })
+                    } else if (typeof bodyRaw === 'object') {
+                        bodyObj = bodyRaw
+                    }
+                } catch (err) {
+                    console.warn(
+                        `⚠️ [Importer] Error parseando body en ${id}:`,
+                        err
+                    )
+                }
+
+                // 🧠 Construcción final del objeto de store
+                const fullObject = {
+                    mode,
+                    text,
+                    body: bodyObj,
+                    script,
+                }
+
+                // 💾 Guardar en Zustand
+                tokenStore.initNode(id)
+                tokenStore.setNodeData(id, fullObject)
+
+                // 🎨 Datos del nodo para React Flow
+                nodeData = {
+                    label: id,
+                    ...fullObject,
+                }
+
+                console.log(
+                    `🔑 [Importer] GenerateToken cargado: ${id}`,
+                    fullObject
+                )
+                break
+            }
+
             case 'chatbotiarequest':
                 nodeType = 'chatBotIARequestNode'
                 nodeData = {

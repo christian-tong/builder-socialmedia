@@ -34,7 +34,7 @@ export function SidebarRight({ isOpen, children, onSave }: SidebarRightProps) {
                     ? 'border-gray-800 bg-[#141416] text-gray-200'
                     : 'border-gray-200 bg-white text-gray-800',
                 isOpen
-                    ? 'w-[320px] translate-x-0 opacity-100 sm:w-[380px]'
+                    ? 'w-[320px] translate-x-0 opacity-100 sm:w-[540px]'
                     : 'pointer-events-none w-0 translate-x-10 opacity-0'
             )}
         >

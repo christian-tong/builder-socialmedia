@@ -21,46 +21,76 @@ export default function GenerateTokenNode({ id, data }: any) {
     const handleSource =
         orientation === 'vertical' ? Position.Bottom : Position.Right
 
+    // 🧩 Formatear body como SaveRecordNode ({} con saltos y 5 líneas)
+    let formattedBody = '{}'
+    if (nodeData?.body) {
+        try {
+            const json = JSON.parse(
+                typeof nodeData.body === 'string'
+                    ? nodeData.body
+                    : JSON.stringify(nodeData.body)
+            )
+            const pretty = JSON.stringify(json, null, 2)
+            const lines = pretty.split('\n')
+            formattedBody =
+                lines.length > 5
+                    ? lines.slice(0, 5).join('\n') + '\n...'
+                    : pretty
+        } catch {
+            const text = String(nodeData.body)
+            const lines = text.split('\n')
+            formattedBody =
+                lines.length > 5 ? lines.slice(0, 5).join('\n') + '\n...' : text
+        }
+    }
+
     return (
         <motion.div
             layout
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 70, damping: 12 }}
         >
             <Card
                 onClick={(e) => {
                     e.stopPropagation()
                     setSelectedNode({ id, type: 'generateTokenNode', data })
                 }}
-                className="relative w-[240px] cursor-pointer rounded-xl border border-[#AA3E98] bg-[#C969B9] p-3 text-white shadow-md transition hover:shadow-lg"
+                className="relative w-[240px] cursor-pointer overflow-hidden rounded-xl border border-[#AA3E98] bg-[#C969B9] p-3 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
             >
-                <div className="mb-1 flex items-center gap-2">
-                    <KeyRound className="h-4 w-4 text-white" />
-                    <span className="text-sm font-semibold">
-                        {data?.label || id}
-                    </span>
-                </div>
-                <div className="text-[11px] leading-tight text-gray-300">
-                    <div>
-                        <span className="font-semibold text-white">
-                            Modo:
-                        </span>{' '}
-                        {nodeData.mode}
-                    </div>
-                    <div>
-                        <span className="font-semibold text-white">
-                            Texto:
-                        </span>{' '}
-                        {nodeData.text}
-                    </div>
-                    <div className="truncate">
-                        <span className="font-semibold text-white">
-                            Body:
-                        </span>{' '}
-                        {Object.keys(nodeData.body || {}).length} params
+                {/* 🔹 Encabezado */}
+                <div className="flex items-center justify-between border-b border-white/20 pb-1">
+                    <div className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4 text-white" />
+                        <span className="text-sm font-semibold">
+                            {data?.label || 'Generate Token'}
+                        </span>
                     </div>
                 </div>
 
+                {/* 🔸 Contenido */}
+                <div className="space-y-1 pt-2 text-[11px] leading-tight text-gray-200">
+                    <div>
+                        <span className="font-semibold text-white">Modo:</span>{' '}
+                        {nodeData.mode || '(sin modo)'}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Texto:</span>{' '}
+                        {nodeData.text || '(sin texto)'}
+                    </div>
+
+                    {/* 🧾 Body con {} y saltos como SaveRecordNode */}
+                    <div className="rounded-md border border-white/20 bg-white/10 px-2 py-1 font-mono text-[10px] whitespace-pre-wrap text-white">
+                        <span className="font-semibold text-[#FFE6F8]">
+                            Body:
+                        </span>
+                        <pre className="mt-0.5 max-h-[80px] overflow-hidden whitespace-pre-wrap">
+                            {formattedBody}
+                        </pre>
+                    </div>
+                </div>
+
+                {/* 🟣 Handles */}
                 <Handle
                     type="target"
                     position={handleTarget}
