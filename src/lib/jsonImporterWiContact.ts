@@ -112,6 +112,30 @@ export function convertWiContactToFlow(json: any): {
                 nodeData = { label: id, condition: object.condition || '' }
                 break
 
+            // 🧩 NUEVO: switchcondition
+            case 'switchcondition':
+                nodeType = 'switchConditionNode'
+                nodeData = {
+                    label: id,
+                    variable: object.variable || '',
+                    alias: object.alias || '',
+                    setvariables: object.setvariables || {},
+                    conditions: object.conditions || {},
+                    body: object.body || 'strict',
+                }
+                break
+
+            // 🧩 NUEVO: setvariables
+            case 'setvariables':
+                nodeType = 'variablesNode'
+                try {
+                    const parsed = JSON.parse(object.setvars || '{}')
+                    nodeData = { label: id, variables: parsed }
+                } catch {
+                    nodeData = { label: id, variables: {} }
+                }
+                break
+
             case 'getdatacomplete':
             case 'getdata':
             case 'getdata_v2':
@@ -226,9 +250,10 @@ export function convertWiContactToFlow(json: any): {
                 nodeType = 'chatBotIARequestNode'
                 nodeData = {
                     label: id,
-                    prompt: object.prompt || '',
-                    model: object.model || 'gpt-3.5-turbo',
                     variable: object.variable || '',
+                    url: object.url || '',
+                    body: object.body || '',
+                    prompt: object.prompt || '',
                 }
                 break
 
@@ -273,7 +298,7 @@ export function convertWiContactToFlow(json: any): {
                 break
             }
 
-            case 'variables':
+            case 'setvariables':
                 nodeType = 'variablesNode'
                 nodeData = { label: id, variables: object.variables || {} }
                 break
@@ -283,16 +308,9 @@ export function convertWiContactToFlow(json: any): {
                 nodeData = {
                     label: id,
                     query: object.query || '',
-                    assignTo: object.assignTo || '',
-                }
-                break
-
-            case 'generatetoken':
-                nodeType = 'generateTokenNode'
-                nodeData = {
-                    label: id,
-                    tokenName: object.tokenName || '',
-                    expiresIn: object.expiresIn || '',
+                    variable: object.variable || '',
+                    alias: object.alias || '',
+                    script: object.script || '',
                 }
                 break
 
