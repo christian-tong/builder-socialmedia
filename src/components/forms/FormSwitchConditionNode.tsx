@@ -2,7 +2,7 @@
 
 'use client'
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { NodeConnectionsAccordion } from '@/components/shared/NodeConnectionsAccordion'
 import { NodeSelectAccordion } from '@/components/shared/NodeSelectAccordion'
 import { Badge } from '@/components/ui/badge'
@@ -29,6 +29,13 @@ import {
     AccordionContent,
 } from '@/components/ui/accordion'
 
+/**
+ * 🧩 FormSwitchConditionNode (v2.1 — AutoSync Import Data)
+ * ------------------------------------------------------------------
+ * ✅ Sincroniza automáticamente data.object al init
+ * ✅ Soporta condiciones preexistentes desde import WiContact
+ * ✅ Usa `body` como modo (strict/flex)
+ */
 export default function FormSwitchConditionNode({
     id,
     data,
@@ -49,11 +56,6 @@ export default function FormSwitchConditionNode({
         removeConnection,
     } = useSwitchConditionStore()
 
-    React.useEffect(() => {
-        initNode(id)
-    }, [id, initNode])
-
-    const cfg = byId[id]
     const {
         prevNodes,
         nextNodes,
@@ -62,6 +64,46 @@ export default function FormSwitchConditionNode({
         removeConnection: removeFlowConn,
     } = useNodeConnections(id)
 
+    // 🧠 Inicializa o sincroniza los datos importados
+    useEffect(() => {
+        initNode(id)
+        const cfg = byId[id]
+        const obj = data?.object
+
+        if (obj && cfg) {
+            // Cargar variable y alias
+            if (obj.variable) setVariable(id, obj.variable)
+            if (obj.alias) setAlias(id, obj.alias)
+            if (obj.body) setMode(id, obj.body)
+
+            // Cargar valores desde setvariables (ej: { "1": "SI" })
+            const importedValues = Object.values(obj.setvariables || {})
+            if (importedValues.length > 0) {
+                importedValues.forEach((val: string) => {
+                    if (!cfg.values.includes(val)) addValue(id, val)
+                })
+            }
+
+            // Cargar conexiones desde conditions
+            if (obj.conditions) {
+                Object.entries(obj.conditions).forEach(([condVal, target]) => {
+                    setConnection(id, condVal, target as string)
+                })
+            }
+        }
+    }, [
+        id,
+        initNode,
+        byId,
+        setVariable,
+        setAlias,
+        setMode,
+        addValue,
+        setConnection,
+        data,
+    ])
+
+    const cfg = byId[id]
     if (!cfg) return null
 
     // 🔸 Controla si SI o NO ya están usados
@@ -124,6 +166,7 @@ export default function FormSwitchConditionNode({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="strict">Estricto (=)</SelectItem>
+                            <SelectItem value="flex">Flexible (~)</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -139,7 +182,7 @@ export default function FormSwitchConditionNode({
                     className={`${
                         canAddMore
                             ? 'bg-green-500 text-white hover:bg-green-600'
-                            : 'cursor-not-allowed opacity text-white'
+                            : 'cursor-not-allowed text-white opacity-60'
                     }`}
                 >
                     <Plus className="mr-1 h-3.5 w-3.5" /> Agregar valor
@@ -151,8 +194,6 @@ export default function FormSwitchConditionNode({
                 {cfg.values.map((v, i) => {
                     const handleId = getSwitchHandleId(id, v)
                     const selectedNext = cfg.connections?.[v] || ''
-                    const isSI = v === 'SI'
-                    const isNO = v === 'NO'
                     const options = ['SI', 'NO']
 
                     return (

@@ -70,7 +70,9 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                             variable: '',
                             alias: '',
                             mode: 'strict',
-                            values: ['SI', 'NO'],
+                            // ❌ Antes: values: ['SI', 'NO']
+                            // ✅ Ahora: sin valores por defecto
+                            values: [],
                             setvariables: [],
                             connections: {},
                         },

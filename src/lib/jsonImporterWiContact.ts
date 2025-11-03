@@ -1,16 +1,24 @@
 // src\lib\jsonImporterWiContact.ts
 
+// src/lib/jsonImporterWiContact.ts
 import type { Edge, Node } from 'reactflow'
 import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
-import type { GetDataCompleteObject } from '@/types/getDataComplete'
+import type {
+    GetDataCompleteObject,
+    InteractiveBlock,
+    QuickReplyInteractive,
+    ListInteractive,
+    GetDataInteractive,
+    SimpleTextInteractive,
+} from '@/types/getDataComplete'
 import { nodeTypes } from '@/config/nodesConfig'
 
 /**
- * 🔁 convertWiContactToFlow (v5.4 – Variant Auto Detection)
+ * 🔁 convertWiContactToFlow (v5.5 – Safe Variants & Store Sync)
  * ------------------------------------------------------------------------
- * ✅ Auto-detecta variantes GETDATA / SIMPLETEXT / QuickReply / List
- * ✅ Integración completa con useSaveRecordStore y useVariantTypeStore
+ * ✅ Auto-detecta variantes GETDATA / SIMPLETEXT / quick_reply / list (tipado estricto)
+ * ✅ Integra useSaveRecordStore, useVariantTypeStore y useSwitchConditionStore
  * ✅ Evita duplicados de IDs
  * ✅ Crea edges válidos y únicos
  * ✅ Soporta importación desde WiContact y osm_wsp.json
@@ -64,7 +72,7 @@ export function convertWiContactToFlow(json: any): {
         })
     }
 
-    console.groupCollapsed('🧩 [Importer v5.4] WiContact / osm_wsp → Flow')
+    console.groupCollapsed('🧩 [Importer v5.5] WiContact / osm_wsp → Flow')
     console.log('Total steps:', steps.length)
 
     // ========================
@@ -121,17 +129,65 @@ export function convertWiContactToFlow(json: any): {
                 nodeData = { label: id, condition: object.condition || '' }
                 break
 
-            case 'switchcondition':
+            case 'switchcondition': {
                 nodeType = 'switchConditionNode'
+
+                // 🔹 Extrae el objeto con seguridad
+                const variable: string = object.variable || ''
+                const alias: string = object.alias || ''
+                const setvariables: Record<string, string> =
+                    (object.setvariables as Record<string, string>) || {}
+                const conditions: Record<string, string> =
+                    (object.conditions as Record<string, string>) || {}
+                const mode: 'strict' | 'flex' =
+                    (object.body as 'strict' | 'flex') || 'strict'
+
+                // 🧠 Carga automática al store
+                const switchStore =
+                    require('@/store/useSwitchConditionStore').useSwitchConditionStore.getState()
+                switchStore.initNode(id)
+
+                // 🔄 Asigna campos principales
+                switchStore.setVariable(id, variable)
+                switchStore.setAlias(id, alias)
+                switchStore.setMode(id, mode)
+
+                // 🔹 Valores (setvariables) — tipado explícito
+                const values = Object.values(setvariables) as string[]
+                values.forEach((val) => {
+                    if (typeof val === 'string' && val.length > 0) {
+                        switchStore.addValue(id, val)
+                    }
+                })
+
+                // 🔗 Conexiones
+                Object.entries(conditions).forEach(([val, target]) => {
+                    if (typeof target === 'string' && target) {
+                        switchStore.setConnection(id, val, target)
+                    }
+                })
+
                 nodeData = {
                     label: id,
-                    variable: object.variable || '',
-                    alias: object.alias || '',
-                    setvariables: object.setvariables || {},
-                    conditions: object.conditions || {},
-                    body: object.body || 'strict',
+                    variable,
+                    alias,
+                    setvariables,
+                    conditions,
+                    body: mode,
                 }
+
+                console.log(
+                    `🪄 [Importer] SwitchCondition inicializado: ${id}`,
+                    {
+                        variable,
+                        alias,
+                        setvariables,
+                        conditions,
+                        body: mode,
+                    }
+                )
                 break
+            }
 
             case 'setvariables':
                 nodeType = 'variablesNode'
@@ -149,7 +205,7 @@ export function convertWiContactToFlow(json: any): {
              * Detecta automáticamente tipo de formulario:
              *  - "GETDATA" → FormGetDataCompleteGetData
              *  - "SIMPLETEXT" → FormGetDataCompleteSimpleText
-             *  - Otros → QuickReply / List
+             *  - Otros → quick_reply / list
              */
             case 'getdatacomplete':
             case 'getdata':
@@ -157,45 +213,105 @@ export function convertWiContactToFlow(json: any): {
             case 'get_data':
             case 'menu': {
                 nodeType = 'menuNode'
-                const interactive = object.interactive ?? {}
-                const setvars = object.setvariables || {}
-                const conditions = object.conditions || {}
 
-                // 🧠 Detección automática de variante
-                let variantType: string | null = null
-                const declaredType = String(object.type || '').toUpperCase()
+                const interactiveIn = object.interactive ?? {}
+                const setvars: Record<string, string> =
+                    (object.setvariables as Record<string, string>) || {}
+                const conditions: Record<string, string> =
+                    (object.conditions as Record<string, string>) || {}
 
-                if (declaredType === 'GETDATA') variantType = 'GETDATA'
-                else if (declaredType === 'SIMPLETEXT')
+                // 🧠 Detección automática de variante (tipos estrechos)
+                type Variant = 'GETDATA' | 'SIMPLETEXT' | 'quick_reply' | 'list'
+                const declaredRaw = String(object.type || '')
+                const declaredUp = declaredRaw.toUpperCase()
+
+                let variantType: Variant
+                if (declaredUp === 'GETDATA' || declaredUp === 'GET_DATA') {
+                    variantType = 'GETDATA'
+                } else if (
+                    declaredUp === 'SIMPLETEXT' ||
+                    declaredUp === 'SIMPLE_TEXT'
+                ) {
                     variantType = 'SIMPLETEXT'
-                else if (
-                    interactive.type === 'list' ||
+                } else if (
+                    interactiveIn.type === 'list' ||
                     Object.keys(setvars).length > 4
-                )
+                ) {
                     variantType = 'list'
-                else variantType = 'quick_reply'
+                } else {
+                    variantType = 'quick_reply'
+                }
 
-                // 🧩 Genera opciones legibles
+                // 🧩 Construcción de opciones legibles (solo quick_reply)
                 const rawOptions =
-                    interactive.options ??
-                    interactive.items?.[0]?.options ??
+                    interactiveIn.options ??
+                    interactiveIn.items?.[0]?.options ??
                     Object.entries(setvars).map(([key, title]) => ({
                         postbackText: key,
                         title,
                     }))
 
-                const options = rawOptions.map((opt: any, i: number) => ({
-                    postbackText: String(opt.postbackText ?? i + 1),
-                    title: decodeURIComponent(opt.title || ''),
-                }))
+                const options = (rawOptions || []).map(
+                    (opt: any, i: number) => ({
+                        postbackText: String(opt?.postbackText ?? i + 1),
+                        title: decodeURIComponent(String(opt?.title ?? '')),
+                        type: 'text' as const,
+                    })
+                )
 
                 const prompt = decodeURIComponent(
-                    interactive.body ||
-                        interactive.content?.text ||
+                    interactiveIn.body ||
+                        interactiveIn.content?.text ||
                         object.prompt ||
                         ''
                 )
+                const description: string = object.description || ''
 
+                // 💬 Interactive block por variante (tipado estricto)
+                let interactive: InteractiveBlock | undefined
+                if (variantType === 'quick_reply') {
+                    interactive = {
+                        type: 'quick_reply',
+                        msgid: 'qr_import',
+                        content: { text: prompt, type: 'text' },
+                        options,
+                        conditions: Object.keys(conditions).length
+                            ? conditions
+                            : undefined,
+                    } as QuickReplyInteractive
+                } else if (variantType === 'list') {
+                    const items = interactiveIn.items || [
+                        {
+                            title: 'Elija una opción',
+                            options: options.map((o) => ({
+                                ...o,
+                            })),
+                        },
+                    ]
+                    interactive = {
+                        type: 'list',
+                        body: prompt,
+                        items,
+                        globalButtons: interactiveIn.globalButtons || [],
+                        conditions: Object.keys(conditions).length
+                            ? conditions
+                            : undefined,
+                    } as ListInteractive
+                } else if (variantType === 'GETDATA') {
+                    interactive = {
+                        type: 'GETDATA',
+                        prompt,
+                        description,
+                    } as GetDataInteractive
+                } else if (variantType === 'SIMPLETEXT') {
+                    interactive = {
+                        type: 'SIMPLETEXT',
+                        prompt,
+                        description,
+                    } as SimpleTextInteractive
+                }
+
+                // 🧱 Objeto principal GetDataComplete (tipos seguros)
                 const fullObject: GetDataCompleteObject = {
                     id,
                     action: 'getdatacomplete',
@@ -204,29 +320,26 @@ export function convertWiContactToFlow(json: any): {
                     prompt,
                     setvariables: setvars,
                     conditions,
-                    type: variantType,
-                    interactive: {
-                        ...interactive,
-                        type: variantType?.toLowerCase?.() ?? 'quick_reply',
-                        options: !['list', 'GETDATA', 'SIMPLETEXT'].includes(
-                            variantType
-                        )
-                            ? options
-                            : undefined,
-                        items:
-                            variantType === 'list'
-                                ? interactive.items || []
-                                : undefined,
-                    },
+                    type: variantType, // ← union válida
+                    interactive,
+                    description,
+                    saveHidden: Boolean(object.saveHidden),
+                    setvar: object.setvar || '',
+                    condition: String(object.condition || ''),
+                    iterations: String(object.iterations || '1'),
+                    timeOut: String(object.timeOut || '60000'),
+                    groodText: object.groodText || '',
                 }
 
+                // 🧠 Stores: base + variantes SOLO cuando aplique
                 gdcBaseStore.initNode(id)
                 gdcBaseStore.setNodeData(id, fullObject)
 
-                // 🧩 Persistencia en stores de variantes
-                variantStore.setVariantType(id, variantType.toLowerCase())
-                variantStore.setVariantOptions(id, options)
-                variantStore.setVariantConditions(id, conditions)
+                if (variantType === 'quick_reply' || variantType === 'list') {
+                    variantStore.setVariantType(id, variantType) // tipado ok
+                    variantStore.setVariantOptions(id, options)
+                    variantStore.setVariantConditions(id, conditions)
+                }
 
                 nodeData = { label: id, object: fullObject }
 
@@ -354,15 +467,24 @@ export function convertWiContactToFlow(json: any): {
         addEdge(id, onTrue, 'onTrue')
         addEdge(id, onFalse, 'onFalse')
         addEdge(id, onError, 'onError')
-        if (object?.nextNodeId) addEdge(id, object.nextNodeId, 'onSuccess')
+        if ((object as any)?.nextNodeId)
+            addEdge(id, (object as any).nextNodeId, 'onSuccess')
 
-        const conditions = object?.conditions || {}
-        const interactiveType = object?.interactive?.type
-        const declaredType = String(object?.type || '').toUpperCase()
+        const conditions = (object as any)?.conditions as
+            | Record<string, string>
+            | undefined
+        const interactiveType = (object as any)?.interactive?.type as
+            | 'quick_reply'
+            | 'list'
+            | 'GETDATA'
+            | 'SIMPLETEXT'
+            | undefined
+        const declaredTypeUp = String((object as any)?.type || '').toUpperCase()
 
-        // 🔗 Manejo especial para GETDATA y SIMPLETEXT
+        // 🔗 Manejo especial para GETDATA y SIMPLETEXT (cond_*)
         if (
-            ['GETDATA', 'SIMPLETEXT'].includes(declaredType) &&
+            (declaredTypeUp === 'GETDATA' || declaredTypeUp === 'SIMPLETEXT') &&
+            conditions &&
             Object.keys(conditions).length
         ) {
             for (const [key, targetId] of Object.entries(conditions)) {
@@ -370,9 +492,10 @@ export function convertWiContactToFlow(json: any): {
             }
         }
 
-        // QuickReply / List
+        // 🔗 QuickReply / List (option_*)
         if (
-            ['quick_reply', 'list'].includes(interactiveType) &&
+            (interactiveType === 'quick_reply' || interactiveType === 'list') &&
+            conditions &&
             Object.keys(conditions).length
         ) {
             for (const [key, targetId] of Object.entries(conditions)) {
