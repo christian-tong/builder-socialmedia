@@ -25,7 +25,7 @@ export function Footer() {
                     : 'border-gray-200 bg-white text-gray-500'
             )}
         >
-            © {year} Flow Builder — powered by React Flow ⚙️
+            © {year} Builder Social Media — WiContact
         </footer>
     )
 }
