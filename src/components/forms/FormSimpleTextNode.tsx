@@ -1,4 +1,5 @@
 // src\components\forms\FormSimpleTextNode.tsx
+
 'use client'
 
 import React, { useEffect, useRef } from 'react'
@@ -13,11 +14,12 @@ import { useNodeConnections } from '@/hooks/useNodeConnections'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 
 /**
- * 📝 FormSimpleTextNode
+ * 📝 FormSimpleTextNode (v2.1 – estructura estandarizada)
  * --------------------------------------------------
- * - Modularizado con useNodeConnections
- * - Reutiliza los acordeones visuales e interactivos
- * - Mantiene autoajuste dinámico del textarea
+ * - Misma jerarquía visual que FormTimeConditionNode
+ * - Mantiene consistencia cromática y separadores
+ * - Usa solo una conexión condicional (onTrue)
+ * - Textarea con autoajuste dinámico
  */
 export default function FormSimpleTextNode({
     id,
@@ -29,13 +31,13 @@ export default function FormSimpleTextNode({
     const { updateNodeData } = useNodeConfigStore()
 
     // 🧠 Hook centralizado de conexiones
-    const {
-        prevNodes,
-        nextNodes,
-        availableNodes,
-        hasConnection,
-        toggleConnection,
-    } = useNodeConnections(id)
+    const { prevNodes, availableNodes, hasConnection, toggleConnection } =
+        useNodeConnections(id)
+
+    // 🔍 Filtra conexiones salientes específicas
+    const trueConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onTrue'))
+        .map((n) => n.id)
 
     // 🪶 Autoajuste del textarea
     const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -63,31 +65,35 @@ export default function FormSimpleTextNode({
                 </Badge>
             </div>
 
-            {/* 🔗 Acordeones de conexiones */}
-            <div className="flex flex-col gap-3">
+            {/* 🔗 Conexiones entrantes */}
+            <NodeConnectionsAccordion
+                title="Nodo anterior"
+                nodesList={prevNodes}
+                accentColor="text-sky-700 dark:text-sky-300"
+            />
+
+            {/* ⚡ Sección onTrue */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
+                    Conexión OnTrue
+                </Label>
                 <NodeConnectionsAccordion
-                    title="Nodo anterior"
-                    nodesList={prevNodes}
-                    accentColor="text-indigo-700 dark:text-indigo-300"
+                    title="Nodos conectados (onTrue)"
+                    nodesList={trueConnections}
+                    accentColor="text-green-700 dark:text-green-300"
                 />
-                <NodeConnectionsAccordion
-                    title="Nodo siguiente"
-                    nodesList={nextNodes}
-                    accentColor="text-indigo-700 dark:text-indigo-300"
+                <NodeSelectionAccordion
+                    title="Seleccionar nodo OnTrue"
+                    availableNodes={availableNodes}
+                    hasConnection={hasConnection}
+                    toggleConnection={toggleConnection}
+                    handleId="onTrue"
+                    accentColor="text-green-700 dark:text-green-300"
                 />
             </div>
 
-            {/* ⚡ Conectar / Desconectar nodos */}
-            <NodeSelectionAccordion
-                title="Conectar o desconectar nodos"
-                availableNodes={availableNodes}
-                hasConnection={hasConnection}
-                toggleConnection={toggleConnection}
-                accentColor="text-indigo-700 dark:text-indigo-300"
-            />
-
-            {/* 💬 Mensaje editable */}
-            <div className="mt-2 flex flex-col gap-2">
+            {/* 💬 Contenido del mensaje */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Mensaje</Label>
                 <Textarea
                     ref={textareaRef}

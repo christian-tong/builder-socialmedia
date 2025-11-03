@@ -2,26 +2,21 @@
 
 'use client'
 
-import { ChevronDown } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useFlowStore } from '@/store/useFlowStore'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
+import { NodeConnectionsAccordion } from '@/components/shared/NodeConnectionsAccordion'
 
 /**
- * 🟥 FormEndNode — Configuración del nodo final (Hangup)
+ * 🟥 FormEndNode (v2.1 – Estandarizado)
  * --------------------------------------------------
- * - Muestra el nodo anterior con acordeón (como los menús)
- * - Permite editar la causa del colgado (hangupCause)
- * - Usa estilo coherente con FormMenuNodeSecundario
+ * - Aplica estructura visual del Prompt Base v1.1
+ * - Solo incluye conexión entrante (prev)
+ * - Colores rojos coherentes con su tipo de nodo (fin de flujo)
+ * - Conserva campo editable `hangupCause`
  */
 export default function FormEndNode({
     id,
@@ -41,57 +36,6 @@ export default function FormEndNode({
         setPrevNodes(prev.map((n) => n.data?.label || n.id))
     }, [edges, nodes, id, getConnectedNodes])
 
-    // 📋 Render acordeón del nodo anterior (mismo estilo sky/secondary)
-    const renderNodeList = (
-        title: string,
-        nodesList: string[],
-        accent: string
-    ) => {
-        const visible = nodesList.slice(0, 1)
-        const hidden = nodesList.slice(1)
-
-        return (
-            <div className="flex flex-col gap-2">
-                <Label className={`text-sm font-medium ${accent}`}>
-                    {title}
-                </Label>
-
-                {nodesList.length === 0 ? (
-                    <p className="text-xs text-gray-500 italic">
-                        Ninguno conectado
-                    </p>
-                ) : (
-                    <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="list">
-                            <AccordionTrigger className="flex justify-between rounded-md bg-gray-100 px-3 py-2 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                                {visible[0]}
-                                {hidden.length > 0 && (
-                                    <span className="flex items-center gap-1 text-[10px] opacity-70">
-                                        {`+${hidden.length} más`}{' '}
-                                        <ChevronDown className="h-3 w-3" />
-                                    </span>
-                                )}
-                            </AccordionTrigger>
-
-                            {hidden.length > 0 && (
-                                <AccordionContent className="mt-1 space-y-1 rounded-md bg-gray-50 px-3 py-2 font-mono text-xs dark:bg-gray-900">
-                                    {hidden.map((n, i) => (
-                                        <div
-                                            key={i}
-                                            className="rounded px-2 py-1 transition hover:bg-gray-200 dark:hover:bg-gray-800"
-                                        >
-                                            {n}
-                                        </div>
-                                    ))}
-                                </AccordionContent>
-                            )}
-                        </AccordionItem>
-                    </Accordion>
-                )}
-            </div>
-        )
-    }
-
     return (
         <div className="flex flex-col gap-5">
             {/* 🏷️ Encabezado */}
@@ -107,17 +51,15 @@ export default function FormEndNode({
                 </Badge>
             </div>
 
-            {/* 🔗 Nodo anterior con acordeón */}
-            <div className="flex flex-col gap-3">
-                {renderNodeList(
-                    'Nodo anterior',
-                    prevNodes,
-                    'text-rose-700 dark:text-rose-300'
-                )}
-            </div>
+            {/* 🔗 Conexión entrante */}
+            <NodeConnectionsAccordion
+                title="Nodo anterior"
+                nodesList={prevNodes}
+                accentColor="text-sky-700 dark:text-sky-300"
+            />
 
             {/* ☎️ Causa del colgado */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Causa del colgado</Label>
                 <Input
                     value={data.hangupCause || ''}

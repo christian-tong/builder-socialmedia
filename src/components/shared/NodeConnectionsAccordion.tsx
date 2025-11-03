@@ -63,20 +63,52 @@ const colorMap = {
     },
 }
 
-/* 📘 NodeConnectionsAccordion – alineación del badge al lado del título */
+/* 📘 NodeConnectionsAccordion – badges inline o colapsables según cantidad */
 export function NodeConnectionsAccordion({
     title,
     nodesList,
     accentColor = 'text-gray-700 dark:text-gray-300',
 }: NodeConnectionsAccordionProps) {
+    const isPrevSection = title.toLowerCase().includes('anterior')
+    const showAccordion = isPrevSection && nodesList.length > 2
+    const visible = nodesList.slice(0, 2)
+    const hidden = nodesList.slice(2)
+
     return (
         <div className="flex flex-col gap-2">
-            {/* 🔹 Título + Badges en una sola línea */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label className={`text-sm font-medium ${accentColor}`}>
-                    {title}
-                </Label>
-                {nodesList.length > 0 && (
+            {/* 🔹 Caso sin nodos */}
+            {nodesList.length === 0 && (
+                <>
+                    <Label className={`text-sm font-medium ${accentColor}`}>
+                        {title}
+                    </Label>
+                    <div className="rounded-md border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                        No hay nodos conectados aún
+                    </div>
+                </>
+            )}
+
+            {/* 🔹 Caso con 1 badge → misma línea que el título */}
+            {nodesList.length === 1 && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label className={`text-sm font-medium ${accentColor}`}>
+                        {title}
+                    </Label>
+                    <Badge
+                        variant="outline"
+                        className="border-sky-300 bg-sky-50 px-2 py-0.5 text-[10px] text-sky-800 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+                    >
+                        {nodesList[0]}
+                    </Badge>
+                </div>
+            )}
+
+            {/* 🔹 Caso 2 badges o no-prev → badges inline normales */}
+            {!showAccordion && nodesList.length > 1 && (
+                <>
+                    <Label className={`text-sm font-medium ${accentColor}`}>
+                        {title}
+                    </Label>
                     <div className="flex flex-wrap gap-1">
                         {nodesList.map((n, i) => (
                             <Badge
@@ -88,20 +120,54 @@ export function NodeConnectionsAccordion({
                             </Badge>
                         ))}
                     </div>
-                )}
-            </div>
+                </>
+            )}
 
-            {/* Si no hay nodos, mostramos el mensaje */}
-            {nodesList.length === 0 && (
-                <div className="rounded-md border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                    No hay nodos conectados aún
-                </div>
+            {/* 🔹 Caso prevNodes grandes → vista colapsable */}
+            {showAccordion && (
+                <>
+                    <Label className={`text-sm font-medium ${accentColor}`}>
+                        {title}
+                    </Label>
+                    <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="prev-list">
+                            <AccordionTrigger className="flex justify-between rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-700 dark:bg-sky-900/10 dark:text-sky-300">
+                                <div className="flex flex-wrap gap-1">
+                                    {visible.map((n, i) => (
+                                        <Badge
+                                            key={i}
+                                            variant="outline"
+                                            className="border-sky-300 bg-sky-50 px-2 py-0.5 text-[10px] text-sky-800 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+                                        >
+                                            {n}
+                                        </Badge>
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-1 text-[10px] opacity-70">
+                                    {`+${hidden.length} más`}
+                                    <ChevronDown className="h-3 w-3" />
+                                </div>
+                            </AccordionTrigger>
+
+                            <AccordionContent className="mt-1 space-y-1 rounded-md border border-sky-100 bg-sky-50 px-3 py-2 text-xs dark:border-sky-800 dark:bg-sky-900/10">
+                                {hidden.map((n, i) => (
+                                    <div
+                                        key={i}
+                                        className="rounded-md px-2 py-1 transition hover:bg-sky-100 dark:hover:bg-sky-800/30"
+                                    >
+                                        {n}
+                                    </div>
+                                ))}
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                </>
             )}
         </div>
     )
 }
 
-/* 🧩 NodeSelectionAccordion (v2.3 – sin cambios funcionales, pero limpio visual) */
+/* 🧩 NodeSelectionAccordion (v2.5 – sin cambios funcionales) */
 export function NodeSelectionAccordion({
     title = 'Seleccionar conexión',
     availableNodes,
@@ -146,7 +212,7 @@ export function NodeSelectionAccordion({
                 </Badge>
             </div>
 
-            {/* 🪄 Selector limpio (fondo blanco) */}
+            {/* 🪄 Selector limpio */}
             <Accordion type="single" collapsible className="w-full">
                 <AccordionItem value="available">
                     <AccordionTrigger className="mt-1 flex justify-between rounded-md bg-white px-3 py-2 text-xs text-gray-700 shadow-sm dark:bg-gray-950 dark:text-gray-200">

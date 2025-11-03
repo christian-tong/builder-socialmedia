@@ -1,5 +1,4 @@
 // src\components\forms\FormDerivateNode.tsx
-
 'use client'
 
 import type React from 'react'
@@ -24,11 +23,12 @@ import { getSkills, type Skill } from '@/services/skillService'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 
 /**
- * 🟨 FormDerivateNode
+ * 🟨 FormDerivateNode (v2.2 – Estilo Estandarizado)
  * --------------------------------------------------
- * - Usa la lógica modular de conexiones (useNodeConnections)
- * - Reutiliza los acordeones visuales e interactivos
- * - Código limpio, mantenible y escalable
+ * - Adopta estructura completa del Prompt Base v1.1
+ * - Respeta jerarquía y colores onTrue / onFalse / onError
+ * - Incluye secciones separadas por border-t
+ * - Conserva lógica de skill, mensajes y auto-resize
  */
 export default function FormDerivateNode({
     id,
@@ -41,31 +41,37 @@ export default function FormDerivateNode({
     const [skills, setSkills] = useState<Skill[]>([])
 
     // 🧠 Hook de conexiones centralizado
-    const {
-        prevNodes,
-        nextNodes,
-        availableNodes,
-        hasConnection,
-        toggleConnection,
-    } = useNodeConnections(id)
+    const { prevNodes, availableNodes, hasConnection, toggleConnection } =
+        useNodeConnections(id)
 
-    // 🔹 Refs para autoajustar los textareas
-    const timeoutRef = useRef<HTMLTextAreaElement | null>(null)
-    const queueRef = useRef<HTMLTextAreaElement | null>(null)
-    const inboundRef = useRef<HTMLTextAreaElement | null>(null)
+    // 🔍 Filtrado de conexiones condicionales
+    const trueConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onTrue'))
+        .map((n) => n.id)
+    const falseConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onFalse'))
+        .map((n) => n.id)
+    const errorConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onError'))
+        .map((n) => n.id)
 
     // ⚙️ Cargar skills del servicio
     useEffect(() => {
         getSkills().then(setSkills)
     }, [])
 
-    // 🧠 Auto-ajuste de altura dinámico
+    // 🪶 Auto-ajuste de altura dinámica
     const autoResize = (ref: React.RefObject<HTMLTextAreaElement | null>) => {
         const el = ref.current
         if (!el) return
         el.style.height = 'auto'
         el.style.height = Math.min(el.scrollHeight, 400) + 'px'
     }
+
+    // Refs de textareas
+    const timeoutRef = useRef<HTMLTextAreaElement | null>(null)
+    const queueRef = useRef<HTMLTextAreaElement | null>(null)
+    const inboundRef = useRef<HTMLTextAreaElement | null>(null)
 
     useEffect(() => {
         autoResize(timeoutRef)
@@ -88,31 +94,35 @@ export default function FormDerivateNode({
                 </Badge>
             </div>
 
-            {/* 🔗 Acordeones de conexiones */}
-            <div className="flex flex-col gap-3">
+            {/* 🔗 Conexión entrante */}
+            <NodeConnectionsAccordion
+                title="Nodo anterior"
+                nodesList={prevNodes}
+                accentColor="text-sky-700 dark:text-sky-300"
+            />
+
+            {/* 🟢 Sección OnTrue */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
+                    Conexión OnTrue
+                </Label>
                 <NodeConnectionsAccordion
-                    title="Nodo anterior"
-                    nodesList={prevNodes}
-                    accentColor="text-amber-700 dark:text-amber-300"
+                    title="Nodos conectados (onTrue)"
+                    nodesList={trueConnections}
+                    accentColor="text-green-700 dark:text-green-300"
                 />
-                <NodeConnectionsAccordion
-                    title="Nodo siguiente"
-                    nodesList={nextNodes}
-                    accentColor="text-amber-700 dark:text-amber-300"
+                <NodeSelectionAccordion
+                    title="Seleccionar nodo OnTrue"
+                    availableNodes={availableNodes}
+                    hasConnection={hasConnection}
+                    toggleConnection={toggleConnection}
+                    handleId="onTrue"
+                    accentColor="text-green-700 dark:text-green-300"
                 />
             </div>
 
-            {/* ⚡ Acordeón interactivo para crear o quitar conexiones */}
-            <NodeSelectionAccordion
-                title="Conectar o desconectar nodos"
-                availableNodes={availableNodes}
-                hasConnection={hasConnection}
-                toggleConnection={toggleConnection}
-                accentColor="text-amber-700 dark:text-amber-300"
-            />
-
             {/* 🎯 Skill destino */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Skill destino</Label>
                 <Select
                     value={String(data.skill ?? '')}
@@ -140,7 +150,7 @@ export default function FormDerivateNode({
             </div>
 
             {/* 🕓 Timeout Message */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Timeout Message</Label>
                 <Textarea
                     ref={timeoutRef}
@@ -155,7 +165,7 @@ export default function FormDerivateNode({
             </div>
 
             {/* 🕓 Queue Message */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Queue Message</Label>
                 <Textarea
                     ref={queueRef}
@@ -170,7 +180,7 @@ export default function FormDerivateNode({
             </div>
 
             {/* 🕓 Inbound Message */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Inbound Message</Label>
                 <Textarea
                     ref={inboundRef}
