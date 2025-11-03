@@ -3,9 +3,17 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { Label } from '@/components/ui'
-import { NodeConnectionsAccordion } from '@/components/shared/NodeConnectionsAccordion'
-import { NodeFlowConnectionsManager } from '@/components/shared/NodeFlowConnectionsManager'
+import { Label, Badge } from '@/components/ui'
+import {
+    NodeConnectionsAccordion,
+    NodeSelectionAccordion,
+} from '@/components/shared/NodeConnectionsAccordion'
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from '@/components/ui/accordion'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import {
@@ -26,19 +34,24 @@ import {
 import { FormGetDataCompleteGetData } from './FormGetDataCompleteGetData'
 
 /**
- * 🧩 FormGetDataCompleteBase (v4.3 — Full Edge Sync: QR + LIST + GETDATA)
+ * 🧩 FormGetDataCompleteBase (v4.6 — Acordeón Centro de Control)
  * -------------------------------------------------------------------------
- * - Soporta QuickReply, List, GETDATA y SIMPLETEXT
- * - Crea automáticamente edges para GETDATA igual que QR/List
- * - Mantiene patrón de sincronización diferida
+ * - Agrupa onTrue / onFalse / onError en un acordeón “Centro de Control”
+ * - Mantiene compatibilidad con QuickReply, List, GETDATA, SimpleText
+ * - Conserva el patrón de sincronización diferida y estructura estándar
  */
 export default function FormGetDataCompleteBase({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
     const { initNode, getNodeData, setNodeData, onAfterSave } =
         useGetDataCompleteBaseStore()
-    const { createConnectionIfMissing, prevNodes, availableNodes } =
-        useNodeConnections(id)
+    const {
+        createConnectionIfMissing,
+        prevNodes,
+        availableNodes,
+        hasConnection,
+        toggleConnection,
+    } = useNodeConnections(id)
 
     const [localData, setLocalData] = useState<Partial<GetDataCompleteObject>>(
         {}
@@ -52,6 +65,9 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
         setLocalData(getNodeData(id))
     }, [id])
 
+    /* -------------------------------------------------------------------------- */
+    /* 💾 Callback de guardado diferido                                          */
+    /* -------------------------------------------------------------------------- */
     useEffect(() => {
         const saveFn = () => {
             const current = getNodeData(id)
@@ -126,7 +142,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
     }
 
     /* -------------------------------------------------------------------------- */
-    /* 🧩 Cambio de tipo interactivo dinámico                                     */
+    /* 🔄 Cambio de tipo interactivo dinámico                                     */
     /* -------------------------------------------------------------------------- */
     const handleInteractiveTypeChange = (
         value: 'quick_reply' | 'list' | 'GETDATA' | 'SIMPLETEXT'
@@ -138,29 +154,118 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
     const type = localData.interactive?.type || 'quick_reply'
 
     /* -------------------------------------------------------------------------- */
-    /* 🧱 Render                                                                 */
+    /* 🎨 Conexiones condicionales (siguiendo patrón FormTimeConditionNode)       */
+    /* -------------------------------------------------------------------------- */
+    const trueConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onTrue'))
+        .map((n) => n.data?.label || n.id)
+    const falseConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onFalse'))
+        .map((n) => n.data?.label || n.id)
+    const errorConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onError'))
+        .map((n) => n.data?.label || n.id)
+
+    /* -------------------------------------------------------------------------- */
+    /* 🧱 Render                                                                  */
     /* -------------------------------------------------------------------------- */
     return (
         <div className="flex flex-col gap-6">
-            {/* 🔗 Conexiones principales */}
+            {/* 🏷️ Encabezado */}
+            <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
+                <Label className="text-sm font-semibold text-purple-600 dark:text-purple-300">
+                    Configuración GetDataComplete
+                </Label>
+                <Badge
+                    variant="outline"
+                    className="border-purple-300 bg-purple-50 px-2 py-0.5 text-[10px] text-purple-800 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                >
+                    {id}
+                </Badge>
+            </div>
+
+            {/* 🔗 Conexión entrante */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
-                accentColor="text-purple-600"
+                accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            <NodeFlowConnectionsManager
-                id={id}
-                data={data}
-                availableNodes={availableNodes}
-                updateNodeData={updateNodeData}
-                connections={['onTrue', 'onFalse', 'onError']}
-                accentColor="text-purple-600"
-                deferred
-            />
+            {/* ⚙️ Nodos siguientes (Centro de Control) */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="next-nodes">
+                        <AccordionTrigger className="rounded-md bg-purple-50 px-3 py-2 text-sm font-medium text-purple-700 dark:bg-purple-900/10 dark:text-purple-300">
+                            ⚡ Nodos siguientes (Centro de Control)
+                        </AccordionTrigger>
+
+                        <AccordionContent className="space-y-4 px-2 pt-2">
+                            {/* ⚡ Sección OnTrue */}
+                            <div className="flex flex-col gap-2">
+                                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
+                                    Conexión OnTrue
+                                </Label>
+                                <NodeConnectionsAccordion
+                                    title="Nodos conectados (onTrue)"
+                                    nodesList={trueConnections}
+                                    accentColor="text-green-700 dark:text-green-300"
+                                />
+                                <NodeSelectionAccordion
+                                    title="Seleccionar nodo OnTrue"
+                                    availableNodes={availableNodes}
+                                    hasConnection={hasConnection}
+                                    toggleConnection={toggleConnection}
+                                    handleId="onTrue"
+                                    accentColor="text-green-700 dark:text-green-300"
+                                />
+                            </div>
+
+                            {/* ⚡ Sección OnFalse */}
+                            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                                <Label className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                                    Conexión OnFalse
+                                </Label>
+                                <NodeConnectionsAccordion
+                                    title="Nodos conectados (onFalse)"
+                                    nodesList={falseConnections}
+                                    accentColor="text-rose-700 dark:text-rose-300"
+                                />
+                                <NodeSelectionAccordion
+                                    title="Seleccionar nodo OnFalse"
+                                    availableNodes={availableNodes}
+                                    hasConnection={hasConnection}
+                                    toggleConnection={toggleConnection}
+                                    handleId="onFalse"
+                                    accentColor="text-rose-700 dark:text-rose-300"
+                                />
+                            </div>
+
+                            {/* ⚡ Sección OnError */}
+                            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                                <Label className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                                    Conexión OnError
+                                </Label>
+                                <NodeConnectionsAccordion
+                                    title="Nodos conectados (onError)"
+                                    nodesList={errorConnections}
+                                    accentColor="text-amber-700 dark:text-amber-300"
+                                />
+                                <NodeSelectionAccordion
+                                    title="Seleccionar nodo OnError"
+                                    availableNodes={availableNodes}
+                                    hasConnection={hasConnection}
+                                    toggleConnection={toggleConnection}
+                                    handleId="onError"
+                                    accentColor="text-amber-700 dark:text-amber-300"
+                                />
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+            </div>
 
             {/* ⚙️ Configuración general */}
-            <div className="space-y-3">
+            <div className="space-y-3 border-t pt-3 dark:border-gray-800">
                 <div className="pt-2">
                     <Label className="mb-1 block text-sm font-medium">
                         Tipo interactivo

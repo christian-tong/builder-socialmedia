@@ -19,9 +19,7 @@ import {
 } from '@/types/getDataComplete'
 import { MessageSquare, ListTree, FileText, StickyNote } from 'lucide-react'
 
-/* -------------------------------------------------------------------------- */
-/* 💬 QuickReplyPreview                                                       */
-/* -------------------------------------------------------------------------- */
+/* -------------------- QuickReplyPreview -------------------- */
 function QuickReplyPreview({
     interactive,
     handleColor,
@@ -30,7 +28,6 @@ function QuickReplyPreview({
     handleColor: string
 }) {
     const options = interactive.options || []
-
     return (
         <div className="relative mt-2 space-y-1 text-xs">
             {options.map((opt, idx) => (
@@ -63,9 +60,7 @@ function QuickReplyPreview({
     )
 }
 
-/* -------------------------------------------------------------------------- */
-/* 📋 ListPreview                                                             */
-/* -------------------------------------------------------------------------- */
+/* -------------------- ListPreview -------------------- */
 function ListPreview({
     interactive,
     handleColor,
@@ -74,7 +69,6 @@ function ListPreview({
     handleColor: string
 }) {
     const items = interactive.items || []
-
     return (
         <div className="relative mt-1 space-y-1 text-xs">
             {items.map((item, iIdx) => (
@@ -121,13 +115,10 @@ function ListPreview({
     )
 }
 
-/* -------------------------------------------------------------------------- */
-/* 🧾 GetDataPreview — con handles dinámicos por setvariables                 */
-/* -------------------------------------------------------------------------- */
+/* -------------------- GetDataPreview -------------------- */
 function GetDataPreview({ object }: { object: GetDataCompleteObject }) {
     const { setvariables, prompt } = object || {}
     const entries = Object.entries(setvariables || {})
-
     return (
         <div className="mt-2 space-y-1 text-xs">
             {prompt && (
@@ -135,7 +126,6 @@ function GetDataPreview({ object }: { object: GetDataCompleteObject }) {
                     {decodeURIComponent(prompt || 'Sin prompt definido')}
                 </div>
             )}
-
             {entries.map(([key, val]) => (
                 <div
                     key={key}
@@ -147,7 +137,6 @@ function GetDataPreview({ object }: { object: GetDataCompleteObject }) {
                             {decodeURIComponent(val || '')}
                         </span>
                     </div>
-
                     <Handle
                         type="source"
                         position={Position.Right}
@@ -165,13 +154,10 @@ function GetDataPreview({ object }: { object: GetDataCompleteObject }) {
     )
 }
 
-/* -------------------------------------------------------------------------- */
-/* 🗒️ SimpleTextPreview — AHORA con opciones dinámicas                        */
-/* -------------------------------------------------------------------------- */
+/* -------------------- SimpleTextPreview -------------------- */
 function SimpleTextPreview({ object }: { object: GetDataCompleteObject }) {
     const { prompt, description, setvariables } = object || {}
     const entries = Object.entries(setvariables || {})
-
     return (
         <div className="mt-2 space-y-1 text-xs">
             {prompt && (
@@ -179,13 +165,11 @@ function SimpleTextPreview({ object }: { object: GetDataCompleteObject }) {
                     {decodeURIComponent(prompt || 'Sin prompt definido')}
                 </div>
             )}
-
             {description && (
                 <div className="text-[10px] text-emerald-200/70 italic">
                     {decodeURIComponent(description || '')}
                 </div>
             )}
-
             {entries.map(([key, val]) => (
                 <div
                     key={key}
@@ -197,7 +181,6 @@ function SimpleTextPreview({ object }: { object: GetDataCompleteObject }) {
                             {decodeURIComponent(val || '')}
                         </span>
                     </div>
-
                     <Handle
                         type="source"
                         position={Position.Right}
@@ -215,9 +198,7 @@ function SimpleTextPreview({ object }: { object: GetDataCompleteObject }) {
     )
 }
 
-/* -------------------------------------------------------------------------- */
-/* 💬 MenuNode Principal                                                     */
-/* -------------------------------------------------------------------------- */
+/* -------------------- MenuNode Principal -------------------- */
 export function MenuNode({ id, data }: { id: string; data: any }) {
     const { orientation } = useFlowOrientationStore()
     const { getNodeData } = useGetDataCompleteBaseStore()
@@ -231,7 +212,6 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
         | SimpleTextInteractive
         | undefined
 
-    // 🔧 Normaliza tipo a formato consistente (mayúsculas para GETDATA/SIMPLETEXT)
     const typeRaw =
         interactive?.type ||
         nodeData?.type ||
@@ -244,7 +224,6 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
         | 'SIMPLETEXT' => {
         switch (typeRaw?.toUpperCase()) {
             case 'GETDATA':
-            case 'GETDATA':
                 return 'GETDATA'
             case 'SIMPLETEXT':
             case 'SIMPLE_TEXT':
@@ -256,17 +235,7 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
         }
     })()
 
-    interface NodeVisualConfig {
-        color: string
-        bg: string
-        icon: JSX.Element
-        label: string
-    }
-
-    const CONFIG_MAP: Record<
-        'quick_reply' | 'list' | 'GETDATA' | 'SIMPLETEXT',
-        NodeVisualConfig
-    > = {
+    const CONFIG_MAP = {
         quick_reply: {
             color: 'purple',
             bg: 'bg-purple-950 border-purple-600',
@@ -291,10 +260,10 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
             icon: <StickyNote size={14} className="text-emerald-400" />,
             label: 'SimpleText',
         },
-    }
+    } as const
 
     const config = CONFIG_MAP[normalizedType]
-    const handleTarget =
+    const targetPosition =
         orientation === 'vertical' ? Position.Top : Position.Left
 
     return (
@@ -310,7 +279,8 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
                     setSelectedNode({ id, type: 'menuNode', data })
                 }}
                 data-id={id}
-                className={`relative w-[260px] cursor-pointer rounded-xl border select-none ${config.bg} p-3 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg`}
+                data-animated={data.__animated ? 'true' : 'false'}
+                className={`relative w-[300px] cursor-pointer rounded-xl border select-none ${config.bg} p-3 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg`}
             >
                 {/* 🏷️ Header */}
                 <div className="flex items-center justify-between border-b border-white/10 pb-1">
@@ -318,9 +288,17 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
                         {config.icon}
                         <span>{config.label}</span>
                     </div>
-                    <span className="truncate text-[11px] opacity-70">
-                        {nodeData.alias || nodeData.variable || id}
-                    </span>
+                    <div className="flex flex-col items-end">
+                        {/* 🆔 ID visible */}
+                        <div className="text-center text-[10px] text-white/60">
+                            <span className="rounded-md border border-white/10 bg-white/10 px-2 py-[1px]">
+                                {id}
+                            </span>
+                        </div>
+                        <span className="truncate text-[11px] opacity-70">
+                            {nodeData.alias || nodeData.variable || id}
+                        </span>
+                    </div>
                 </div>
 
                 {/* 💬 Contenido principal */}
@@ -330,31 +308,26 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
                         handleColor="!bg-purple-400"
                     />
                 )}
-
                 {normalizedType === 'list' && (
                     <ListPreview
                         interactive={interactive as ListInteractive}
                         handleColor="!bg-blue-400"
                     />
                 )}
-
                 {normalizedType === 'GETDATA' && (
                     <GetDataPreview object={nodeData} />
                 )}
-
                 {normalizedType === 'SIMPLETEXT' && (
                     <SimpleTextPreview object={nodeData} />
                 )}
 
-                {/* 🎯 Handle de entrada */}
+                {/* 🎯 Handles */}
                 <Handle
                     type="target"
-                    position={handleTarget}
+                    position={targetPosition}
                     id="in"
                     className={`!bg-${config.color}-400`}
                 />
-
-                {/* 🟢🔴🟠 Handles globales */}
                 <Handle
                     type="source"
                     position={Position.Bottom}
