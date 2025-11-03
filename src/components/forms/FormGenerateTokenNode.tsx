@@ -1,19 +1,14 @@
 // src\components\forms\FormGenerateTokenNode.tsx
 
+// src/components/forms/FormGenerateTokenNode.tsx
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import {
-    Input,
-    Label,
-    Button,
-    Textarea,
-    Select,
-    SelectTrigger,
-    SelectContent,
-    SelectItem,
-    SelectValue,
-} from '@/components/ui'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
 import {
     NodeConnectionsAccordion,
     NodeSelectionAccordion,
@@ -33,30 +28,26 @@ interface KeyValue {
 }
 
 /**
- * 🪄 FormGenerateTokenNode (v1.6 – Fix ancho + JSON)
- * -------------------------------------------------------
- * ✅ Ajuste de ancho automático con grid fluido
- * ✅ Corrige error TS de tipo body (string vs Record)
- * ✅ Modo visual / JSON compatible con SaveRecord
- * ✅ Mantiene diseño violeta coherente
+ * 🪄 FormGenerateTokenNode (v2.0 – Adaptado a estándar SaveRecord visual)
+ * ------------------------------------------------------------
+ * ✅ Estructura y colores estandarizados (violeta)
+ * ✅ Mismo patrón que FormSaveRecordNode
+ * ✅ Incluye sección onTrue
+ * ✅ Alterna modo Visual / JSON
  */
 export default function FormGenerateTokenNode({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
     const { initNode, getNodeData, setNodeData } = useGenerateTokenStore()
-    const {
-        prevNodes,
-        nextNodes,
-        availableNodes,
-        hasConnection,
-        toggleConnection,
-    } = useNodeConnections(id)
+    const { prevNodes, availableNodes, hasConnection, toggleConnection } =
+        useNodeConnections(id)
 
+    /** Estado local */
     const [localData, setLocalData] = useState<Partial<GenerateTokenObject>>({})
     const [pairs, setPairs] = useState<KeyValue[]>([])
     const [jsonMode, setJsonMode] = useState(false)
 
-    /** 🧩 Inicialización */
+    // 🧩 Inicializa datos desde el store
     useEffect(() => {
         initNode(id)
         const current = getNodeData(id)
@@ -71,7 +62,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
         )
     }, [id])
 
-    /** 💾 Guardado diferido (con tipos correctos) */
+    // 💾 Guardado diferido (solo al confirmar cambios globales)
     useEffect(() => {
         registerSaveCallback(id, () => {
             let parsedBody: Record<string, string> = {}
@@ -83,7 +74,6 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                         typeof raw === 'string'
                             ? raw
                             : JSON.stringify(raw ?? {}, null, 2)
-
                     parsedBody = JSON.parse(bodyString)
                 } catch {
                     parsedBody = {}
@@ -120,40 +110,56 @@ export default function FormGenerateTokenNode({ id, data }: any) {
             p.map((x) => (x.id === uid ? { ...x, [field]: val } : x))
         )
 
+    /** 🔍 Filtra conexiones salientes específicas */
+    const trueConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onTrue'))
+        .map((n) => n.id)
+
     return (
-        <div className="flex w-full flex-col gap-6 overflow-x-auto">
-            {/* 🔗 Conexiones */}
+        <div className="flex flex-col gap-6">
+            {/* 🏷️ Encabezado */}
+            <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
+                <Label className="text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
+                    🪄 Configuración GenerateToken
+                </Label>
+                <Badge
+                    variant="outline"
+                    className="border-[#AA3E98] px-2 py-0.5 text-[10px] text-[#AA3E98]"
+                >
+                    {id}
+                </Badge>
+            </div>
+
+            {/* 🔗 Conexión entrante */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
-                accentColor="text-[#AA3E98]"
+                accentColor="text-sky-700 dark:text-sky-300"
             />
-            <NodeSelectionAccordion
-                title="Conectar / desconectar"
-                availableNodes={availableNodes}
-                hasConnection={hasConnection}
-                toggleConnection={toggleConnection}
-                accentColor="text-[#AA3E98]"
-            />
+
+            {/* ⚡ Sección OnTrue */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
+                    Conexión OnTrue
+                </Label>
+                <NodeConnectionsAccordion
+                    title="Nodos conectados (onTrue)"
+                    nodesList={trueConnections}
+                    accentColor="text-green-700 dark:text-green-300"
+                />
+                <NodeSelectionAccordion
+                    title="Seleccionar nodo OnTrue"
+                    availableNodes={availableNodes}
+                    hasConnection={hasConnection}
+                    toggleConnection={toggleConnection}
+                    handleId="onTrue"
+                    accentColor="text-green-700 dark:text-green-300"
+                />
+            </div>
 
             {/* ⚙️ Configuración principal */}
-            <div className="w-full space-y-3">
-                <Label className="text-sm font-semibold text-[#AA3E98]">
-                    🪄 Modo
-                </Label>
-                <Select
-                    value={localData.mode || 'simpletext'}
-                    onValueChange={(val) => handleChange('mode', val)}
-                >
-                    <SelectTrigger className="w-full border-[#AA3E98] text-xs focus:ring-[#AA3E98]">
-                        <SelectValue placeholder="Seleccionar modo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="simpletext">Simple Text</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                <Label className="text-sm font-semibold text-[#AA3E98]">
+            <div className="flex flex-col gap-3 border-t pt-3 dark:border-gray-800">
+                <Label className="text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
                     🧩 Texto
                 </Label>
                 <Input
@@ -163,9 +169,9 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                     className="w-full border-[#AA3E98] text-xs focus-visible:ring-[#AA3E98]"
                 />
 
-                {/* BODY */}
+                {/* 📦 Body */}
                 <div className="mt-3 flex items-center justify-between">
-                    <Label className="text-sm font-semibold text-[#AA3E98]">
+                    <Label className="text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
                         📦 Parámetros (body)
                     </Label>
                     <Button
@@ -246,7 +252,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                     />
                 )}
 
-                <Label className="mt-3 text-sm font-semibold text-[#AA3E98]">
+                <Label className="mt-3 text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
                     📝 Script (HTML)
                 </Label>
                 <Textarea
