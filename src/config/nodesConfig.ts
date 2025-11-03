@@ -29,6 +29,7 @@ import ChatBotIARequestNode from '@/components/nodes/ChatBotIARequestNode'
 import SaveRecordNode from '@/components/nodes/SaveRecordNode'
 import GenerateTokenNode from '@/components/nodes/GenerateTokenNode'
 import { MenuNode } from '@/components/nodes/MenuNode'
+import SetCustomerIDNode from '@/components/nodes/SetCustomerIDNode'
 
 // =============================================================
 // 🔒 Extiende el namespace global (para cachear nodeTypes)
@@ -65,6 +66,12 @@ export const nodeRegistry = [
         label: 'Condición Variable',
         icon: GitBranch,
         component: SwitchConditionNode,
+    },
+    {
+        type: 'setCustomerIDNode',
+        label: 'Set Customer ID',
+        icon: UserCircle2,
+        component: SetCustomerIDNode,
     },
     {
         type: 'mysqlQueryNode',

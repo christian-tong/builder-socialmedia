@@ -12,6 +12,7 @@ let noopCounter = 0
 let chatbotIARequestCounter = 0
 let saveRecordCounter = 0
 let generateTokenCounter = 0
+let setCustomerIDCounter = 0
 
 /** 🟣 Menu Principal */
 export function getMenuId(): string {
@@ -69,6 +70,13 @@ export function generateMySQLQueryId(): string {
     return id
 }
 
+/** 🧠 SetCustomerID */
+export function generateSetCustomerIDId(): string {
+    const id = `SetCustomerID${String(setCustomerIDCounter).padStart(4, '0')}`
+    setCustomerIDCounter++
+    return id
+}
+
 /** 🟤 NoOp (sin operación) */
 export function generateNoOpId(): string {
     const id = `NoOp${String(noopCounter).padStart(4, '0')}`
@@ -111,4 +119,5 @@ export function resetNodeCounters() {
     chatbotIARequestCounter = 0
     saveRecordCounter = 0
     generateTokenCounter = 0
+    setCustomerIDCounter = 0
 }

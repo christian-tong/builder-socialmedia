@@ -14,6 +14,7 @@ import {
     generateChatBotIARequestId,
     generateSaveRecordId,
     generateGenerateTokenId,
+    generateSetCustomerIDId,
 } from '@/utils/generateNodeId'
 
 /**
@@ -66,6 +67,23 @@ export const nodeTemplates: Record<
                 inboundMessage: '',
                 groodText_queueMessage: '',
                 groodText_inboundMessage: '',
+            },
+        }
+    },
+
+    /** 🧠 SetCustomerIDNode */
+    setCustomerIDNode: () => {
+        const id = generateSetCustomerIDId()
+        return {
+            id,
+            data: {
+                label: id,
+                action: 'setcustomerid',
+                object: {
+                    variable: 'DOCUMENTO',
+                    alias: 'DOCUMENTO',
+                },
+                onTrue: '',
             },
         }
     },

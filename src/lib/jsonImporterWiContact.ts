@@ -1,6 +1,5 @@
 // src\lib\jsonImporterWiContact.ts
 
-// src/lib/jsonImporterWiContact.ts
 import type { Edge, Node } from 'reactflow'
 import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
@@ -15,12 +14,12 @@ import type {
 import { nodeTypes } from '@/config/nodesConfig'
 
 /**
- * 🔁 convertWiContactToFlow (v5.5 – Safe Variants & Store Sync)
+ * 🔁 convertWiContactToFlow (v5.6 – VariablesStore Sync)
  * ------------------------------------------------------------------------
- * ✅ Auto-detecta variantes GETDATA / SIMPLETEXT / quick_reply / list (tipado estricto)
+ * ✅ Sincroniza VariablesNode con useVariablesStore
+ * ✅ Auto-detecta variantes GETDATA / SIMPLETEXT / quick_reply / list
  * ✅ Integra useSaveRecordStore, useVariantTypeStore y useSwitchConditionStore
- * ✅ Evita duplicados de IDs
- * ✅ Crea edges válidos y únicos
+ * ✅ Evita duplicados de IDs y crea edges válidos y únicos
  * ✅ Soporta importación desde WiContact y osm_wsp.json
  */
 export function convertWiContactToFlow(json: any): {
@@ -33,9 +32,9 @@ export function convertWiContactToFlow(json: any): {
 
     const nodes: Node<any>[] = []
     const edges: Edge<any>[] = []
-    const unsupported: Set<string> = new Set()
-    const duplicateIds: Set<string> = new Set()
-    const uniqueNodeIds: Set<string> = new Set()
+    const unsupported = new Set<string>()
+    const duplicateIds = new Set<string>()
+    const uniqueNodeIds = new Set<string>()
 
     const gdcBaseStore = useGetDataCompleteBaseStore.getState()
     const variantStore = useVariantTypeStore.getState()
@@ -72,7 +71,7 @@ export function convertWiContactToFlow(json: any): {
         })
     }
 
-    console.groupCollapsed('🧩 [Importer v5.5] WiContact / osm_wsp → Flow')
+    console.groupCollapsed('🧩 [Importer v5.6] WiContact / osm_wsp → Flow')
     console.log('Total steps:', steps.length)
 
     // ========================
@@ -131,8 +130,6 @@ export function convertWiContactToFlow(json: any): {
 
             case 'switchcondition': {
                 nodeType = 'switchConditionNode'
-
-                // 🔹 Extrae el objeto con seguridad
                 const variable: string = object.variable || ''
                 const alias: string = object.alias || ''
                 const setvariables: Record<string, string> =
@@ -142,29 +139,21 @@ export function convertWiContactToFlow(json: any): {
                 const mode: 'strict' | 'flex' =
                     (object.body as 'strict' | 'flex') || 'strict'
 
-                // 🧠 Carga automática al store
                 const switchStore =
                     require('@/store/useSwitchConditionStore').useSwitchConditionStore.getState()
                 switchStore.initNode(id)
-
-                // 🔄 Asigna campos principales
                 switchStore.setVariable(id, variable)
                 switchStore.setAlias(id, alias)
                 switchStore.setMode(id, mode)
 
-                // 🔹 Valores (setvariables) — tipado explícito
                 const values = Object.values(setvariables) as string[]
                 values.forEach((val) => {
-                    if (typeof val === 'string' && val.length > 0) {
+                    if (typeof val === 'string' && val.length > 0)
                         switchStore.addValue(id, val)
-                    }
                 })
-
-                // 🔗 Conexiones
                 Object.entries(conditions).forEach(([val, target]) => {
-                    if (typeof target === 'string' && target) {
+                    if (typeof target === 'string' && target)
                         switchStore.setConnection(id, val, target)
-                    }
                 })
 
                 nodeData = {
@@ -175,74 +164,77 @@ export function convertWiContactToFlow(json: any): {
                     conditions,
                     body: mode,
                 }
+                console.log(`🪄 [Importer] SwitchCondition inicializado: ${id}`)
+                break
+            }
 
+            /** 🟣 NUEVO BLOQUE - Sincronización con useVariablesStore */
+            case 'setvariables': {
+                nodeType = 'variablesNode'
+
+                const variablesStore =
+                    require('@/store/useVariablesStore').useVariablesStore.getState()
+
+                let parsed: Record<string, string> = {}
+                try {
+                    parsed =
+                        typeof object.setvars === 'string'
+                            ? JSON.parse(object.setvars)
+                            : object.setvars || {}
+                } catch (err) {
+                    console.warn(
+                        `⚠️ [Importer] Error parseando setvars en ${id}:`,
+                        err
+                    )
+                    parsed = {}
+                }
+
+                const entries = Object.entries(parsed).map(([key, value]) => ({
+                    key,
+                    value: String(value).toUpperCase(),
+                }))
+                variablesStore.setNodeVariables(id, entries)
+
+                nodeData = { label: id, variables: entries }
                 console.log(
-                    `🪄 [Importer] SwitchCondition inicializado: ${id}`,
-                    {
-                        variable,
-                        alias,
-                        setvariables,
-                        conditions,
-                        body: mode,
-                    }
+                    `🟣 [Importer] VariablesNode inicializado: ${id}`,
+                    parsed
                 )
                 break
             }
 
-            case 'setvariables':
-                nodeType = 'variablesNode'
-                try {
-                    const parsed = JSON.parse(object.setvars || '{}')
-                    nodeData = { label: id, variables: parsed }
-                } catch {
-                    nodeData = { label: id, variables: {} }
-                }
-                break
-
-            /**
-             * 🧩 GETDATA COMPLETE / MENU / SIMPLETEXT VARIANTS
-             * ----------------------------------------------------
-             * Detecta automáticamente tipo de formulario:
-             *  - "GETDATA" → FormGetDataCompleteGetData
-             *  - "SIMPLETEXT" → FormGetDataCompleteSimpleText
-             *  - Otros → quick_reply / list
-             */
+            /** 🧩 GETDATA COMPLETE / MENU / SIMPLETEXT VARIANTS */
             case 'getdatacomplete':
             case 'getdata':
             case 'getdata_v2':
             case 'get_data':
             case 'menu': {
                 nodeType = 'menuNode'
-
                 const interactiveIn = object.interactive ?? {}
                 const setvars: Record<string, string> =
                     (object.setvariables as Record<string, string>) || {}
                 const conditions: Record<string, string> =
                     (object.conditions as Record<string, string>) || {}
 
-                // 🧠 Detección automática de variante (tipos estrechos)
                 type Variant = 'GETDATA' | 'SIMPLETEXT' | 'quick_reply' | 'list'
                 const declaredRaw = String(object.type || '')
                 const declaredUp = declaredRaw.toUpperCase()
 
                 let variantType: Variant
-                if (declaredUp === 'GETDATA' || declaredUp === 'GET_DATA') {
+                if (declaredUp === 'GETDATA' || declaredUp === 'GET_DATA')
                     variantType = 'GETDATA'
-                } else if (
+                else if (
                     declaredUp === 'SIMPLETEXT' ||
                     declaredUp === 'SIMPLE_TEXT'
-                ) {
+                )
                     variantType = 'SIMPLETEXT'
-                } else if (
+                else if (
                     interactiveIn.type === 'list' ||
                     Object.keys(setvars).length > 4
-                ) {
+                )
                     variantType = 'list'
-                } else {
-                    variantType = 'quick_reply'
-                }
+                else variantType = 'quick_reply'
 
-                // 🧩 Construcción de opciones legibles (solo quick_reply)
                 const rawOptions =
                     interactiveIn.options ??
                     interactiveIn.items?.[0]?.options ??
@@ -267,7 +259,6 @@ export function convertWiContactToFlow(json: any): {
                 )
                 const description: string = object.description || ''
 
-                // 💬 Interactive block por variante (tipado estricto)
                 let interactive: InteractiveBlock | undefined
                 if (variantType === 'quick_reply') {
                     interactive = {
@@ -283,9 +274,7 @@ export function convertWiContactToFlow(json: any): {
                     const items = interactiveIn.items || [
                         {
                             title: 'Elija una opción',
-                            options: options.map((o) => ({
-                                ...o,
-                            })),
+                            options: options.map((o) => ({ ...o })),
                         },
                     ]
                     interactive = {
@@ -311,7 +300,6 @@ export function convertWiContactToFlow(json: any): {
                     } as SimpleTextInteractive
                 }
 
-                // 🧱 Objeto principal GetDataComplete (tipos seguros)
                 const fullObject: GetDataCompleteObject = {
                     id,
                     action: 'getdatacomplete',
@@ -320,7 +308,7 @@ export function convertWiContactToFlow(json: any): {
                     prompt,
                     setvariables: setvars,
                     conditions,
-                    type: variantType, // ← union válida
+                    type: variantType,
                     interactive,
                     description,
                     saveHidden: Boolean(object.saveHidden),
@@ -331,18 +319,16 @@ export function convertWiContactToFlow(json: any): {
                     groodText: object.groodText || '',
                 }
 
-                // 🧠 Stores: base + variantes SOLO cuando aplique
                 gdcBaseStore.initNode(id)
                 gdcBaseStore.setNodeData(id, fullObject)
 
                 if (variantType === 'quick_reply' || variantType === 'list') {
-                    variantStore.setVariantType(id, variantType) // tipado ok
+                    variantStore.setVariantType(id, variantType)
                     variantStore.setVariantOptions(id, options)
                     variantStore.setVariantConditions(id, conditions)
                 }
 
                 nodeData = { label: id, object: fullObject }
-
                 console.log(`🧩 [Importer] ${id} detectado como ${variantType}`)
                 break
             }
@@ -362,9 +348,7 @@ export function convertWiContactToFlow(json: any): {
                             const [key, val] = pair.split('=')
                             if (key && val) bodyObj[key.trim()] = val.trim()
                         })
-                    } else if (typeof bodyRaw === 'object') {
-                        bodyObj = bodyRaw
-                    }
+                    } else if (typeof bodyRaw === 'object') bodyObj = bodyRaw
                 } catch (err) {
                     console.warn(
                         `⚠️ [Importer] Error parseando body en ${id}:`,
@@ -378,6 +362,46 @@ export function convertWiContactToFlow(json: any): {
                 console.log(
                     `🔑 [Importer] GenerateToken cargado: ${id}`,
                     fullObject
+                )
+                break
+            }
+
+            /** 🧠 SetCustomerID */
+            case 'setcustomerid': {
+                nodeType = 'setCustomerIDNode'
+
+                let optionsObj: Record<string, string> = {}
+
+                try {
+                    if (object?.options && typeof object.options === 'object') {
+                        optionsObj = object.options
+                    } else if (
+                        typeof object === 'object' &&
+                        !Array.isArray(object)
+                    ) {
+                        // fallback: si vino plano como { variable: '', alias: '' }
+                        optionsObj = {
+                            variable: object.variable || '',
+                            alias: object.alias || '',
+                        }
+                    }
+                } catch (err) {
+                    console.warn(
+                        `⚠️ [Importer] Error parseando options en ${id}:`,
+                        err
+                    )
+                }
+
+                nodeData = {
+                    label: id,
+                    object: {
+                        options: optionsObj,
+                    },
+                }
+
+                console.log(
+                    `🧠 [Importer] SetCustomerIDNode creado: ${id}`,
+                    optionsObj
                 )
                 break
             }
@@ -452,9 +476,7 @@ export function convertWiContactToFlow(json: any): {
                 position: { x: 0, y: 0 },
                 data: nodeData,
             })
-        } else if (nodeType) {
-            unsupported.add(nodeType)
-        }
+        } else if (nodeType) unsupported.add(nodeType)
     }
 
     // ==========================
@@ -481,33 +503,28 @@ export function convertWiContactToFlow(json: any): {
             | undefined
         const declaredTypeUp = String((object as any)?.type || '').toUpperCase()
 
-        // 🔗 Manejo especial para GETDATA y SIMPLETEXT (cond_*)
         if (
             (declaredTypeUp === 'GETDATA' || declaredTypeUp === 'SIMPLETEXT') &&
             conditions &&
             Object.keys(conditions).length
-        ) {
-            for (const [key, targetId] of Object.entries(conditions)) {
+        )
+            for (const [key, targetId] of Object.entries(conditions))
                 addEdge(id, targetId as string, `cond_${key}`)
-            }
-        }
 
-        // 🔗 QuickReply / List (option_*)
         if (
             (interactiveType === 'quick_reply' || interactiveType === 'list') &&
             conditions &&
             Object.keys(conditions).length
-        ) {
-            for (const [key, targetId] of Object.entries(conditions)) {
+        )
+            for (const [key, targetId] of Object.entries(conditions))
                 addEdge(id, targetId as string, `option_${key}`)
-            }
-        }
     }
 
     // 📍 Layout básico
-    nodes.forEach((n, i) => {
-        n.position = { x: (i % 5) * 320, y: Math.floor(i / 5) * 220 }
-    })
+    nodes.forEach(
+        (n, i) =>
+            (n.position = { x: (i % 5) * 320, y: Math.floor(i / 5) * 220 })
+    )
 
     console.log(
         '✅ Nodos renderizados:',
@@ -515,19 +532,15 @@ export function convertWiContactToFlow(json: any): {
         '| Edges:',
         edges.length
     )
-
-    if (duplicateIds.size > 0) {
+    if (duplicateIds.size > 0)
         console.warn(
             '⚠️ Nodos duplicados omitidos:',
             [...duplicateIds].join(', ')
         )
-    }
     if (unsupported.size > 0) {
         console.warn('⚠️ Tipos no soportados:')
         console.table([...unsupported].map((t) => ({ tipo: t })))
-    } else {
-        console.log('✅ Todos los tipos soportados.')
-    }
+    } else console.log('✅ Todos los tipos soportados.')
 
     console.groupEnd()
     return { nodes, edges }
