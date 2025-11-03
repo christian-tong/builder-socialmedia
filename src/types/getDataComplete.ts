@@ -102,6 +102,7 @@ export interface QuickReplyInteractive {
         type: 'text'
     }
     options: QuickReplyOption[]
+    conditions?: Record<string, string>
 }
 
 export interface QuickReplyOption {
