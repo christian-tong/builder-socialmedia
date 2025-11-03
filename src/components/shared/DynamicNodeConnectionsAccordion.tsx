@@ -1,8 +1,9 @@
 // src/components/shared/DynamicNodeConnectionsAccordion.tsx
 
+// src/components/shared/DynamicNodeConnectionsAccordion.tsx
 'use client'
 
-import React, { useMemo, useCallback, useEffect } from 'react'
+import React, { useMemo, useCallback, useEffect, useRef } from 'react'
 import { Label } from '@/components/ui/label'
 import {
     Accordion,
@@ -21,7 +22,7 @@ import {
 import { PlugZap, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
-import { useFlowStore } from '@/store/useFlowStore' // ✅ Importar para manejar edges globales de ReactFlow
+import { useFlowStore } from '@/store/useFlowStore'
 
 interface DynamicOption {
     id: string
@@ -42,11 +43,11 @@ interface DynamicNodeConnectionsAccordionProps {
 }
 
 /**
- * 🎛️ DynamicNodeConnectionsAccordion (v1.3 — AutoEdgeSync Fix)
+ * 🎛️ DynamicNodeConnectionsAccordion (v1.4 — SafeEdgeRetention)
  * ------------------------------------------------------------------
- * ✅ Crea/Elimina edges sincronizados con ReactFlow global store
- * ✅ Limpia edges huérfanos al borrar opciones
- * ✅ Usa prefijo estable (option_* / cond_*)
+ * ✅ Mantiene edges base (onTrue/onFalse/onError)
+ * ✅ Limpia solo edges obsoletos del tipo dinámico
+ * ✅ Previene limpieza en el primer render
  */
 export function DynamicNodeConnectionsAccordion({
     nodeId,
@@ -57,7 +58,8 @@ export function DynamicNodeConnectionsAccordion({
 }: DynamicNodeConnectionsAccordionProps) {
     const { availableNodes, createConnectionIfMissing } =
         useNodeConnections(nodeId)
-    const { edges, setEdges } = useFlowStore() // ⚡ Acceso directo a edges globales
+    const { edges, setEdges } = useFlowStore()
+    const mountedRef = useRef(false)
 
     const safeOptions = useMemo(
         () => options.slice(0, maxOptions),
@@ -81,16 +83,25 @@ export function DynamicNodeConnectionsAccordion({
         [variant]
     )
 
-    /** 🧹 Limpia edges obsoletos cuando se borran opciones */
+    /** 🧹 Limpia edges obsoletos cuando se borran opciones (sin tocar onTrue/onFalse/onError) */
     useEffect(() => {
+        if (!mountedRef.current) {
+            mountedRef.current = true
+            return
+        }
+
         const validHandles = safeOptions.map((o) => getHandleId(o.id))
+        const baseHandles = ['onTrue', 'onFalse', 'onError']
+
         const newEdges = edges.filter(
             (e) =>
                 e.source !== nodeId ||
                 (e.source === nodeId &&
                     e.sourceHandle &&
-                    validHandles.includes(e.sourceHandle))
+                    (validHandles.includes(e.sourceHandle) ||
+                        baseHandles.includes(e.sourceHandle)))
         )
+
         if (newEdges.length !== edges.length) setEdges(newEdges)
     }, [safeOptions, edges, nodeId, getHandleId, setEdges])
 
@@ -100,11 +111,9 @@ export function DynamicNodeConnectionsAccordion({
             const handleId = getHandleId(optionId)
 
             if (targetId) {
-                // ✅ Crear conexión si no existe
                 createConnectionIfMissing(targetId, handleId)
                 onUpdateOption(optionId, 'nextNodeId', targetId)
             } else {
-                // 🧹 Eliminar todos los edges que usen ese handle
                 setEdges((prev) =>
                     prev.filter(
                         (e) =>
