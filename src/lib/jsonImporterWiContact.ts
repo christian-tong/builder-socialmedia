@@ -8,12 +8,13 @@ import type { GetDataCompleteObject } from '@/types/getDataComplete'
 import { nodeTypes } from '@/config/nodesConfig'
 
 /**
- * 🔁 convertWiContactToFlow (v5.2 – SaveRecord Integration Ready)
+ * 🔁 convertWiContactToFlow (v5.3 – Duplicate ID Safe)
  * ------------------------------------------------------------------------
- * ✅ Integración completa con useSaveRecordStore (fase estructural)
- * ✅ Muestra solo nodos compatibles y loguea los faltantes
+ * ✅ Integración completa con useSaveRecordStore
+ * ✅ Evita duplicados de nodos (por ID repetido)
+ * ✅ Loguea los steps omitidos por duplicación
  * ✅ Mantiene compatibilidad con WiContact y osm_wsp.json
- * ✅ Evita duplicados y errores de referencia
+ * ✅ Genera edges válidos sin duplicación
  */
 export function convertWiContactToFlow(json: any): {
     nodes: Node[]
@@ -26,6 +27,8 @@ export function convertWiContactToFlow(json: any): {
     const nodes: Node<any>[] = []
     const edges: Edge<any>[] = []
     const unsupported: Set<string> = new Set()
+    const duplicateIds: Set<string> = new Set()
+    const uniqueNodeIds: Set<string> = new Set()
 
     const gdcBaseStore = useGetDataCompleteBaseStore.getState()
     const variantStore = useVariantTypeStore.getState()
@@ -62,7 +65,7 @@ export function convertWiContactToFlow(json: any): {
         })
     }
 
-    console.groupCollapsed('🧩 [Importer v5.2] WiContact / osm_wsp → Flow')
+    console.groupCollapsed('🧩 [Importer v5.3] WiContact / osm_wsp → Flow')
     console.log('Total steps:', steps.length)
 
     // ========================
@@ -71,6 +74,14 @@ export function convertWiContactToFlow(json: any): {
     for (const step of steps) {
         const { id, action = '', object = {} } = step
         const lower = String(action).toLowerCase()
+
+        // 🚨 Evita duplicados de ID
+        if (uniqueNodeIds.has(id)) {
+            duplicateIds.add(id)
+            continue
+        }
+        uniqueNodeIds.add(id)
+
         let nodeType: string | null = null
         let nodeData: any = {}
 
@@ -112,7 +123,6 @@ export function convertWiContactToFlow(json: any): {
                 nodeData = { label: id, condition: object.condition || '' }
                 break
 
-            // 🧩 NUEVO: switchcondition
             case 'switchcondition':
                 nodeType = 'switchConditionNode'
                 nodeData = {
@@ -125,7 +135,6 @@ export function convertWiContactToFlow(json: any): {
                 }
                 break
 
-            // 🧩 NUEVO: setvariables
             case 'setvariables':
                 nodeType = 'variablesNode'
                 try {
@@ -192,18 +201,12 @@ export function convertWiContactToFlow(json: any): {
 
             case 'generatetoken': {
                 nodeType = 'generateTokenNode'
-
-                // 🧠 Acceso dinámico al store
                 const tokenStore =
                     require('@/store/useGenerateTokenStore').useGenerateTokenStore.getState()
-
-                // 🧱 Normalización de datos del JSON
                 const mode = object?.mode || 'simpletext'
                 const text = object?.text || ''
                 const bodyRaw = object?.body || ''
                 const script = object?.script || ''
-
-                // 🧩 Transformar "body" de texto plano a objeto clave/valor
                 let bodyObj: Record<string, string> = {}
                 try {
                     if (typeof bodyRaw === 'string' && bodyRaw.includes('=')) {
@@ -220,25 +223,10 @@ export function convertWiContactToFlow(json: any): {
                         err
                     )
                 }
-
-                // 🧠 Construcción final del objeto de store
-                const fullObject = {
-                    mode,
-                    text,
-                    body: bodyObj,
-                    script,
-                }
-
-                // 💾 Guardar en Zustand
+                const fullObject = { mode, text, body: bodyObj, script }
                 tokenStore.initNode(id)
                 tokenStore.setNodeData(id, fullObject)
-
-                // 🎨 Datos del nodo para React Flow
-                nodeData = {
-                    label: id,
-                    ...fullObject,
-                }
-
+                nodeData = { label: id, ...fullObject }
                 console.log(
                     `🔑 [Importer] GenerateToken cargado: ${id}`,
                     fullObject
@@ -257,51 +245,31 @@ export function convertWiContactToFlow(json: any): {
                 }
                 break
 
-            // 🧾 SaveRecord Integration (v5.2)
             case 'saverecord': {
                 nodeType = 'saveRecordNode'
-
-                // 🧠 Importa dinámicamente el store
                 const saveRecordStore =
                     require('@/store/useSaveRecordStore').useSaveRecordStore.getState()
-
                 const auth = {
                     headers: object?.auth?.headers || {},
                     vartoken: object?.auth?.vartoken || '',
                     body: object?.auth?.body || '{}',
                     url: object?.auth?.url || '',
                 }
-
                 const body = object?.body || '{}'
-
-                // 🧱 Construcción del objeto completo
                 const fullObject = {
                     auth,
                     body,
                     nextNodeId: step?.onTrue || undefined,
                 }
-
-                // 🔹 Guardar en store (persistente)
                 saveRecordStore.initNode(id)
                 saveRecordStore.setNodeData(id, fullObject)
-
-                // 🔹 Datos visuales para React Flow
-                nodeData = {
-                    label: id,
-                    ...fullObject,
-                }
-
+                nodeData = { label: id, ...fullObject }
                 console.log(
                     `💾 [Importer] SaveRecord inicializado: ${id}`,
                     fullObject
                 )
                 break
             }
-
-            case 'setvariables':
-                nodeType = 'variablesNode'
-                nodeData = { label: id, variables: object.variables || {} }
-                break
 
             case 'mysqlquery':
                 nodeType = 'mysqlQueryNode'
@@ -329,7 +297,6 @@ export function convertWiContactToFlow(json: any): {
                 continue
         }
 
-        // ✅ Solo agregamos nodos registrados en nodeTypes
         if (nodeType && nodeTypes[nodeType]) {
             nodes.push({
                 id,
@@ -347,6 +314,7 @@ export function convertWiContactToFlow(json: any): {
     // ==========================
     for (const step of steps) {
         const { id, onTrue, onFalse, onError, object = {} } = step
+        if (!uniqueNodeIds.has(id)) continue
         addEdge(id, onTrue, 'onTrue')
         addEdge(id, onFalse, 'onFalse')
         addEdge(id, onError, 'onError')
@@ -365,7 +333,13 @@ export function convertWiContactToFlow(json: any): {
         edges.length
     )
 
-    // 🧾 Log de tipos faltantes
+    if (duplicateIds.size > 0) {
+        console.warn(
+            '⚠️ Nodos duplicados omitidos:',
+            [...duplicateIds].join(', ')
+        )
+    }
+
     if (unsupported.size > 0) {
         console.warn('⚠️ Tipos de nodos no soportados detectados:')
         console.table([...unsupported].map((t) => ({ tipo: t })))
@@ -373,7 +347,6 @@ export function convertWiContactToFlow(json: any): {
         console.log('✅ Todos los tipos de nodos están soportados.')
     }
 
-    // 🧠 Snapshot opcional del SaveRecordStore
     try {
         const { useSaveRecordStore } = require('@/store/useSaveRecordStore')
         console.groupCollapsed('🧾 SaveRecordStore Snapshot')
