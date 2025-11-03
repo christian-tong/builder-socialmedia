@@ -80,8 +80,8 @@ export const nodeTemplates: Record<
                 label: id,
                 action: 'setcustomerid',
                 object: {
-                    variable: 'DOCUMENTO',
-                    alias: 'DOCUMENTO',
+                    variable: '',
+                    alias: '',
                 },
                 onTrue: '',
             },

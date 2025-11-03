@@ -1,5 +1,4 @@
 // src\components\forms\FormSetCustomerIDNode.tsx
-
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -14,6 +13,10 @@ import { Button } from '@/components/ui/button'
 import { Plus, Trash2 } from 'lucide-react'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
+import {
+    useSetCustomerIDStore,
+    type SetCustomerIDObject,
+} from '@/store/useSetCustomerIDStore'
 
 interface KeyValue {
     id: string
@@ -22,11 +25,11 @@ interface KeyValue {
 }
 
 /**
- * 🧠 FormSetCustomerIDNode (v1.3 – Object Options)
+ * 🧠 FormSetCustomerIDNode (v1.7 — integrado con Zustand)
  * ------------------------------------------------------------
- * ✅ Guarda un objeto de pares clave–valor en object.options
- * ✅ Sincronización diferida con updateNodeData
- * ✅ UI ligera con color azul (#2C5282)
+ * ✅ Sin loops de render
+ * ✅ Guarda opciones en store + nodeData
+ * ✅ Sincroniza automáticamente con el nodo visual
  */
 export default function FormSetCustomerIDNode({
     id,
@@ -37,15 +40,21 @@ export default function FormSetCustomerIDNode({
 }) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
-    const { nextNodes, availableNodes, hasConnection, toggleConnection } =
+
+    const { prevNodes, availableNodes, hasConnection, toggleConnection } =
         useNodeConnections(id)
 
-    // 🧩 Estado local de pares key-value
+    const { initNode, getNodeData, setNodeData } = useSetCustomerIDStore()
+
+    const [localData, setLocalData] = useState<Partial<SetCustomerIDObject>>({})
     const [pairs, setPairs] = useState<KeyValue[]>([])
 
-    // 🧠 Inicialización
+    /* 🧩 Inicialización */
     useEffect(() => {
-        const existing = data?.object?.options || {}
+        initNode(id)
+        const current = getNodeData(id)
+        setLocalData(current)
+        const existing = current.options || {}
         const formatted = Object.entries(existing).map(([key, value]) => ({
             id: crypto.randomUUID(),
             key,
@@ -56,9 +65,10 @@ export default function FormSetCustomerIDNode({
                 ? formatted
                 : [{ id: crypto.randomUUID(), key: '', value: '' }]
         )
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id])
 
-    // 💾 Guardado diferido
+    /* 💾 Guardado al presionar guardar global */
     useEffect(() => {
         registerSaveCallback(id, () => {
             const optionsObject = Object.fromEntries(
@@ -66,39 +76,48 @@ export default function FormSetCustomerIDNode({
                     .filter((p) => p.key.trim() !== '')
                     .map((p) => [p.key.trim(), p.value.trim()])
             )
-            updateNodeData(id, {
-                ...data,
-                object: { options: optionsObject },
-            })
+
+            const merged: SetCustomerIDObject = {
+                options: optionsObject,
+            }
+
+            // Guardar en Zustand y en el nodo ReactFlow
+            setNodeData(id, merged)
+            updateNodeData(id, { ...data, object: merged })
         })
+
         return () => unregisterSaveCallback(id)
     }, [
         id,
         pairs,
         data,
+        setNodeData,
+        updateNodeData,
         registerSaveCallback,
         unregisterSaveCallback,
-        updateNodeData,
     ])
 
-    // ✏️ Helpers
+    /* ✏️ Helpers */
     const addPair = () =>
-        setPairs((prev) => [
-            ...prev,
-            { id: crypto.randomUUID(), key: '', value: '' },
-        ])
+        setPairs((p) => [...p, { id: crypto.randomUUID(), key: '', value: '' }])
 
     const removePair = (uid: string) =>
-        setPairs((prev) => prev.filter((x) => x.id !== uid))
+        setPairs((p) => p.filter((x) => x.id !== uid))
 
     const updatePair = (uid: string, field: keyof KeyValue, val: string) =>
-        setPairs((prev) =>
-            prev.map((x) => (x.id === uid ? { ...x, [field]: val } : x))
+        setPairs((p) =>
+            p.map((x) => (x.id === uid ? { ...x, [field]: val } : x))
         )
 
+    /* 🔗 Conexiones */
+    const trueConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onTrue'))
+        .map((n) => n.id)
+
+    /* 🧱 Render principal */
     return (
         <div className="flex flex-col gap-5">
-            {/* Header */}
+            {/* 🔹 Encabezado */}
             <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
                 <Label
                     className="text-sm font-semibold"
@@ -119,22 +138,35 @@ export default function FormSetCustomerIDNode({
                 </Badge>
             </div>
 
-            {/* Conexiones */}
+            {/* 🔗 Conexiones entrantes */}
             <NodeConnectionsAccordion
-                title="Nodo siguiente"
-                nodesList={nextNodes}
-                accentColor="text-[#2C5282]"
-            />
-            <NodeSelectionAccordion
-                title="Conectar / desconectar nodos"
-                availableNodes={availableNodes}
-                hasConnection={hasConnection}
-                toggleConnection={toggleConnection}
-                accentColor="text-[#2C5282]"
+                title="Nodo anterior"
+                nodesList={prevNodes}
+                accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* Opciones Key–Value */}
-            <div className="mt-4 flex flex-col gap-3">
+            {/* ⚡ Sección OnTrue */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
+                    Conexión OnTrue
+                </Label>
+                <NodeConnectionsAccordion
+                    title="Nodos conectados (onTrue)"
+                    nodesList={trueConnections}
+                    accentColor="text-green-700 dark:text-green-300"
+                />
+                <NodeSelectionAccordion
+                    title="Seleccionar nodo OnTrue"
+                    availableNodes={availableNodes}
+                    hasConnection={hasConnection}
+                    toggleConnection={toggleConnection}
+                    handleId="onTrue"
+                    accentColor="text-green-700 dark:text-green-300"
+                />
+            </div>
+
+            {/* 🧩 Opciones Key–Value */}
+            <div className="flex flex-col gap-3 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium text-[#2C5282]">
                     📦 Opciones (objeto)
                 </Label>

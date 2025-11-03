@@ -2,31 +2,49 @@
 
 'use client'
 
+import React from 'react'
 import { motion } from 'framer-motion'
 import { IdCard } from 'lucide-react'
-import React from 'react'
 import { Handle, Position, type Connection } from 'reactflow'
 import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
+import {
+    useSetCustomerIDStore,
+    type SetCustomerIDObject,
+} from '@/store/useSetCustomerIDStore'
 
 /**
- * 🧠 SetCustomerIDNode
- * ----------------------------------------------------
- * - Nodo que asigna el ID del cliente al flujo (DOCUMENTO)
- * - Solo tiene conexión de salida (onTrue)
+ * 🧠 SetCustomerIDNode (v2.0 — formato JSON estilo GenerateTokenNode)
+ * -------------------------------------------------------------------
+ * - Renderiza object.options como bloque JSON “pretty”
+ * - Estilo visual coherente con GenerateTokenNode
+ * - Sin dependencias del formulario (usa Zustand)
  * - Color base: #2C5282 (azul acero)
  */
-export default function SetCustomerIDNode({ id, data }: any) {
+export default function SetCustomerIDNode({
+    id,
+    data,
+}: {
+    id: string
+    data: Record<string, any>
+}) {
     const { setSelectedNode } = useNodeConfigStore()
     const { orientation } = useFlowOrientationStore()
-    const targetPosition =
+    const { getNodeData } = useSetCustomerIDStore()
+
+    const nodeData: SetCustomerIDObject = getNodeData(id)
+    const options = nodeData?.options ?? {}
+
+    // 📐 Posiciones según orientación
+    const handleTarget =
         orientation === 'vertical' ? Position.Top : Position.Left
-    const handlePosition =
+    const handleSource =
         orientation === 'vertical' ? Position.Bottom : Position.Right
 
-    const isValidConnection = (connection: Connection) => {
+    // ⚠️ Evita conexiones entrantes
+    const isValidConnection = (connection: Connection): boolean => {
         if (connection.target === id) {
             toast.warning('❌ Conexión no permitida', {
                 description: 'Este nodo no puede recibir conexiones entrantes.',
@@ -36,20 +54,23 @@ export default function SetCustomerIDNode({ id, data }: any) {
         return true
     }
 
-    const variable = data?.object?.variable || 'DOCUMENTO'
-    const alias = data?.object?.alias || 'DOCUMENTO'
+    // 🧾 Formato JSON truncado (máx. 5 líneas)
+    let formattedJSON = '{}'
+    try {
+        const jsonStr = JSON.stringify(options, null, 2)
+        const lines = jsonStr.split('\n')
+        formattedJSON =
+            lines.length > 5 ? lines.slice(0, 5).join('\n') + '\n...' : jsonStr
+    } catch {
+        formattedJSON = String(options)
+    }
 
     return (
         <motion.div
             layout
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{
-                type: 'spring',
-                stiffness: 90,
-                damping: 12,
-                mass: 0.6,
-            }}
+            transition={{ type: 'spring', stiffness: 80, damping: 12 }}
         >
             <Card
                 onClick={(e) => {
@@ -57,40 +78,45 @@ export default function SetCustomerIDNode({ id, data }: any) {
                     setSelectedNode({ id, type: 'setCustomerIDNode', data })
                 }}
                 data-id={id}
-                className="cursor-pointer rounded-lg px-3 py-2 text-white shadow-md transition-all duration-300 ease-out hover:scale-[1.05] hover:shadow-lg"
-                style={{
-                    backgroundColor: '#2C5282',
-                    borderColor: '#2C5282',
-                    borderWidth: 1,
-                }}
+                className="relative w-[240px] cursor-pointer overflow-hidden rounded-xl border border-[#1E3A5F] bg-[#2C5282] p-3 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
             >
-                <div className="mb-1 flex items-center justify-center gap-2">
-                    <IdCard className="h-4 w-4" />
-                    <span className="text-sm font-medium">
-                        {data?.label || 'Set Customer ID'}
-                    </span>
+                {/* 🔹 Header */}
+                <div className="flex items-center justify-between border-b border-white/20 pb-1">
+                    <div className="flex items-center gap-2">
+                        <IdCard className="h-4 w-4 text-white" />
+                        <span className="text-sm font-semibold">
+                            {data?.label || 'Set Customer ID'}
+                        </span>
+                    </div>
                 </div>
 
-                <div className="text-center text-[10px] leading-tight text-gray-100">
-                    Variable: <strong>{variable}</strong>
-                    <br />
-                    Alias: <strong>{alias}</strong>
+                {/* 🧾 Contenido estilo JSON */}
+                <div className="space-y-1 pt-2 text-[11px] leading-tight text-gray-200">
+                    <div>
+                        <span className="font-semibold text-white">
+                            Opciones:
+                        </span>
+                    </div>
+
+                    <div className="rounded-md border border-white/20 bg-white/10 px-2 py-1 font-mono text-[10px] whitespace-pre-wrap text-white">
+                        <pre className="max-h-[80px] overflow-hidden whitespace-pre-wrap">
+                            {formattedJSON}
+                        </pre>
+                    </div>
                 </div>
 
+                {/* 🟦 Handles */}
                 <Handle
                     type="target"
-                    position={targetPosition}
-                    className="!bg-indigo-400"
+                    position={handleTarget}
+                    className="!bg-[#4A6FA5]"
+                    isValidConnection={isValidConnection}
                 />
-
-                {/* 🔵 Handle de salida */}
                 <Handle
                     type="source"
-                    position={handlePosition}
+                    position={handleSource}
                     id="onTrue"
-                    className="!border-none"
-                    style={{ backgroundColor: '#2C5282' }}
-                    isValidConnection={isValidConnection}
+                    className="!bg-[#2C5282]"
                 />
             </Card>
         </motion.div>

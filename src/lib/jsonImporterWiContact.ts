@@ -370,28 +370,47 @@ export function convertWiContactToFlow(json: any): {
             case 'setcustomerid': {
                 nodeType = 'setCustomerIDNode'
 
-                let optionsObj: Record<string, string> = {}
+                // Cargar store Zustand
+                const setCustomerIDStore =
+                    require('@/store/useSetCustomerIDStore').useSetCustomerIDStore.getState()
 
+                // 🧱 Normalización segura del objeto
+                let optionsObj: Record<string, string> = {}
                 try {
-                    if (object?.options && typeof object.options === 'object') {
-                        optionsObj = object.options
-                    } else if (
-                        typeof object === 'object' &&
-                        !Array.isArray(object)
-                    ) {
-                        // fallback: si vino plano como { variable: '', alias: '' }
-                        optionsObj = {
-                            variable: object.variable || '',
-                            alias: object.alias || '',
+                    const obj = object || {}
+
+                    // 🔹 Si ya viene como object.options → usarlo directo
+                    if (obj?.options && typeof obj.options === 'object') {
+                        optionsObj = obj.options
+                    } else if (typeof obj === 'object' && !Array.isArray(obj)) {
+                        // 🔹 Si viene plano: convertir variable/alias a options
+                        if (obj.variable || obj.alias) {
+                            optionsObj = {
+                                ...(obj.variable
+                                    ? { variable: obj.variable }
+                                    : {}),
+                                ...(obj.alias ? { alias: obj.alias } : {}),
+                            }
                         }
                     }
+
+                    // Asegurar que los valores son strings
+                    Object.entries(optionsObj).forEach(([k, v]) => {
+                        optionsObj[k] = String(v ?? '')
+                    })
                 } catch (err) {
                     console.warn(
-                        `⚠️ [Importer] Error parseando options en ${id}:`,
+                        `⚠️ [Importer] Error parseando SetCustomerID en ${id}:`,
                         err
                     )
+                    optionsObj = {}
                 }
 
+                // 🧩 Sincronizar con Zustand
+                setCustomerIDStore.initNode(id)
+                setCustomerIDStore.setNodeData(id, { options: optionsObj })
+
+                // 🧠 Crear nodo ReactFlow
                 nodeData = {
                     label: id,
                     object: {
@@ -400,7 +419,7 @@ export function convertWiContactToFlow(json: any): {
                 }
 
                 console.log(
-                    `🧠 [Importer] SetCustomerIDNode creado: ${id}`,
+                    `🧩 [Importer] SetCustomerIDNode inicializado: ${id}`,
                     optionsObj
                 )
                 break
