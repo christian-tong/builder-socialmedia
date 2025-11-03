@@ -289,10 +289,10 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                             <SelectValue placeholder="Selecciona tipo" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="quick_reply">
+                            <SelectItem value="QUICK_REPLY">
                                 💬 Quick Reply
                             </SelectItem>
-                            <SelectItem value="list">📋 List</SelectItem>
+                            <SelectItem value="LIST">📋 List</SelectItem>
                             <SelectItem value="GETDATA">🧾 GetData</SelectItem>
                             <SelectItem value="SIMPLETEXT">
                                 🗒️ Simple Text
