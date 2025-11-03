@@ -315,10 +315,49 @@ export function convertWiContactToFlow(json: any): {
     for (const step of steps) {
         const { id, onTrue, onFalse, onError, object = {} } = step
         if (!uniqueNodeIds.has(id)) continue
+
+        // 🔗 Enlaces base (compatibilidad legacy)
         addEdge(id, onTrue, 'onTrue')
         addEdge(id, onFalse, 'onFalse')
         addEdge(id, onError, 'onError')
         if (object?.nextNodeId) addEdge(id, object.nextNodeId, 'onSuccess')
+
+        // 🧩 Soporte interactivo (list / quick_reply / getdata)
+        const interactiveType = object?.interactive?.type
+        const conditions = object?.conditions || {}
+        const setvars = object?.setvariables || {}
+        const items = object?.interactive?.items || []
+        const options = object?.interactive?.options || []
+
+        // 1️⃣ Quick Reply → condiciones con prefijo option_
+        if (
+            interactiveType === 'quick_reply' &&
+            Object.keys(conditions).length
+        ) {
+            for (const [key, targetId] of Object.entries(conditions)) {
+                addEdge(id, targetId as string, `option_${key}`)
+            }
+        }
+
+        // 2️⃣ List → cada opción postbackText con prefijo option_
+        if (interactiveType === 'list' && Object.keys(conditions).length) {
+            for (const [key, targetId] of Object.entries(conditions)) {
+                addEdge(id, targetId as string, `option_${key}`)
+            }
+        }
+
+        // 3️⃣ GetData / SimpleText con condiciones → cond_
+        if (
+            !interactiveType &&
+            Object.keys(conditions).length &&
+            (object.action === 'getdata' ||
+                object.action === 'simpletext' ||
+                object.action === 'getdatacomplete')
+        ) {
+            for (const [key, targetId] of Object.entries(conditions)) {
+                addEdge(id, targetId as string, `cond_${key}`)
+            }
+        }
     }
 
     // 📍 Layout básico

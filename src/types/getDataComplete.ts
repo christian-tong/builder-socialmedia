@@ -117,6 +117,7 @@ export interface ListInteractive {
     globalButtons?: GlobalButton[]
     body: string
     items: ListItem[]
+    conditions?: Record<string, string>
 }
 
 export interface GlobalButton {
@@ -134,6 +135,9 @@ export interface ListOption {
     type: 'text'
     title: string
     description?: string
+
+    /** 🔗 Nodo siguiente (solo para renderización visual en ReactFlow) */
+    nextNodeId?: string
 }
 
 export interface GetDataInteractive {

@@ -2,7 +2,7 @@
 
 'use client'
 
-import React, { useEffect, useCallback, useMemo } from 'react'
+import React, { useEffect, useCallback, useMemo, useState } from 'react'
 import {
     Label,
     Input,
@@ -17,29 +17,28 @@ import {
 import { Plus, Trash2 } from 'lucide-react'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
 import { useGetDataCompleteListStore } from '@/store/GetDataComplete/useGetDataCompleteListStore'
-import { useNodeConnections } from '@/hooks/useNodeConnections'
-import { OptionFlowManager } from '@/components/shared/OptionFlowManager'
-import type { ListInteractive, ListOption } from '@/types/getDataComplete'
+import type { ListInteractive } from '@/types/getDataComplete'
 import { Switch } from '@/components/ui/switch'
+import { DynamicNodeConnectionsAccordion } from '@/components/shared/DynamicNodeConnectionsAccordion'
+import {
+    Accordion,
+    AccordionItem,
+    AccordionTrigger,
+    AccordionContent,
+} from '@/components/ui/accordion'
 
 /**
- * 🔵 FormGetDataCompleteList (v3.7 — Configuración base + saveHidden + opciones)
- * ------------------------------------------------------------
- * - Añade interruptor para `saveHidden`
- * - Mantiene la edición de campos base, items y opciones
+ * 🔵 FormGetDataCompleteList (v4.1 — Sync Conditions + AutoEdgeReflect)
+ * -----------------------------------------------------------------------
+ * ✅ Sincroniza condiciones importadas (object.conditions) con opciones dinámicas
+ * ✅ Actualiza automáticamente nextNodeId ↔ conditions en tiempo real
+ * ✅ Compatible con DynamicNodeConnectionsAccordion v1.3
+ * ✅ Mantiene el patrón de sincronización diferida (triggerAfterSave)
  */
 export function FormGetDataCompleteList({ id }: { id: string }) {
     const { getNodeData, setNodeData, triggerAfterSave } =
         useGetDataCompleteBaseStore()
-    const {
-        addListItem,
-        removeOption,
-        updateField,
-        updateSetVariables,
-        toggleSaveHidden,
-    } = useGetDataCompleteListStore()
-    const { availableNodes, createConnectionIfMissing } = useNodeConnections(id)
-
+    const { updateField, toggleSaveHidden } = useGetDataCompleteListStore()
     const nodeData = getNodeData(id)
     if (nodeData.interactive?.type !== 'list') return null
     const list = nodeData.interactive as ListInteractive
@@ -82,6 +81,7 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                 globalButtons: list.globalButtons
                     ? list.globalButtons.map((b) => ({ ...b }))
                     : [],
+                conditions: { ...(list as any).conditions },
             }
             updater(copy)
             setNodeData(id, { interactive: copy })
@@ -89,8 +89,42 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
         [list, setNodeData, id]
     )
 
+    /* 🧩 Sincroniza condiciones importadas con opciones (v4.3 — TypeSafe Sync)
+     * ------------------------------------------------------------------------
+     * ✅ nodeData ya es un GetDataCompleteObject, no un nodo completo
+     * ✅ Compatible con ListOption.nextNodeId?: string
+     * ✅ Convierte valores nullish a undefined (TS safe)
+     * ✅ Se ejecuta una sola vez tras el montaje
+     */
+    useEffect(() => {
+        // Extrae las condiciones existentes (del objeto o del bloque interactivo)
+        const conditions: Record<string, string> =
+            nodeData?.conditions ||
+            (list?.conditions as Record<string, string>) ||
+            {}
+
+        const listData = nodeData.interactive as ListInteractive
+
+        // Evita ejecución innecesaria si no hay items o condiciones
+        if (!listData?.items?.length || !Object.keys(conditions).length) return
+
+        updateInteractive((draft) => {
+            const firstGroup = draft.items[0]
+            if (!firstGroup?.options?.length) return
+
+            // Actualiza nextNodeId para cada opción de forma segura
+            firstGroup.options = firstGroup.options.map((opt) => ({
+                ...opt,
+                nextNodeId:
+                    conditions?.[opt.postbackText] ||
+                    opt.nextNodeId ||
+                    undefined, // ✅ evita null → mantiene compatibilidad con TS
+            }))
+        })
+    }, [])
+
     /* -------------------------------------------------------------------------- */
-    /* 🧱 CAMPOS BASE DEL NODO                                                   */
+    /* 🧱 CAMPOS BASE                                                            */
     /* -------------------------------------------------------------------------- */
     const baseFields = [
         { key: 'condition', label: '🧩 Condition', placeholder: '[0-5]' },
@@ -111,17 +145,11 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
         triggerAfterSave(id)
     }
 
-    /* -------------------------------------------------------------------------- */
-    /* 💾 SAVE HIDDEN SWITCH                                                     */
-    /* -------------------------------------------------------------------------- */
     const handleToggleSaveHidden = (checked: boolean) => {
         toggleSaveHidden(id, checked)
         triggerAfterSave(id)
     }
 
-    /* -------------------------------------------------------------------------- */
-    /* 🧩 BODY                                                                    */
-    /* -------------------------------------------------------------------------- */
     const handleBodyChange = (val: string) =>
         updateInteractive((d) => (d.body = val))
 
@@ -130,13 +158,12 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
     /* -------------------------------------------------------------------------- */
     return (
         <div className="mt-6 space-y-6">
-            {/* ⚙️ CONFIGURACIÓN BASE DEL NODO */}
+            {/* ⚙️ CONFIG BASE */}
             <section className="space-y-3">
                 <Label className="text-sm font-semibold text-gray-800 dark:text-gray-100">
                     ⚙️ Configuración base del nodo
                 </Label>
 
-                {/* 🔘 SWITCH SAVE HIDDEN */}
                 <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40">
                     <Switch
                         checked={!!nodeData.saveHidden}
@@ -187,284 +214,308 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                 />
             </section>
 
-            {/* 🔘 BOTONES GLOBALES */}
-            <section>
-                <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        🔘 Botones globales
-                    </Label>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                            updateInteractive((d) => {
-                                d.globalButtons = d.globalButtons || []
-                                d.globalButtons.push({
-                                    type: 'text',
-                                    title: '',
-                                })
-                            })
-                        }
-                        className="border-sky-600 text-sky-600 hover:bg-sky-50"
-                    >
-                        <Plus className="mr-1 h-4 w-4" /> Añadir
-                    </Button>
-                </div>
-
-                <div className="mt-2 space-y-2">
-                    {list.globalButtons?.map((b, i) => (
-                        <div
-                            key={i}
-                            className="flex items-center gap-2 rounded-md border border-gray-200 p-2 dark:border-gray-700"
-                        >
-                            <Input
-                                value={decodeURIComponent(b.title || '')}
-                                onChange={(e) =>
-                                    updateInteractive((d) => {
-                                        if (d.globalButtons?.[i])
-                                            d.globalButtons[i].title =
-                                                encodeURIComponent(
-                                                    e.target.value
-                                                )
-                                    })
-                                }
-                                placeholder="Título del botón"
-                                className="text-sm"
-                            />
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() =>
-                                    updateInteractive((d) =>
-                                        d.globalButtons?.splice(i, 1)
-                                    )
-                                }
-                                className="text-red-500 hover:text-red-700"
-                            >
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    ))}
-                </div>
-            </section>
-
-            {/* 🧩 ITEMS */}
-            <section className="space-y-5">
+            {/* 🧩 LIST ITEMS */}
+            <section className="space-y-6">
                 {list.items.map((item, itemIdx) => {
-                    const usedDigits = useMemo(
-                        () => new Set(item.options.map((o) => o.postbackText)),
-                        [item.options]
+                    const [localOptions, setLocalOptions] = useState(
+                        item.options.map((o) => ({ ...o }))
                     )
+
+                    const usedDigits = useMemo(
+                        () => new Set(localOptions.map((o) => o.postbackText)),
+                        [localOptions]
+                    )
+
+                    const handleSaveOptions = useCallback(() => {
+                        updateInteractive((d) => {
+                            d.items[itemIdx].options = localOptions.map(
+                                (opt) => ({ ...opt })
+                            )
+                        })
+                        triggerAfterSave(id)
+                    }, [
+                        localOptions,
+                        itemIdx,
+                        updateInteractive,
+                        triggerAfterSave,
+                        id,
+                    ])
 
                     return (
                         <div
                             key={itemIdx}
-                            className="rounded-md border border-gray-200 p-3 dark:border-gray-700"
+                            className="rounded-lg border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/40"
                         >
-                            <Label className="text-xs text-gray-600">
-                                🏷️ Título del grupo
+                            <Label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                🏷️ Grupo {itemIdx + 1}:{' '}
+                                {decodeURIComponent(item.title || '')}
                             </Label>
-                            <Input
-                                value={decodeURIComponent(item.title || '')}
-                                onChange={(e) =>
-                                    updateInteractive((d) => {
-                                        d.items[itemIdx].title =
-                                            encodeURIComponent(e.target.value)
-                                    })
-                                }
-                                placeholder="Ej: Elija una opción"
-                                className="text-sm font-semibold"
-                            />
 
-                            <div className="mt-3 flex justify-end">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                        updateInteractive((d) => {
-                                            const currentItem = d.items[itemIdx]
-                                            const used = new Set(
-                                                currentItem.options.map(
-                                                    (o) => o.postbackText
-                                                )
-                                            )
-                                            const next = DIGITS.find(
-                                                (d) => !used.has(d)
-                                            )
-                                            if (!next) return
-                                            currentItem.options.push({
-                                                postbackText: next,
-                                                type: 'text',
-                                                title: '',
-                                                description: '',
-                                            })
-                                        })
-                                        triggerAfterSave(id)
-                                    }}
-                                    className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
-                                >
-                                    <Plus className="mr-1 h-4 w-4" /> Añadir
-                                    opción
-                                </Button>
-                            </div>
-
-                            {/* Opciones */}
-                            <div className="mt-4 space-y-3">
-                                {item.options.map((opt, optIdx) => (
-                                    <div
-                                        key={optIdx}
-                                        className="rounded-md border border-gray-200 p-2 dark:border-gray-700"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-xs text-gray-600">
-                                                Opción {optIdx + 1}
-                                            </Label>
+                            <Accordion type="multiple" className="mt-2">
+                                {/* ✏️ Edición de opciones */}
+                                <AccordionItem value="options-edit">
+                                    <AccordionTrigger className="rounded-md bg-emerald-100/70 px-3 py-2 text-xs text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
+                                        ✏️ Editar opciones (
+                                        {localOptions.length})
+                                    </AccordionTrigger>
+                                    <AccordionContent className="mt-2 space-y-3">
+                                        <div className="flex justify-end">
                                             <Button
-                                                variant="ghost"
-                                                size="icon"
+                                                variant="outline"
+                                                size="sm"
                                                 onClick={() => {
-                                                    removeOption(
-                                                        id,
-                                                        itemIdx,
-                                                        optIdx
+                                                    const used = new Set(
+                                                        localOptions.map(
+                                                            (o) =>
+                                                                o.postbackText
+                                                        )
                                                     )
-                                                    triggerAfterSave(id)
+                                                    const next = DIGITS.find(
+                                                        (d) => !used.has(d)
+                                                    )
+                                                    if (!next) return
+                                                    setLocalOptions((prev) => [
+                                                        ...prev,
+                                                        {
+                                                            postbackText: next,
+                                                            type: 'text',
+                                                            title: '',
+                                                            description: '',
+                                                        },
+                                                    ])
                                                 }}
-                                                className="text-red-500 hover:text-red-700"
+                                                className="border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500 hover:text-white"
                                             >
-                                                <Trash2 className="h-4 w-4" />
+                                                <Plus className="mr-1 h-4 w-4" />
+                                                Añadir opción
                                             </Button>
                                         </div>
 
-                                        {/* Campos */}
-                                        <div className="mt-2 grid grid-cols-2 gap-2">
-                                            <div>
-                                                <Label className="text-xs text-gray-500">
-                                                    postbackText
-                                                </Label>
-                                                <Select
-                                                    value={opt.postbackText}
-                                                    onValueChange={(digit) => {
-                                                        updateInteractive(
-                                                            (d) => {
-                                                                d.items[
-                                                                    itemIdx
-                                                                ].options[
-                                                                    optIdx
-                                                                ].postbackText =
-                                                                    digit
-                                                            }
-                                                        )
-                                                        triggerAfterSave(id)
-                                                    }}
-                                                >
-                                                    <SelectTrigger className="h-8 border-emerald-500 text-xs">
-                                                        <SelectValue placeholder="Seleccionar..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {DIGITS.map((d) => (
-                                                            <SelectItem
-                                                                key={d}
-                                                                value={d}
-                                                                disabled={
-                                                                    usedDigits.has(
-                                                                        d
-                                                                    ) &&
-                                                                    opt.postbackText !==
-                                                                        d
-                                                                }
-                                                            >
-                                                                {d}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <Label className="text-xs text-gray-500">
-                                                    title
-                                                </Label>
-                                                <Input
-                                                    value={decodeURIComponent(
-                                                        opt.title || ''
-                                                    )}
-                                                    onChange={(e) =>
-                                                        updateInteractive(
-                                                            (d) => {
-                                                                d.items[
-                                                                    itemIdx
-                                                                ].options[
-                                                                    optIdx
-                                                                ].title =
-                                                                    encodeURIComponent(
-                                                                        e.target
-                                                                            .value
+                                        {localOptions.map((opt, optIdx) => (
+                                            <div
+                                                key={optIdx}
+                                                className="rounded-md border border-emerald-200 bg-white/80 p-2 text-xs shadow-sm dark:border-emerald-700 dark:bg-gray-950"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <Label className="text-[10px] text-gray-500">
+                                                        Opción {optIdx + 1}
+                                                    </Label>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() =>
+                                                            setLocalOptions(
+                                                                (prev) =>
+                                                                    prev.filter(
+                                                                        (
+                                                                            _,
+                                                                            i
+                                                                        ) =>
+                                                                            i !==
+                                                                            optIdx
                                                                     )
-                                                            }
-                                                        )
-                                                    }
-                                                    placeholder="Ej: Instalación"
-                                                    className="text-xs"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="col-span-2 mt-1">
-                                            <Label className="text-xs text-gray-500">
-                                                description
-                                            </Label>
-                                            <Input
-                                                value={decodeURIComponent(
-                                                    opt.description || ''
-                                                )}
-                                                onChange={(e) =>
-                                                    updateInteractive((d) => {
-                                                        d.items[
-                                                            itemIdx
-                                                        ].options[
-                                                            optIdx
-                                                        ].description =
-                                                            encodeURIComponent(
-                                                                e.target.value
                                                             )
-                                                    })
-                                                }
-                                                placeholder="Ej: Sobre la instalación del baño portátil"
-                                                className="text-xs"
-                                            />
-                                        </div>
-
-                                        {/* 🧭 Conexión individual */}
-                                        <div className="mt-3">
-                                            <OptionFlowManager
-                                                id={id}
-                                                optionKey={opt.postbackText}
-                                                selectedId={
-                                                    (opt as any).nextNodeId
-                                                }
-                                                onSelect={(targetId) =>
-                                                    updateInteractive((d) => {
-                                                        ;(
-                                                            d.items[itemIdx]
-                                                                .options[
-                                                                optIdx
-                                                            ] as any
-                                                        ).nextNodeId = targetId
-                                                        if (targetId)
-                                                            createConnectionIfMissing(
-                                                                targetId,
+                                                        }
+                                                        className="h-5 w-5 text-red-500 hover:text-red-700"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <Label className="text-[10px] text-gray-500">
+                                                            postbackText
+                                                        </Label>
+                                                        <Select
+                                                            value={
                                                                 opt.postbackText
+                                                            }
+                                                            onValueChange={(
+                                                                digit
+                                                            ) =>
+                                                                setLocalOptions(
+                                                                    (prev) =>
+                                                                        prev.map(
+                                                                            (
+                                                                                o,
+                                                                                i
+                                                                            ) =>
+                                                                                i ===
+                                                                                optIdx
+                                                                                    ? {
+                                                                                          ...o,
+                                                                                          postbackText:
+                                                                                              digit,
+                                                                                      }
+                                                                                    : o
+                                                                        )
+                                                                )
+                                                            }
+                                                        >
+                                                            <SelectTrigger className="h-8 border-emerald-400 text-xs">
+                                                                <SelectValue placeholder="Seleccionar..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {DIGITS.map(
+                                                                    (d) => (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                d
+                                                                            }
+                                                                            value={
+                                                                                d
+                                                                            }
+                                                                            disabled={
+                                                                                usedDigits.has(
+                                                                                    d
+                                                                                ) &&
+                                                                                opt.postbackText !==
+                                                                                    d
+                                                                            }
+                                                                        >
+                                                                            {d}
+                                                                        </SelectItem>
+                                                                    )
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
+                                                    <div>
+                                                        <Label className="text-[10px] text-gray-500">
+                                                            title
+                                                        </Label>
+                                                        <Input
+                                                            value={decodeURIComponent(
+                                                                opt.title || ''
+                                                            )}
+                                                            onChange={(e) =>
+                                                                setLocalOptions(
+                                                                    (prev) =>
+                                                                        prev.map(
+                                                                            (
+                                                                                o,
+                                                                                i
+                                                                            ) =>
+                                                                                i ===
+                                                                                optIdx
+                                                                                    ? {
+                                                                                          ...o,
+                                                                                          title: encodeURIComponent(
+                                                                                              e
+                                                                                                  .target
+                                                                                                  .value
+                                                                                          ),
+                                                                                      }
+                                                                                    : o
+                                                                        )
+                                                                )
+                                                            }
+                                                            placeholder="Ej: Instalación"
+                                                            className="text-xs"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="mt-1">
+                                                    <Label className="text-[10px] text-gray-500">
+                                                        description
+                                                    </Label>
+                                                    <Input
+                                                        value={decodeURIComponent(
+                                                            opt.description ||
+                                                                ''
+                                                        )}
+                                                        onChange={(e) =>
+                                                            setLocalOptions(
+                                                                (prev) =>
+                                                                    prev.map(
+                                                                        (
+                                                                            o,
+                                                                            i
+                                                                        ) =>
+                                                                            i ===
+                                                                            optIdx
+                                                                                ? {
+                                                                                      ...o,
+                                                                                      description:
+                                                                                          encodeURIComponent(
+                                                                                              e
+                                                                                                  .target
+                                                                                                  .value
+                                                                                          ),
+                                                                                  }
+                                                                                : o
+                                                                    )
                                                             )
-                                                    })
-                                                }
-                                                availableNodes={availableNodes}
-                                                accentColor="text-sky-600"
-                                                deferred
-                                            />
+                                                        }
+                                                        placeholder="Descripción..."
+                                                        className="text-xs"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div className="flex justify-end pt-2">
+                                            <Button
+                                                onClick={handleSaveOptions}
+                                                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                            >
+                                                💾 Guardar opciones
+                                            </Button>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                {/* 🔗 Conexiones */}
+                                <AccordionItem value="connections">
+                                    <AccordionTrigger className="rounded-md bg-purple-100/60 px-3 py-2 text-xs text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                        🔗 Conexiones de opciones
+                                    </AccordionTrigger>
+                                    <AccordionContent className="mt-2">
+                                        <DynamicNodeConnectionsAccordion
+                                            nodeId={id}
+                                            variant="list"
+                                            options={item.options.map(
+                                                (opt) => ({
+                                                    id: opt.postbackText,
+                                                    label: decodeURIComponent(
+                                                        opt.title ||
+                                                            opt.postbackText
+                                                    ),
+                                                    nextNodeId: (opt as any)
+                                                        .nextNodeId,
+                                                })
+                                            )}
+                                            onUpdateOption={(
+                                                optionId,
+                                                key,
+                                                value
+                                            ) =>
+                                                updateInteractive((d) => {
+                                                    const option = d.items[
+                                                        itemIdx
+                                                    ].options.find(
+                                                        (o) =>
+                                                            o.postbackText ===
+                                                            optionId
+                                                    )
+                                                    if (option)
+                                                        (option as any)[key] =
+                                                            value
+                                                    if (!d.conditions)
+                                                        d.conditions = {}
+                                                    if (value)
+                                                        d.conditions[optionId] =
+                                                            value
+                                                    else
+                                                        delete d.conditions[
+                                                            optionId
+                                                        ]
+                                                })
+                                            }
+                                        />
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
                         </div>
                     )
                 })}
