@@ -443,16 +443,46 @@ export function convertWiContactToFlow(json: any): {
                 break
             }
 
-            case 'mysqlquery':
+            case 'mysqlquery': {
                 nodeType = 'mysqlQueryNode'
+
+                const mysqlStore =
+                    require('@/store/useMySQLQueryStore').useMySQLQueryStore.getState()
+
+                // 🧩 Normalización
+                const mode = object?.mode || 'simpletext'
+                const setvar = object?.setvar || ''
+                const query = object?.query || ''
+                const variable = object?.variable || ''
+                const alias = object?.alias || ''
+                const script = object?.script || ''
+
+                // 🧱 Objeto completo
+                const fullObject = {
+                    mode,
+                    setvar,
+                    query,
+                    variable,
+                    alias,
+                    script,
+                }
+
+                // 🧠 Sincronizar en store
+                mysqlStore.initNode(id)
+                mysqlStore.setNodeData(id, fullObject)
+
+                // 🧩 Data para el nodo visual
                 nodeData = {
                     label: id,
-                    query: object.query || '',
-                    variable: object.variable || '',
-                    alias: object.alias || '',
-                    script: object.script || '',
+                    object: fullObject,
                 }
+
+                console.log(
+                    `🧩 [Importer] MySQLQueryNode inicializado: ${id}`,
+                    fullObject
+                )
                 break
+            }
 
             case 'noop':
                 nodeType = 'noopNode'
