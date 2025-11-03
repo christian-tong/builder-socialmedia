@@ -265,29 +265,34 @@ export default function FormSaveRecordNode({ id, data }: any) {
                 </Badge>
             </div>
 
-            {/* 🔗 Conexiones */}
-            <div className="flex flex-col gap-3">
-                <NodeConnectionsAccordion
-                    title="Nodo anterior"
-                    nodesList={prevNodes}
-                    accentColor="text-amber-600 dark:text-amber-400"
-                />
-                <NodeConnectionsAccordion
-                    title="Nodo siguiente"
-                    nodesList={nextNodes}
-                    accentColor="text-amber-600 dark:text-amber-400"
-                />
-            </div>
-
-            {/* ⚡ Conectar / desconectar nodos */}
-            <NodeSelectionAccordion
-                title="Conectar o desconectar nodos"
-                availableNodes={availableNodes}
-                hasConnection={hasConnection}
-                toggleConnection={toggleConnection}
-                accentColor="text-amber-600 dark:text-amber-400"
+            {/* 🔗 Conexión entrante */}
+            <NodeConnectionsAccordion
+                title="Nodo anterior"
+                nodesList={prevNodes}
+                accentColor="text-sky-700 dark:text-sky-300"
             />
 
+            {/* ⚡ Sección OnTrue */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
+                    Conexión OnTrue
+                </Label>
+                <NodeConnectionsAccordion
+                    title="Nodos conectados (onTrue)"
+                    nodesList={availableNodes
+                        .filter((n) => hasConnection(n.id, 'onTrue'))
+                        .map((n) => n.id)}
+                    accentColor="text-green-700 dark:text-green-300"
+                />
+                <NodeSelectionAccordion
+                    title="Seleccionar nodo OnTrue"
+                    availableNodes={availableNodes}
+                    hasConnection={hasConnection}
+                    toggleConnection={toggleConnection}
+                    handleId="onTrue"
+                    accentColor="text-green-700 dark:text-green-300"
+                />
+            </div>
             {/* 🔐 Autenticación */}
             <div className="space-y-3">
                 <Label className="text-xs font-medium text-amber-600">
