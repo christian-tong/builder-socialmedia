@@ -1,5 +1,6 @@
 // src/components/forms/Menu/FormGetDataCompleteBase.tsx
 
+// src/components/forms/Menu/FormGetDataCompleteBase.tsx
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -34,11 +35,12 @@ import {
 import { FormGetDataCompleteGetData } from './FormGetDataCompleteGetData'
 
 /**
- * 🧩 FormGetDataCompleteBase (v4.6 — Acordeón Centro de Control)
+ * 🧩 FormGetDataCompleteBase (v4.7 — AutoVariantSync)
  * -------------------------------------------------------------------------
- * - Agrupa onTrue / onFalse / onError en un acordeón “Centro de Control”
- * - Mantiene compatibilidad con QuickReply, List, GETDATA, SimpleText
- * - Conserva el patrón de sincronización diferida y estructura estándar
+ * ✅ Detecta automáticamente tipo importado (GETDATA / SIMPLETEXT / List / QR)
+ * ✅ Compatible con convertWiContactToFlow v5.4
+ * ✅ Sincroniza Select inicial con variantStore y JSON importado
+ * ✅ Mantiene lógica de conexión y guardado diferido
  */
 export default function FormGetDataCompleteBase({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
@@ -74,10 +76,13 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
             setNodeData(id, current)
             updateNodeData(id, { ...data, object: current })
 
-            const type = current.interactive?.type
+            const type =
+                (current.type as string)?.toUpperCase?.() ||
+                (current.interactive?.type as string)?.toUpperCase?.() ||
+                'QUICK_REPLY'
 
             // 💬 QUICK_REPLY → crea edges por opción
-            if (type === 'quick_reply' && current.interactive) {
+            if (type === 'QUICK_REPLY' && current.interactive) {
                 const qr = current.interactive
                 if ('options' in qr && Array.isArray(qr.options)) {
                     qr.options.forEach((opt) => {
@@ -92,7 +97,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
             }
 
             // 📋 LIST → crea edges según items[].options[].nextNodeId
-            if (type === 'list' && current.interactive) {
+            if (type === 'LIST' && current.interactive) {
                 const list = current.interactive
                 if ('items' in list && Array.isArray(list.items)) {
                     list.items.forEach((item) => {
@@ -109,7 +114,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
             }
 
             // 🧾 GETDATA → crea edges por cada condición válida
-            if (type === 'GETDATA') {
+            if (type === 'GETDATA' || type === 'SIMPLETEXT') {
                 const conditions = current.conditions || {}
                 Object.entries(conditions).forEach(([key, targetId]) => {
                     if (targetId)
@@ -149,12 +154,19 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
     ) => {
         const interactive = createEmptyInteractive(value)
         handleChange('interactive', interactive)
+        handleChange('type', value)
     }
 
-    const type = localData.interactive?.type || 'quick_reply'
+    /* -------------------------------------------------------------------------- */
+    /* 🧠 Detección automática del tipo inicial                                   */
+    /* -------------------------------------------------------------------------- */
+    const type =
+        (localData.type as string)?.toUpperCase?.() ||
+        (localData.interactive?.type as string)?.toUpperCase?.() ||
+        'QUICK_REPLY'
 
     /* -------------------------------------------------------------------------- */
-    /* 🎨 Conexiones condicionales (siguiendo patrón FormTimeConditionNode)       */
+    /* 🎨 Conexiones condicionales                                                */
     /* -------------------------------------------------------------------------- */
     const trueConnections = availableNodes
         .filter((n) => hasConnection(n.id, 'onTrue'))
@@ -184,23 +196,22 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                 </Badge>
             </div>
 
-            {/* 🔗 Conexión entrante */}
+            {/* 🔗 Nodo anterior */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* ⚙️ Nodos siguientes (Centro de Control) */}
+            {/* ⚡ Nodos siguientes */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Accordion type="single" collapsible className="w-full">
                     <AccordionItem value="next-nodes">
                         <AccordionTrigger className="rounded-md bg-purple-50 px-3 py-2 text-sm font-medium text-purple-700 dark:bg-purple-900/10 dark:text-purple-300">
                             ⚡ Nodos siguientes (Centro de Control)
                         </AccordionTrigger>
-
                         <AccordionContent className="space-y-4 px-2 pt-2">
-                            {/* ⚡ Sección OnTrue */}
+                            {/* OnTrue */}
                             <div className="flex flex-col gap-2">
                                 <Label className="text-sm font-medium text-green-600 dark:text-green-400">
                                     Conexión OnTrue
@@ -220,7 +231,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                                 />
                             </div>
 
-                            {/* ⚡ Sección OnFalse */}
+                            {/* OnFalse */}
                             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                                 <Label className="text-sm font-medium text-rose-600 dark:text-rose-400">
                                     Conexión OnFalse
@@ -240,7 +251,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                                 />
                             </div>
 
-                            {/* ⚡ Sección OnError */}
+                            {/* OnError */}
                             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                                 <Label className="text-sm font-medium text-amber-600 dark:text-amber-400">
                                     Conexión OnError
@@ -291,9 +302,9 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                 </div>
             </div>
 
-            {/* 🧱 Formularios dinámicos según tipo */}
-            {type === 'quick_reply' && <FormGetDataCompleteQR id={id} />}
-            {type === 'list' && <FormGetDataCompleteList id={id} />}
+            {/* 🧱 Formularios dinámicos */}
+            {type === 'QUICK_REPLY' && <FormGetDataCompleteQR id={id} />}
+            {type === 'LIST' && <FormGetDataCompleteList id={id} />}
             {type === 'GETDATA' && <FormGetDataCompleteGetData id={id} />}
             {type === 'SIMPLETEXT' && <FormGetDataCompleteSimpleText id={id} />}
         </div>
