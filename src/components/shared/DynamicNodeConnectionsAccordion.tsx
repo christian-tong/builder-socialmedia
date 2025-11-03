@@ -1,6 +1,5 @@
 // src/components/shared/DynamicNodeConnectionsAccordion.tsx
 
-// src/components/shared/DynamicNodeConnectionsAccordion.tsx
 'use client'
 
 import React, { useMemo, useCallback, useEffect, useRef } from 'react'
@@ -43,11 +42,12 @@ interface DynamicNodeConnectionsAccordionProps {
 }
 
 /**
- * 🎛️ DynamicNodeConnectionsAccordion (v1.4 — SafeEdgeRetention)
+ * 🎛️ DynamicNodeConnectionsAccordion (v1.4.1 — HookSafe Edge Retention)
  * ------------------------------------------------------------------
  * ✅ Mantiene edges base (onTrue/onFalse/onError)
  * ✅ Limpia solo edges obsoletos del tipo dinámico
- * ✅ Previene limpieza en el primer render
+ * ✅ Evita errores de hooks (“Rendered fewer hooks than expected”)
+ * ✅ Primera renderización protegida con mountedRef
  */
 export function DynamicNodeConnectionsAccordion({
     nodeId,
@@ -61,12 +61,17 @@ export function DynamicNodeConnectionsAccordion({
     const { edges, setEdges } = useFlowStore()
     const mountedRef = useRef(false)
 
+    /* -------------------------------------------------------------------------- */
+    /* 🧱 Opciones seguras limitadas                                              */
+    /* -------------------------------------------------------------------------- */
     const safeOptions = useMemo(
         () => options.slice(0, maxOptions),
         [options, maxOptions]
     )
 
-    /** 🪄 Genera un handle ID estable según el tipo */
+    /* -------------------------------------------------------------------------- */
+    /* 🪄 Genera un handle ID estable según la variante                           */
+    /* -------------------------------------------------------------------------- */
     const getHandleId = useCallback(
         (optionId: string) => {
             switch (variant) {
@@ -83,37 +88,45 @@ export function DynamicNodeConnectionsAccordion({
         [variant]
     )
 
-    /** 🧹 Limpia edges obsoletos cuando se borran opciones (sin tocar onTrue/onFalse/onError) */
+    /* -------------------------------------------------------------------------- */
+    /* 🧹 Limpieza de edges obsoletos (sin tocar onTrue/onFalse/onError)          */
+    /* -------------------------------------------------------------------------- */
     useEffect(() => {
-        if (!mountedRef.current) {
-            mountedRef.current = true
-            return
-        }
-
         const validHandles = safeOptions.map((o) => getHandleId(o.id))
         const baseHandles = ['onTrue', 'onFalse', 'onError']
 
-        const newEdges = edges.filter(
-            (e) =>
-                e.source !== nodeId ||
-                (e.source === nodeId &&
-                    e.sourceHandle &&
-                    (validHandles.includes(e.sourceHandle) ||
-                        baseHandles.includes(e.sourceHandle)))
-        )
+        // Solo ejecutar la limpieza después del primer montaje
+        if (mountedRef.current) {
+            const newEdges = edges.filter(
+                (e) =>
+                    e.source !== nodeId ||
+                    (e.source === nodeId &&
+                        e.sourceHandle &&
+                        (validHandles.includes(e.sourceHandle) ||
+                            baseHandles.includes(e.sourceHandle)))
+            )
 
-        if (newEdges.length !== edges.length) setEdges(newEdges)
+            if (newEdges.length !== edges.length) {
+                setEdges(newEdges)
+            }
+        }
+
+        mountedRef.current = true
     }, [safeOptions, edges, nodeId, getHandleId, setEdges])
 
-    /** 🔗 Crear o eliminar conexión */
+    /* -------------------------------------------------------------------------- */
+    /* 🔗 Crear o eliminar conexión dinámica                                      */
+    /* -------------------------------------------------------------------------- */
     const handleSelectChange = useCallback(
         (optionId: string, targetId: string | null) => {
             const handleId = getHandleId(optionId)
 
             if (targetId) {
+                // ✅ Crear conexión si no existe
                 createConnectionIfMissing(targetId, handleId)
                 onUpdateOption(optionId, 'nextNodeId', targetId)
             } else {
+                // 🧹 Eliminar edges asociados a ese handle
                 setEdges((prev) =>
                     prev.filter(
                         (e) =>
@@ -135,6 +148,9 @@ export function DynamicNodeConnectionsAccordion({
         ]
     )
 
+    /* -------------------------------------------------------------------------- */
+    /* 🧱 Render principal                                                        */
+    /* -------------------------------------------------------------------------- */
     return (
         <div className="mt-5 rounded-xl border border-purple-300 bg-purple-50/40 p-3 dark:border-purple-800 dark:bg-purple-900/10">
             <div className="flex items-center justify-between">
