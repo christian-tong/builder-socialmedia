@@ -1,4 +1,5 @@
 // src\components\forms\FormTimeConditionNode.tsx
+
 'use client'
 
 import React, { useEffect } from 'react'
@@ -33,11 +34,11 @@ const DAYS = [
 ]
 
 /**
- * 🕓 FormTimeConditionNode
+ * 🕓 FormTimeConditionNode (v2.1 – ordenado onTrue/onFalse)
  * --------------------------------------------------
- * - Define días y horas de condición
- * - Autoparsea "condition" al cargar desde JSON
- * - Usa lógica modular de conexiones
+ * - Separa las conexiones en onTrue / onFalse
+ * - Muestra acordeones independientes para cada handle
+ * - Mantiene sincronización con useNodeConnections
  */
 export default function FormTimeConditionNode({
     id,
@@ -49,18 +50,18 @@ export default function FormTimeConditionNode({
     const { updateNodeData } = useNodeConfigStore()
 
     // 🧠 Hook centralizado de conexiones
-    const {
-        prevNodes,
-        nextNodes,
-        availableNodes,
-        hasConnection,
-        toggleConnection,
-    } = useNodeConnections(id)
+    const { prevNodes, availableNodes, hasConnection, toggleConnection } =
+        useNodeConnections(id)
 
-    /**
-     * 🧩 1️⃣ Parse automático cuando llega una condición preexistente (desde importador)
-     * Ej: "mon-fri,09:00-19:00" → descompone en dayStart, dayEnd, startTime, endTime
-     */
+    // 🔍 Filtra conexiones salientes específicas
+    const trueConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onTrue'))
+        .map((n) => n.id)
+    const falseConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onFalse'))
+        .map((n) => n.id)
+
+    // 🧩 Parse automático (desde importador)
     useEffect(() => {
         if (data.condition && !data.dayStart) {
             const [days, hours] = data.condition.split(',')
@@ -70,10 +71,7 @@ export default function FormTimeConditionNode({
         }
     }, [data.condition, data.dayStart, id, updateNodeData])
 
-    /**
-     * 🧩 2️⃣ Genera la condición combinada en tiempo real
-     * Ej: mon-fri,09:00-18:00
-     */
+    // 🧩 Genera condición combinada
     useEffect(() => {
         if (data.dayStart && data.dayEnd && data.startTime && data.endTime) {
             const condition = `${data.dayStart}-${data.dayEnd},${data.startTime}-${data.endTime}`
@@ -103,31 +101,55 @@ export default function FormTimeConditionNode({
                 </Badge>
             </div>
 
-            {/* 🔗 Acordeones de conexiones */}
-            <div className="flex flex-col gap-3">
-                <NodeConnectionsAccordion
-                    title="Nodo anterior"
-                    nodesList={prevNodes}
-                    accentColor="text-sky-700 dark:text-sky-300"
-                />
-                <NodeConnectionsAccordion
-                    title="Nodo siguiente"
-                    nodesList={nextNodes}
-                    accentColor="text-sky-700 dark:text-sky-300"
-                />
-            </div>
-
-            {/* ⚡ Conectar o desconectar nodos */}
-            <NodeSelectionAccordion
-                title="Conectar o desconectar nodos"
-                availableNodes={availableNodes}
-                hasConnection={hasConnection}
-                toggleConnection={toggleConnection}
+            {/* 🔗 Conexiones entrantes */}
+            <NodeConnectionsAccordion
+                title="Nodo anterior"
+                nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* 🔹 Rango de días */}
-            <div className="flex flex-col gap-2">
+            {/* ⚡ Sección onTrue */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
+                    Conexión OnTrue
+                </Label>
+                <NodeConnectionsAccordion
+                    title="Nodos conectados (onTrue)"
+                    nodesList={trueConnections}
+                    accentColor="text-green-700 dark:text-green-300"
+                />
+                <NodeSelectionAccordion
+                    title="Seleccionar nodo OnTrue"
+                    availableNodes={availableNodes}
+                    hasConnection={hasConnection}
+                    toggleConnection={toggleConnection}
+                    handleId="onTrue"
+                    accentColor="text-green-700 dark:text-green-300"
+                />
+            </div>
+
+            {/* ⚡ Sección onFalse */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                <Label className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                    Conexión OnFalse
+                </Label>
+                <NodeConnectionsAccordion
+                    title="Nodos conectados (onFalse)"
+                    nodesList={falseConnections}
+                    accentColor="text-rose-700 dark:text-rose-300"
+                />
+                <NodeSelectionAccordion
+                    title="Seleccionar nodo OnFalse"
+                    availableNodes={availableNodes}
+                    hasConnection={hasConnection}
+                    toggleConnection={toggleConnection}
+                    handleId="onFalse"
+                    accentColor="text-rose-700 dark:text-rose-300"
+                />
+            </div>
+
+            {/* ⚙️ Rango de días */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Rango de días</Label>
                 <div className="flex items-center gap-2">
                     <Select
@@ -170,7 +192,7 @@ export default function FormTimeConditionNode({
                 </div>
             </div>
 
-            {/* 🔹 Horario */}
+            {/* 🕓 Horario */}
             <div className="flex flex-col gap-2">
                 <Label className="text-sm font-medium">
                     Horario (formato 24 h)
