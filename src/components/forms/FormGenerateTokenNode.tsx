@@ -128,11 +128,6 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                 nodesList={prevNodes}
                 accentColor="text-[#AA3E98]"
             />
-            <NodeConnectionsAccordion
-                title="Nodo siguiente"
-                nodesList={nextNodes}
-                accentColor="text-[#AA3E98]"
-            />
             <NodeSelectionAccordion
                 title="Conectar / desconectar"
                 availableNodes={availableNodes}
