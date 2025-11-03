@@ -1,6 +1,5 @@
 // src\lib\jsonImporterWiContact.ts
 
-// src/lib/jsonImporterWiContact.ts
 import type { Edge, Node } from 'reactflow'
 import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
@@ -8,13 +7,13 @@ import type { GetDataCompleteObject } from '@/types/getDataComplete'
 import { nodeTypes } from '@/config/nodesConfig'
 
 /**
- * 🔁 convertWiContactToFlow (v5.3 – Duplicate ID Safe)
+ * 🔁 convertWiContactToFlow (v5.4 – Variant Auto Detection)
  * ------------------------------------------------------------------------
- * ✅ Integración completa con useSaveRecordStore
- * ✅ Evita duplicados de nodos (por ID repetido)
- * ✅ Loguea los steps omitidos por duplicación
- * ✅ Mantiene compatibilidad con WiContact y osm_wsp.json
- * ✅ Genera edges válidos sin duplicación
+ * ✅ Auto-detecta variantes GETDATA / SIMPLETEXT / QuickReply / List
+ * ✅ Integración completa con useSaveRecordStore y useVariantTypeStore
+ * ✅ Evita duplicados de IDs
+ * ✅ Crea edges válidos y únicos
+ * ✅ Soporta importación desde WiContact y osm_wsp.json
  */
 export function convertWiContactToFlow(json: any): {
     nodes: Node[]
@@ -65,7 +64,7 @@ export function convertWiContactToFlow(json: any): {
         })
     }
 
-    console.groupCollapsed('🧩 [Importer v5.3] WiContact / osm_wsp → Flow')
+    console.groupCollapsed('🧩 [Importer v5.4] WiContact / osm_wsp → Flow')
     console.log('Total steps:', steps.length)
 
     // ========================
@@ -75,7 +74,6 @@ export function convertWiContactToFlow(json: any): {
         const { id, action = '', object = {} } = step
         const lower = String(action).toLowerCase()
 
-        // 🚨 Evita duplicados de ID
         if (uniqueNodeIds.has(id)) {
             duplicateIds.add(id)
             continue
@@ -145,6 +143,14 @@ export function convertWiContactToFlow(json: any): {
                 }
                 break
 
+            /**
+             * 🧩 GETDATA COMPLETE / MENU / SIMPLETEXT VARIANTS
+             * ----------------------------------------------------
+             * Detecta automáticamente tipo de formulario:
+             *  - "GETDATA" → FormGetDataCompleteGetData
+             *  - "SIMPLETEXT" → FormGetDataCompleteSimpleText
+             *  - Otros → QuickReply / List
+             */
             case 'getdatacomplete':
             case 'getdata':
             case 'getdata_v2':
@@ -154,10 +160,22 @@ export function convertWiContactToFlow(json: any): {
                 const interactive = object.interactive ?? {}
                 const setvars = object.setvariables || {}
                 const conditions = object.conditions || {}
-                const isList =
+
+                // 🧠 Detección automática de variante
+                let variantType: string | null = null
+                const declaredType = String(object.type || '').toUpperCase()
+
+                if (declaredType === 'GETDATA') variantType = 'GETDATA'
+                else if (declaredType === 'SIMPLETEXT')
+                    variantType = 'SIMPLETEXT'
+                else if (
                     interactive.type === 'list' ||
                     Object.keys(setvars).length > 4
-                const variantType = isList ? 'list' : 'quick_reply'
+                )
+                    variantType = 'list'
+                else variantType = 'quick_reply'
+
+                // 🧩 Genera opciones legibles
                 const rawOptions =
                     interactive.options ??
                     interactive.items?.[0]?.options ??
@@ -165,16 +183,19 @@ export function convertWiContactToFlow(json: any): {
                         postbackText: key,
                         title,
                     }))
+
                 const options = rawOptions.map((opt: any, i: number) => ({
                     postbackText: String(opt.postbackText ?? i + 1),
                     title: decodeURIComponent(opt.title || ''),
                 }))
+
                 const prompt = decodeURIComponent(
                     interactive.body ||
                         interactive.content?.text ||
                         object.prompt ||
                         ''
                 )
+
                 const fullObject: GetDataCompleteObject = {
                     id,
                     action: 'getdatacomplete',
@@ -183,19 +204,33 @@ export function convertWiContactToFlow(json: any): {
                     prompt,
                     setvariables: setvars,
                     conditions,
+                    type: variantType,
                     interactive: {
                         ...interactive,
-                        type: variantType,
-                        options: !isList ? options : undefined,
-                        items: isList ? interactive.items || [] : undefined,
+                        type: variantType?.toLowerCase?.() ?? 'quick_reply',
+                        options: !['list', 'GETDATA', 'SIMPLETEXT'].includes(
+                            variantType
+                        )
+                            ? options
+                            : undefined,
+                        items:
+                            variantType === 'list'
+                                ? interactive.items || []
+                                : undefined,
                     },
                 }
+
                 gdcBaseStore.initNode(id)
                 gdcBaseStore.setNodeData(id, fullObject)
-                variantStore.setVariantType(id, variantType)
+
+                // 🧩 Persistencia en stores de variantes
+                variantStore.setVariantType(id, variantType.toLowerCase())
                 variantStore.setVariantOptions(id, options)
                 variantStore.setVariantConditions(id, conditions)
+
                 nodeData = { label: id, object: fullObject }
+
+                console.log(`🧩 [Importer] ${id} detectado como ${variantType}`)
                 break
             }
 
@@ -316,46 +351,32 @@ export function convertWiContactToFlow(json: any): {
         const { id, onTrue, onFalse, onError, object = {} } = step
         if (!uniqueNodeIds.has(id)) continue
 
-        // 🔗 Enlaces base (compatibilidad legacy)
         addEdge(id, onTrue, 'onTrue')
         addEdge(id, onFalse, 'onFalse')
         addEdge(id, onError, 'onError')
         if (object?.nextNodeId) addEdge(id, object.nextNodeId, 'onSuccess')
 
-        // 🧩 Soporte interactivo (list / quick_reply / getdata)
-        const interactiveType = object?.interactive?.type
         const conditions = object?.conditions || {}
-        const setvars = object?.setvariables || {}
-        const items = object?.interactive?.items || []
-        const options = object?.interactive?.options || []
+        const interactiveType = object?.interactive?.type
+        const declaredType = String(object?.type || '').toUpperCase()
 
-        // 1️⃣ Quick Reply → condiciones con prefijo option_
+        // 🔗 Manejo especial para GETDATA y SIMPLETEXT
         if (
-            interactiveType === 'quick_reply' &&
+            ['GETDATA', 'SIMPLETEXT'].includes(declaredType) &&
+            Object.keys(conditions).length
+        ) {
+            for (const [key, targetId] of Object.entries(conditions)) {
+                addEdge(id, targetId as string, `cond_${key}`)
+            }
+        }
+
+        // QuickReply / List
+        if (
+            ['quick_reply', 'list'].includes(interactiveType) &&
             Object.keys(conditions).length
         ) {
             for (const [key, targetId] of Object.entries(conditions)) {
                 addEdge(id, targetId as string, `option_${key}`)
-            }
-        }
-
-        // 2️⃣ List → cada opción postbackText con prefijo option_
-        if (interactiveType === 'list' && Object.keys(conditions).length) {
-            for (const [key, targetId] of Object.entries(conditions)) {
-                addEdge(id, targetId as string, `option_${key}`)
-            }
-        }
-
-        // 3️⃣ GetData / SimpleText con condiciones → cond_
-        if (
-            !interactiveType &&
-            Object.keys(conditions).length &&
-            (object.action === 'getdata' ||
-                object.action === 'simpletext' ||
-                object.action === 'getdatacomplete')
-        ) {
-            for (const [key, targetId] of Object.entries(conditions)) {
-                addEdge(id, targetId as string, `cond_${key}`)
             }
         }
     }
@@ -378,21 +399,11 @@ export function convertWiContactToFlow(json: any): {
             [...duplicateIds].join(', ')
         )
     }
-
     if (unsupported.size > 0) {
-        console.warn('⚠️ Tipos de nodos no soportados detectados:')
+        console.warn('⚠️ Tipos no soportados:')
         console.table([...unsupported].map((t) => ({ tipo: t })))
     } else {
-        console.log('✅ Todos los tipos de nodos están soportados.')
-    }
-
-    try {
-        const { useSaveRecordStore } = require('@/store/useSaveRecordStore')
-        console.groupCollapsed('🧾 SaveRecordStore Snapshot')
-        console.log(useSaveRecordStore.getState().nodes)
-        console.groupEnd()
-    } catch {
-        /* ignora si no está disponible */
+        console.log('✅ Todos los tipos soportados.')
     }
 
     console.groupEnd()
