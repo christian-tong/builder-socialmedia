@@ -293,7 +293,7 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
                 }}
                 data-id={id}
                 data-animated={data.__animated ? 'true' : 'false'}
-                className={`relative w-[300px] cursor-pointer rounded-xl border select-none ${config.bg} p-3 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg`}
+                className={`relative w-[320px] cursor-pointer rounded-xl border select-none ${config.bg} p-3 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg`}
             >
                 {/* 🏷️ Header */}
                 <div className="flex items-center justify-between border-b border-white/10 pb-1">
@@ -301,13 +301,19 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
                         {config.icon}
                         <span>{config.label}</span>
                     </div>
-                    <div className="flex flex-col items-end">
+                    <div className="flex max-w-[160px] flex-col items-end text-right">
+                        {/* 🔹 ID pequeño */}
                         <div className="text-center text-[10px] text-white/60">
                             <span className="rounded-md border border-white/10 bg-white/10 px-2 py-[1px]">
                                 {id}
                             </span>
                         </div>
-                        <span className="truncate text-[11px] opacity-70">
+
+                        {/* 🧠 Alias con truncado visual elegante */}
+                        <span
+                            className="mt-[1px] max-w-full overflow-hidden text-[11px] font-medium text-ellipsis whitespace-nowrap opacity-80"
+                            title={nodeData.alias || nodeData.variable || id} // 👈 Tooltip para ver el texto completo
+                        >
                             {nodeData.alias || nodeData.variable || id}
                         </span>
                     </div>
