@@ -24,6 +24,9 @@ export function VariablesNode({ id, data }: any) {
     const { orientation } = useFlowOrientationStore()
     const { getNodeVariables } = useVariablesStore()
 
+    const targetPosition =
+        orientation === 'vertical' ? Position.Top : Position.Left
+
     const handlePosition =
         orientation === 'vertical' ? Position.Bottom : Position.Right
 
@@ -91,6 +94,12 @@ export function VariablesNode({ id, data }: any) {
                         Sin variables
                     </p>
                 )}
+
+                <Handle
+                    type="target"
+                    position={targetPosition}
+                    className="!bg-indigo-400"
+                />
 
                 {/* 🟣 Handle de salida */}
                 <Handle
