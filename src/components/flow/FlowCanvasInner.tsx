@@ -170,12 +170,6 @@ export default function FlowCanvasInner() {
                 <Controls />
             </ReactFlow>
 
-            {/* 🧭 Estado del builder */}
-            <div className="absolute right-4 bottom-2 text-xs opacity-70">
-                {uploadedJson
-                    ? `Fase actual: ${phase}`
-                    : 'Sube un archivo WiContact.json para comenzar'}
-            </div>
         </>
     )
 }
