@@ -1,23 +1,41 @@
 // src/components/forms/Menu/FormGetDataCompleteSimpleText.tsx
 
+// src/components/forms/Menu/FormGetDataCompleteSimpleText.tsx
 'use client'
 
-import React, { useCallback } from 'react'
-import { Label, Input, Textarea, Switch, Button } from '@/components/ui'
+import React, { useCallback, useState, useEffect } from 'react'
+import {
+    Label,
+    Input,
+    Textarea,
+    Switch,
+    Button,
+    Select,
+    SelectTrigger,
+    SelectContent,
+    SelectValue,
+    SelectItem,
+} from '@/components/ui'
 import { Plus, Trash2 } from 'lucide-react'
+import {
+    Accordion,
+    AccordionItem,
+    AccordionTrigger,
+    AccordionContent,
+} from '@/components/ui/accordion'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
 import { useGetDataCompleteSimpleTextStore } from '@/store/GetDataComplete/useGetDataCompleteSimpleTextStore'
-import { useNodeConnections } from '@/hooks/useNodeConnections'
-import { OptionFlowManager } from '@/components/shared/OptionFlowManager'
+import { DynamicNodeConnectionsAccordion } from '@/components/shared/DynamicNodeConnectionsAccordion'
 import type { GetDataCompleteObject } from '@/types/getDataComplete'
 
 /**
- * 🟢 FormGetDataCompleteSimpleText (v3.1 — Full Sync + Auto Edge + Tipado)
+ * 🟢 FormGetDataCompleteSimpleText (v4.6 — AutoAccordionSwitch + NumericSelect Sync)
  * ------------------------------------------------------------------------
- * ✅ prompt + description
- * ✅ setvariables + conditions con edge automático
- * ✅ Sincronización diferida v1.1
- * ✅ Tipado completo con keyof GetDataCompleteObject
+ * ✅ Unificado con QuickReply y GetData (v4.6)
+ * ✅ DualAccordion (Editar / Conexiones)
+ * ✅ Numeración automática (1–9,0) sin duplicados
+ * ✅ Guardar → abre Conexiones
+ * ✅ Tema verde (SimpleText Variant)
  */
 export function FormGetDataCompleteSimpleText({ id }: { id: string }) {
     const { getNodeData, triggerAfterSave } = useGetDataCompleteBaseStore()
@@ -29,13 +47,16 @@ export function FormGetDataCompleteSimpleText({ id }: { id: string }) {
         addSetVariable,
         updateSetVariable,
         removeSetVariable,
-        updateConditionLink,
     } = useGetDataCompleteSimpleTextStore()
-    const { availableNodes, createConnectionIfMissing } = useNodeConnections(id)
 
     const nodeData = getNodeData(id) as GetDataCompleteObject
+    const [accordionValue, setAccordionValue] = useState<string[]>(['edit'])
 
-    /* ------------------------------ Handlers ---------------------------------- */
+    const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const
+
+    /* -------------------------------------------------------------------------- */
+    /* ⚙️ Handlers base                                                          */
+    /* -------------------------------------------------------------------------- */
     const handleFieldChange = useCallback(
         (field: keyof GetDataCompleteObject, val: string) => {
             updateField(id, field as any, val)
@@ -52,18 +73,13 @@ export function FormGetDataCompleteSimpleText({ id }: { id: string }) {
         [id, toggleSaveHidden, triggerAfterSave]
     )
 
-    const handleSelectConditionLink = useCallback(
-        (key: string, targetId: string) => {
-            updateConditionLink(id, key, targetId)
-            if (targetId) createConnectionIfMissing(targetId, key)
-            triggerAfterSave(id)
-        },
-        [id, updateConditionLink, createConnectionIfMissing, triggerAfterSave]
-    )
+    useEffect(() => {
+        if (!nodeData.setvariables) nodeData.setvariables = {}
+    }, [nodeData])
 
-    /* ------------------------------- Render ----------------------------------- */
-
-    // Campos base tipados
+    /* -------------------------------------------------------------------------- */
+    /* 🧱 Campos base                                                            */
+    /* -------------------------------------------------------------------------- */
     const BASE_FIELDS: {
         key: keyof GetDataCompleteObject
         label: string
@@ -77,6 +93,9 @@ export function FormGetDataCompleteSimpleText({ id }: { id: string }) {
         { key: 'timeOut', label: '⏱️ Timeout (ms)', placeholder: '60000' },
     ]
 
+    /* -------------------------------------------------------------------------- */
+    /* 🧱 Render                                                                 */
+    /* -------------------------------------------------------------------------- */
     return (
         <div className="mt-6 space-y-6">
             {/* ⚙️ CONFIGURACIÓN BASE */}
@@ -85,7 +104,6 @@ export function FormGetDataCompleteSimpleText({ id }: { id: string }) {
                     ⚙️ Configuración base
                 </Label>
 
-                {/* SaveHidden */}
                 <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40">
                     <Switch
                         checked={!!nodeData.saveHidden}
@@ -96,7 +114,6 @@ export function FormGetDataCompleteSimpleText({ id }: { id: string }) {
                     </Label>
                 </div>
 
-                {/* Campos base */}
                 <div className="grid grid-cols-2 gap-3">
                     {BASE_FIELDS.map((f) => (
                         <div key={f.key}>
@@ -152,99 +169,193 @@ export function FormGetDataCompleteSimpleText({ id }: { id: string }) {
                 />
             </section>
 
-            {/* 🧩 OPCIONES (SetVariables + Conditions) */}
-            <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        🧩 Opciones de selección (setvariables)
-                    </Label>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => addSetVariable(id)}
-                        className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
-                    >
-                        <Plus className="mr-1 h-4 w-4" /> Añadir opción
-                    </Button>
-                </div>
+            {/* 🧩 OPCIONES */}
+            <section className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-700 dark:bg-emerald-900/10">
+                <Label className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                    ⚡ Opciones y condiciones
+                </Label>
 
-                <div className="space-y-3">
-                    {Object.entries(nodeData.setvariables ?? {}).map(
-                        ([key, val], idx) => (
-                            <div
-                                key={key}
-                                className="rounded-md border border-gray-200 p-3 dark:border-gray-700"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <Label className="text-xs text-gray-500">
-                                        Opción {idx + 1}
-                                    </Label>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() =>
-                                            removeSetVariable(id, key)
-                                        }
-                                        className="text-red-500 hover:text-red-700"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-
-                                {/* Key / Value */}
-                                <div className="mt-2 grid grid-cols-2 gap-2">
-                                    <div>
-                                        <Label className="text-xs text-gray-500">
-                                            Clave
-                                        </Label>
-                                        <Input
-                                            value={key}
-                                            disabled
-                                            className="bg-gray-100 text-xs dark:bg-gray-800"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label className="text-xs text-gray-500">
-                                            Valor
-                                        </Label>
-                                        <Input
-                                            value={decodeURIComponent(
-                                                val ?? ''
-                                            )}
-                                            onChange={(e) =>
-                                                updateSetVariable(
-                                                    id,
-                                                    key,
-                                                    e.target.value
-                                                )
-                                            }
-                                            placeholder="Ej: REGRESAR"
-                                            className="text-xs"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* 🔗 Conexión automática */}
-                                <div className="mt-3">
-                                    <OptionFlowManager
-                                        id={id}
-                                        optionKey={key}
-                                        selectedId={nodeData.conditions?.[key]}
-                                        onSelect={(targetId) =>
-                                            handleSelectConditionLink(
-                                                key,
-                                                targetId
+                <Accordion
+                    type="multiple"
+                    value={accordionValue}
+                    onValueChange={(val) => setAccordionValue(val as string[])}
+                    className="mt-2"
+                >
+                    {/* ✏️ Edición */}
+                    <AccordionItem value="edit">
+                        <AccordionTrigger className="rounded-md bg-emerald-100/70 px-3 py-2 text-xs text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">
+                            ✏️ Editar opciones (
+                            {Object.keys(nodeData.setvariables || {}).length})
+                        </AccordionTrigger>
+                        <AccordionContent className="mt-2 space-y-3">
+                            <div className="flex justify-end">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        const used = new Set(
+                                            Object.keys(
+                                                nodeData.setvariables || {}
                                             )
-                                        }
-                                        availableNodes={availableNodes}
-                                        accentColor="text-emerald-600"
-                                        deferred
-                                    />
-                                </div>
+                                        )
+                                        const next = DIGITS.find(
+                                            (d) => !used.has(d)
+                                        )
+                                        if (!next) return
+                                        addSetVariable(id)
+                                        updateSetVariable(
+                                            id,
+                                            next,
+                                            encodeURIComponent('')
+                                        )
+                                        triggerAfterSave(id)
+                                    }}
+                                    className="border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500"
+                                >
+                                    <Plus className="mr-1 h-4 w-4" /> Añadir
+                                    opción
+                                </Button>
                             </div>
-                        )
-                    )}
-                </div>
+
+                            {Object.entries(nodeData.setvariables || {}).map(
+                                ([key, val], idx) => (
+                                    <div
+                                        key={key}
+                                        className="rounded-md border border-emerald-200 bg-white/80 p-2 text-xs shadow-sm dark:border-emerald-700 dark:bg-gray-950"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-[10px] text-gray-500">
+                                                Opción {idx + 1}
+                                            </Label>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    removeSetVariable(id, key)
+                                                }
+                                                className="h-5 w-5 text-red-500 hover:text-red-700"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+
+                                        <div className="mt-2 grid grid-cols-2 gap-2">
+                                            <div>
+                                                <Label className="text-[10px] text-gray-500">
+                                                    Identificador
+                                                </Label>
+                                                <Select
+                                                    value={key}
+                                                    onValueChange={(newKey) => {
+                                                        const existing =
+                                                            nodeData.setvariables ||
+                                                            {}
+                                                        if (existing[newKey])
+                                                            return
+                                                        const newVars = {
+                                                            ...existing,
+                                                        }
+                                                        delete newVars[key]
+                                                        newVars[newKey] = val
+                                                        nodeData.setvariables =
+                                                            newVars
+                                                        triggerAfterSave(id)
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-8 border-emerald-400 text-xs">
+                                                        <SelectValue placeholder="Seleccionar..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {DIGITS.map((d) => (
+                                                            <SelectItem
+                                                                key={d}
+                                                                value={d}
+                                                                disabled={Object.keys(
+                                                                    nodeData.setvariables ||
+                                                                        {}
+                                                                ).some(
+                                                                    (k) =>
+                                                                        k ===
+                                                                            d &&
+                                                                        k !==
+                                                                            key
+                                                                )}
+                                                            >
+                                                                {d}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div>
+                                                <Label className="text-[10px] text-gray-500">
+                                                    Valor
+                                                </Label>
+                                                <Input
+                                                    value={decodeURIComponent(
+                                                        val || ''
+                                                    )}
+                                                    onChange={(e) =>
+                                                        updateSetVariable(
+                                                            id,
+                                                            key,
+                                                            encodeURIComponent(
+                                                                e.target.value
+                                                            )
+                                                        )
+                                                    }
+                                                    placeholder="Ej: REGRESAR"
+                                                    className="text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            )}
+
+                            <div className="flex justify-end pt-2">
+                                <Button
+                                    onClick={() => {
+                                        triggerAfterSave(id)
+                                        setAccordionValue(['connections'])
+                                    }}
+                                    className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                >
+                                    💾 Guardar opciones y ver conexiones
+                                </Button>
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+
+                    {/* 🔗 Conexiones */}
+                    <AccordionItem value="connections">
+                        <AccordionTrigger className="rounded-md bg-emerald-100/60 px-3 py-2 text-xs text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">
+                            🔗 Conexiones de condiciones
+                        </AccordionTrigger>
+                        <AccordionContent className="mt-2">
+                            <DynamicNodeConnectionsAccordion
+                                nodeId={id}
+                                variant="simpletext"
+                                options={Object.entries(
+                                    nodeData.setvariables || {}
+                                ).map(([key, val]) => ({
+                                    id: key,
+                                    label: decodeURIComponent(val || key),
+                                    nextNodeId: nodeData.conditions?.[key],
+                                }))}
+                                onUpdateOption={(optionId, key, value) => {
+                                    if (!nodeData.conditions)
+                                        nodeData.conditions = {}
+                                    if (value)
+                                        nodeData.conditions[optionId] = value
+                                    else delete nodeData.conditions[optionId]
+                                    triggerAfterSave(id)
+                                }}
+                            />
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
             </section>
         </div>
     )
