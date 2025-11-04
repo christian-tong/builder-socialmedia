@@ -15,6 +15,7 @@ import {
     generateSaveRecordId,
     generateGenerateTokenId,
     generateSetCustomerIDId,
+    generateStartNodeId,
 } from '@/utils/generateNodeId'
 
 /**
@@ -27,6 +28,20 @@ export const nodeTemplates: Record<
     string,
     () => { id: string; data: Record<string, any> }
 > = {
+    /** 🟢 StartNode (Paso Inicial) */
+    startNode: () => {
+        const id = generateStartNodeId()
+        return {
+            id,
+            data: {
+                label: id,
+                action: 'startstep',
+                object: {},
+                onTrue: '', // conexión inicial hacia el siguiente nodo
+            },
+        }
+    },
+
     /** 🟢 SimpleText */
     simpleTextNode: () => {
         const id = generateSimpleTextId()

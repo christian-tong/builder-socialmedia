@@ -1,5 +1,6 @@
 // src/utils/generateNodeId.ts
 
+let startNodeCounter = 0
 let getdatacompleteCounter = 0
 let simpleTextCounter = 0
 let derivateCounter = 0
@@ -13,6 +14,13 @@ let chatbotIARequestCounter = 0
 let saveRecordCounter = 0
 let generateTokenCounter = 0
 let setCustomerIDCounter = 0
+
+/** 🟢 StartNode (Paso Inicial) */
+export function generateStartNodeId(): string {
+    const id = `StartStep${String(startNodeCounter).padStart(4, '0')}`
+    startNodeCounter++
+    return id
+}
 
 /** 🟣 Menu Principal */
 export function getMenuId(): string {
@@ -107,6 +115,7 @@ export function generateGenerateTokenId(): string {
 
 /** 🔁 Reset manual */
 export function resetNodeCounters() {
+    startNodeCounter = 0
     getdatacompleteCounter = 0
     simpleTextCounter = 0
     derivateCounter = 0
