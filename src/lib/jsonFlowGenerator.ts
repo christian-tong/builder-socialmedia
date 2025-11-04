@@ -1,264 +1,268 @@
 // src/lib/jsonFlowGenerator.ts
 
+// src/lib/jsonFlowGenerator.ts
 import type { Edge, Node } from 'reactflow'
 import { useVariantTypeStore } from '@/store/useVariantTypeStore'
+import { useMySQLQueryStore } from '@/store/useMySQLQueryStore'
+import { useSaveRecordStore } from '@/store/useSaveRecordStore'
+import { useSwitchConditionStore } from '@/store/useSwitchConditionStore'
+import { useVariablesStore } from '@/store/useVariablesStore'
 
 /**
- * 🧠 generateConversationJson (v5 — Orden jerárquico Ambipar)
+ * 🧠 generateConversationJson (v5.8 – Full Store-Aware Export)
  * ------------------------------------------------------------
- * - Genera el flujo con orden jerárquico específico:
- *   1️⃣ startstep
- *   2️⃣ simpletext
- *   3️⃣ timecondition
- *   4️⃣ derivate
- *   5️⃣ getdatacomplete
- *   6️⃣ hangup
- * - Asegura fallback de edges sin handle
- * - Sincroniza variantes interactivas (quick_reply / list)
+ * ✅ Lee datos directamente desde los Zustand stores activos
+ * ✅ Corrige los campos vacíos (MySQL, SaveRecord, SwitchCondition, Variables)
+ * ✅ Mantiene compatibilidad total con importador v5.6
+ * ✅ Estructura final: { process: { steps: [...] } }
  */
-
-export interface WiStep {
-    id: string
-    action: string
-    onTrue?: string | null
-    onFalse?: string | null
-    onError?: string | null
-    isInteractive?: boolean
-    source?: string
-    interactiveVersion?: number
-    object: Record<string, any>
-}
-
-export interface WiProcess {
-    process: {
-        steps: WiStep[]
-    }
-}
-
 export function generateConversationJson(
     nodes: Node<Record<string, any>>[],
     edges: Edge[]
-): WiProcess {
-    const allSteps: WiStep[] = []
+): { process: { steps: any[] } } {
+    const steps: any[] = []
 
-    // 🧩 Helpers
-    const getOutgoingEdges = (sourceId: string): Edge[] =>
-        edges.filter((e) => e.source === sourceId)
-
-    const getConnectedTarget = (
-        edgeList: Edge[],
-        sourceId: string,
-        handleId?: string
-    ): string | null => {
-        // 🔹 Buscar edge con handle específico
-        if (handleId) {
-            const match = edgeList.find(
-                (e) => e.source === sourceId && e.sourceHandle === handleId
-            )
-            if (match) return match.target
-        }
-
-        // 🔹 Si no existe, tomar el primero saliente (fallback)
-        const fallback = edgeList.find((e) => e.source === sourceId)
-        return fallback?.target ?? null
+    const findTarget = (sourceId: string, handleId?: string): string | null => {
+        const match = edges.find(
+            (e) =>
+                e.source === sourceId &&
+                (handleId ? e.sourceHandle === handleId : true)
+        )
+        return match?.target ?? null
     }
 
-    // 🔗 Instancia del store
-    const { getVariantOptions, getVariantConditions, getVariantType } =
-        useVariantTypeStore.getState()
+    // Stores activos
+    const variantStore = useVariantTypeStore.getState()
+    const mysqlStore = useMySQLQueryStore.getState()
+    const saveRecordStore = useSaveRecordStore.getState()
+    const switchStore = useSwitchConditionStore.getState()
+    const varsStore = useVariablesStore.getState()
 
-    // 🧱 Recorrer todos los nodos y crear pasos
     for (const node of nodes) {
         const { id, type, data } = node
-        const outgoing = getOutgoingEdges(id)
-        const onTrue = getConnectedTarget(outgoing, id, 'onTrue')
-        const onFalse = getConnectedTarget(outgoing, id, 'onFalse')
-        const onError = getConnectedTarget(outgoing, id, 'onError')
+        const onTrue = findTarget(id, 'onTrue')
+        const onFalse = findTarget(id, 'onFalse')
+        const onError = findTarget(id, 'onError')
+        const onSuccess = findTarget(id, 'onSuccess')
+
+        let action = ''
+        let object: any = {}
+        let description = data?.description ?? ''
+        let isTemplate = false
 
         switch (type) {
-            /** 🟢 START NODE */
-            case 'startNode': {
-                const next = outgoing[0]?.target ?? null
-                allSteps.push({
-                    id,
-                    action: 'startstep',
-                    onTrue: next,
-                    object: {},
-                })
+            // 🟢 Inicio
+            case 'startNode':
+                action = 'startstep'
+                object = {}
+                break
+
+            // 🟦 Texto simple
+            case 'simpleTextNode':
+                action = 'simpletext'
+                object = { text: encodeURIComponent(data?.message ?? '') }
+                break
+
+            // 🧩 Variables
+            case 'variablesNode': {
+                const nodeVars = varsStore.getNodeVariables(id)
+                const merged = Object.fromEntries(
+                    nodeVars.map((v) => [v.key, v.value])
+                )
+                action = 'setvariables'
+                object = { setvars: JSON.stringify(merged) }
                 break
             }
 
-            /** 🟦 SIMPLE TEXT NODE */
-            case 'simpleTextNode': {
-                const text = encodeURIComponent(data?.message ?? '')
-                allSteps.push({
-                    id,
-                    action: 'simpletext',
-                    onTrue: onTrue ?? getConnectedTarget(outgoing, id),
-                    object: {
-                        groodText: data?.groodText ?? '',
-                        text,
-                    },
-                })
+            // 👤 Set Customer ID
+            case 'setCustomerIDNode': {
+                type CustomerData = {
+                    variable?: string
+                    alias?: string
+                    object?: any
+                }
+                const d = (data ?? {}) as CustomerData
+                action = 'setcustomerid'
+                object = d.object ?? {
+                    variable: d.variable ?? '',
+                    alias: d.alias ?? '',
+                }
                 break
             }
 
-            /** 🕓 TIME CONDITION NODE */
-            case 'timeConditionNode': {
-                allSteps.push({
-                    id,
-                    action: 'timecondition',
-                    onTrue,
-                    onFalse,
-                    object: {
-                        condition: data?.condition ?? '',
-                    },
-                })
+            // 🧠 IA Request
+            case 'chatBotIARequestNode':
+                action = 'chatbotiarequest'
+                object = {
+                    variable: data?.variable ?? '',
+                    url: data?.url ?? '',
+                    body: data?.body ?? '{}',
+                }
+                break
+
+            // 🧩 MySQL Query — 🔄 lectura del store
+            case 'mysqlQueryNode': {
+                const storeObj = mysqlStore.getNodeData(id)
+                action = 'mysqlquery'
+                object = {
+                    mode: storeObj.mode ?? 'simpletext',
+                    setvar: storeObj.setvar ?? '',
+                    query: storeObj.query ?? '',
+                    variable: storeObj.variable ?? '',
+                    alias: storeObj.alias ?? '',
+                    script: storeObj.script ?? '',
+                }
                 break
             }
 
-            /** 🟠 DERIVATE NODE */
-            case 'derivateNode': {
-                allSteps.push({
-                    id,
-                    action: 'derivate',
-                    onTrue,
-                    onFalse,
-                    onError,
-                    object: {
-                        timeoutMessage: encodeURIComponent(
-                            data?.timeoutMessage ?? ''
-                        ),
-                        skill: data?.skill ? Number(data.skill) : 0,
-                        queueMessage: encodeURIComponent(
-                            data?.queueMessage ?? ''
-                        ),
-                        inboundMessage: encodeURIComponent(
-                            data?.inboundMessage ?? ''
-                        ),
-                        groodText_queueMessage:
-                            data?.groodText_queueMessage ?? '',
-                        groodText_inboundMessage:
-                            data?.groodText_inboundMessage ?? '',
-                    },
-                })
+            // 💾 Save Record — 🔄 lectura del store
+            case 'saveRecordNode': {
+                const storeObj = saveRecordStore.getNodeData(id)
+                action = 'saverecord'
+                object = {
+                    auth: storeObj.auth,
+                    body: storeObj.body,
+                }
                 break
             }
 
-            /** 🟣 MENU NODE (getdatacomplete) */
+            // 🧬 SwitchCondition — 🔄 lectura del store
+            case 'switchConditionNode': {
+                const cfg = switchStore.byId[id]
+                action = 'switchcondition'
+                object = cfg
+                    ? {
+                          setvariables: Object.fromEntries(
+                              cfg.setvariables.map((s) => [s.key, s.value])
+                          ),
+                          variable: cfg.variable ?? '',
+                          alias: cfg.alias ?? '',
+                          conditions: cfg.connections ?? {},
+                          body: cfg.mode ?? 'strict',
+                      }
+                    : {}
+                break
+            }
+
+            // 🔑 Generar Token
+            case 'generateTokenNode':
+                action = 'generatetoken'
+                object = data?.object ?? {
+                    mode: data?.mode ?? 'simpletext',
+                    text: data?.text ?? '',
+                    body: data?.body ?? '',
+                    script: data?.script ?? '',
+                }
+                break
+
+            // 🧩 GetDataComplete (menú)
             case 'menuNode': {
-                const variantType = getVariantType(id)
-                const options = getVariantOptions(id)
-                const conditions = getVariantConditions(id)
-
+                const variantType = variantStore.getVariantType(id)
+                const options = variantStore.getVariantOptions(id)
+                const conditions = variantStore.getVariantConditions(id)
                 const setvariables: Record<string, string> = {}
                 options.forEach((opt) => {
                     setvariables[opt.postbackText] = opt.title ?? ''
                 })
 
-                const numeric = options
-                    .map((o) => Number(o.postbackText))
-                    .filter((n) => !isNaN(n))
-                const min = Math.min(...numeric)
-                const max = Math.max(...numeric)
-                const conditionRange =
-                    numeric.length > 0 ? `[${min}-${max}]` : '[1-1]'
-
                 const baseObject: Record<string, any> = {
                     setvariables,
-                    condition: data?.object?.condition ?? conditionRange,
-                    groodText: data?.object?.groodText ?? '',
-                    setvar: data?.object?.setvar ?? '',
-                    variable:
-                        data?.object?.variable ??
-                        (variantType === 'list'
-                            ? 'SegundaOpcion'
-                            : 'PrimeraOpcion'),
-                    saveHidden: true,
-                    alias:
-                        data?.object?.alias ??
-                        (variantType === 'list'
-                            ? 'SegundaOpcion'
-                            : 'PrimeraOpcion'),
+                    variable: data?.object?.variable ?? 'Opcion',
+                    alias: data?.object?.alias ?? 'Opcion',
                     conditions,
                     iterations: '2',
                     timeOut: '90000',
                 }
 
-                if (variantType === 'quick_reply') {
-                    baseObject.interactive = {
-                        type: 'quick_reply',
-                        msgid: 'qr1',
-                        content: {
-                            type: 'text',
-                            text: encodeURIComponent(data?.message ?? ''),
-                        },
-                        options: options.map((opt) => ({
-                            postbackText: opt.postbackText,
-                            type: 'text',
-                            title: encodeURIComponent(opt.title ?? ''),
-                        })),
-                    }
-                } else {
-                    baseObject.interactive = {
-                        globalButtons: [{ type: 'text', title: 'Elegir' }],
-                        type: 'list',
-                        body: encodeURIComponent(data?.message ?? ''),
-                        items: [
-                            {
-                                options: options.map((opt) => ({
-                                    postbackText: opt.postbackText,
-                                    type: 'text',
-                                    title: encodeURIComponent(opt.title ?? ''),
-                                })),
-                                title: 'Elija una opción',
-                            },
-                        ],
-                    }
+                baseObject.interactive =
+                    variantType === 'quick_reply'
+                        ? {
+                              type: 'quick_reply',
+                              content: {
+                                  type: 'text',
+                                  text: encodeURIComponent(data?.message ?? ''),
+                              },
+                              options: options.map((o) => ({
+                                  postbackText: o.postbackText,
+                                  type: 'text',
+                                  title: encodeURIComponent(o.title ?? ''),
+                              })),
+                          }
+                        : {
+                              globalButtons: [
+                                  { type: 'text', title: 'Elegir' },
+                              ],
+                              type: 'list',
+                              body: encodeURIComponent(data?.message ?? ''),
+                              items: [
+                                  {
+                                      options: options.map((o) => ({
+                                          postbackText: o.postbackText,
+                                          type: 'text',
+                                          title: encodeURIComponent(
+                                              o.title ?? ''
+                                          ),
+                                      })),
+                                      title: 'Elija una opción',
+                                  },
+                              ],
+                          }
+
+                action = 'getdatacomplete'
+                object = baseObject
+                break
+            }
+
+            // 🕓 Condición de tiempo
+            case 'timeConditionNode':
+                action = 'timecondition'
+                object = { condition: data?.condition ?? '' }
+                break
+
+            // 🧾 No-op
+            case 'noopNode':
+                action = 'noop'
+                object = {}
+                break
+
+            // 🟠 Derivación
+            case 'derivateNode':
+                action = 'derivate'
+                object = {
+                    timeoutMessage: encodeURIComponent(
+                        data?.timeoutMessage ?? ''
+                    ),
+                    queueMessage: encodeURIComponent(data?.queueMessage ?? ''),
+                    inboundMessage: encodeURIComponent(
+                        data?.inboundMessage ?? ''
+                    ),
+                    skill: data?.skill ?? '',
                 }
-
-                allSteps.push({
-                    id,
-                    action: 'getdatacomplete',
-                    onTrue,
-                    onFalse,
-                    onError,
-                    isInteractive: true,
-                    source: 'GetData',
-                    interactiveVersion: 4,
-                    object: baseObject,
-                })
                 break
-            }
 
-            /** 🔴 END NODE */
-            case 'endNode': {
-                allSteps.push({
-                    id,
-                    action: 'hangup',
-                    object: {
-                        HangupCause: data?.hangupCause ?? '',
-                    },
-                })
+            // 🔴 Fin
+            case 'endNode':
+                action = 'hangup'
+                object = { HangupCause: data?.hangupCause ?? '' }
                 break
-            }
 
             default:
-                break
+                console.warn(`⚠️ Tipo no soportado: ${type} (${id})`)
+                continue
         }
+
+        steps.push({
+            id,
+            action,
+            onTrue,
+            onFalse,
+            onError,
+            onSuccess,
+            isTemplate,
+            description,
+            object,
+        })
     }
 
-    // 🧮 ORDENAMIENTO JERÁRQUICO (como Ambipar)
-    const ordered = [
-        ...allSteps.filter((s) => s.action === 'startstep'),
-        ...allSteps.filter((s) => s.action === 'simpletext'),
-        ...allSteps.filter((s) => s.action === 'timecondition'),
-        ...allSteps.filter((s) => s.action === 'derivate'),
-        ...allSteps.filter((s) => s.action === 'getdatacomplete'),
-        ...allSteps.filter((s) => s.action === 'hangup'),
-    ]
-
-    return {
-        process: { steps: ordered },
-    }
+    return { process: { steps } }
 }
