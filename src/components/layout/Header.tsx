@@ -12,16 +12,36 @@ import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
 import { useFlowStore } from '@/store/useFlowStore'
 import { useSidebarStore } from '@/store/useSidebarStore'
+import { validateBeforeExport } from '@/lib/flowValidations' // ✅ validación previa
 import LogoWimprove from '../shared/LogoWimprove'
 
 export function Header() {
     const { isDark } = useTheme()
-    const { isOpen, toggleSidebar } = useSidebarStore()
+    const { toggleSidebar } = useSidebarStore()
     const { exportFlow } = useFlowStore()
 
     const [showJsonModal, setShowJsonModal] = useState(false)
     const [showImportModal, setShowImportModal] = useState(false)
     const [showSettingsModal, setShowSettingsModal] = useState(false)
+
+    // ⚡ Handler validado para abrir modal JSON
+    const handleOpenGenerateJson = (e: React.MouseEvent<HTMLButtonElement>) => {
+        const { nodes } = useFlowStore.getState()
+        const isValid = validateBeforeExport(nodes)
+
+        if (!isValid) {
+            // 🔴 feedback visual breve
+            const btn = e.currentTarget
+            btn.classList.add('animate-pulse', 'bg-red-600')
+            setTimeout(() => {
+                btn.classList.remove('animate-pulse', 'bg-red-600')
+            }, 600)
+            return
+        }
+
+        // ✅ solo si es válido
+        setShowJsonModal(true)
+    }
 
     return (
         <>
@@ -33,6 +53,7 @@ export function Header() {
                         : 'border-gray-200 bg-white'
                 )}
             >
+                {/* 🔹 Lado izquierdo */}
                 <div className="flex items-center gap-3">
                     <Button
                         variant="ghost"
@@ -64,7 +85,9 @@ export function Header() {
                     </h1>
                 </div>
 
+                {/* 🔹 Lado derecho */}
                 <div className="flex items-center gap-2">
+                    {/* 📤 Exportar */}
                     <Button
                         onClick={exportFlow}
                         className={cn(
@@ -78,6 +101,7 @@ export function Header() {
                         Exportar
                     </Button>
 
+                    {/* 📥 Importar */}
                     <Button
                         onClick={() => setShowImportModal(true)}
                         className={cn(
@@ -91,8 +115,9 @@ export function Header() {
                         Importar
                     </Button>
 
+                    {/* 🧠 Generar JSON (validado) */}
                     <Button
-                        onClick={() => setShowJsonModal(true)}
+                        onClick={handleOpenGenerateJson}
                         className={cn(
                             'flex items-center gap-1 text-white transition-colors',
                             isDark
@@ -104,7 +129,7 @@ export function Header() {
                         Generar JSON
                     </Button>
 
-                    {/* ⚙️ Nuevo botón de configuración */}
+                    {/* ⚙️ Configuración */}
                     <Button
                         variant="ghost"
                         size="icon"
@@ -122,7 +147,7 @@ export function Header() {
                 </div>
             </header>
 
-            {/* Modales */}
+            {/* 🪟 Modales */}
             <GenerateJsonModal
                 open={showJsonModal}
                 onOpenChange={setShowJsonModal}

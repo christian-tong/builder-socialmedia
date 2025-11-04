@@ -49,12 +49,11 @@ export function useFlowHandlers() {
         if (nodes.length === 0) {
             setNodes([
                 {
-                    id: 'StartNode0000',
+                    id: 'StartStep0000',
                     type: 'startNode',
                     position: { x: 250, y: 100 },
                     data: {
                         label: 'Inicio del flujo',
-                        message: 'Bienvenido al flujo',
                     },
                 },
             ])
