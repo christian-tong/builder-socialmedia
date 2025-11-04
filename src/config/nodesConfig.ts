@@ -45,7 +45,7 @@ declare global {
 export const nodeRegistry = [
     {
         type: 'startNode',
-        label: 'Inicio',
+        label: 'Paso Inicial',
         icon: PlayCircle,
         component: StartNode,
     },

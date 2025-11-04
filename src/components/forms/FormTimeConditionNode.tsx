@@ -111,15 +111,15 @@ export default function FormTimeConditionNode({
             {/* ⚡ Sección onTrue */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium text-green-600 dark:text-green-400">
-                    Conexión OnTrue
+                    Conexión trueStep
                 </Label>
                 <NodeConnectionsAccordion
-                    title="Nodos conectados (onTrue)"
+                    title="Nodos conectados (trueStep)"
                     nodesList={trueConnections}
                     accentColor="text-green-700 dark:text-green-300"
                 />
                 <NodeSelectionAccordion
-                    title="Seleccionar nodo OnTrue"
+                    title="Seleccionar nodo trueStep"
                     availableNodes={availableNodes}
                     hasConnection={hasConnection}
                     toggleConnection={toggleConnection}
@@ -131,15 +131,15 @@ export default function FormTimeConditionNode({
             {/* ⚡ Sección onFalse */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium text-rose-600 dark:text-rose-400">
-                    Conexión OnFalse
+                    Conexión falseStep
                 </Label>
                 <NodeConnectionsAccordion
-                    title="Nodos conectados (onFalse)"
+                    title="Nodos conectados (falseStep)"
                     nodesList={falseConnections}
                     accentColor="text-rose-700 dark:text-rose-300"
                 />
                 <NodeSelectionAccordion
-                    title="Seleccionar nodo OnFalse"
+                    title="Seleccionar nodo falseStep"
                     availableNodes={availableNodes}
                     hasConnection={hasConnection}
                     toggleConnection={toggleConnection}

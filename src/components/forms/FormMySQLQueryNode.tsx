@@ -104,15 +104,15 @@ export default function FormMySQLQueryNode({
             {/* 🟢 Sección OnTrue */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium text-green-600 dark:text-green-400">
-                    Conexión OnTrue
+                    Conexión trueStep
                 </Label>
                 <NodeConnectionsAccordion
-                    title="Nodos conectados (onTrue)"
+                    title="Nodos conectados (trueStep)"
                     nodesList={trueConnections}
                     accentColor="text-green-700 dark:text-green-300"
                 />
                 <NodeSelectionAccordion
-                    title="Seleccionar nodo OnTrue"
+                    title="Seleccionar nodo trueStep"
                     availableNodes={availableNodes}
                     hasConnection={hasConnection}
                     toggleConnection={toggleConnection}
@@ -131,7 +131,7 @@ export default function FormMySQLQueryNode({
                         value={localData.setvar || ''}
                         onChange={(e) => handleChange('setvar', e.target.value)}
                         placeholder="ELECTRICIDAD_CONCESIONARIO_DEUDA"
-                        className="border-[#2D3E50] text-xs focus-visible:ring-[#2D3E50]"
+                        className="border-[#2D3E50] text-xs "
                     />
                 </div>
 
@@ -144,7 +144,7 @@ export default function FormMySQLQueryNode({
                         value={localData.query || ''}
                         onChange={(e) => handleChange('query', e.target.value)}
                         placeholder="SELECT ... FROM ..."
-                        className="font-mono text-xs focus-visible:ring-[#2D3E50]"
+                        className="font-mono text-xs "
                     />
                 </div>
 
@@ -156,7 +156,7 @@ export default function FormMySQLQueryNode({
                         value={localData.alias || ''}
                         onChange={(e) => handleChange('alias', e.target.value)}
                         placeholder="Alias descriptivo"
-                        className="border-[#2D3E50] text-xs focus-visible:ring-[#2D3E50]"
+                        className="border-[#2D3E50] text-xs "
                     />
                 </div>
 
@@ -168,7 +168,7 @@ export default function FormMySQLQueryNode({
                         value={localData.script || ''}
                         onChange={(e) => handleChange('script', e.target.value)}
                         placeholder="${datos}"
-                        className="border-[#2D3E50] text-xs focus-visible:ring-[#2D3E50]"
+                        className="border-[#2D3E50] text-xs "
                     />
                 </div>
             </div>

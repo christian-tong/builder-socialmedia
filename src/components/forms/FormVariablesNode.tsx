@@ -123,15 +123,15 @@ export default function FormVariablesNode({
             {/* 🟢 Sección OnTrue */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium text-green-600 dark:text-green-400">
-                    Conexión OnTrue
+                    Conexión trueStep
                 </Label>
                 <NodeConnectionsAccordion
-                    title="Nodos conectados (onTrue)"
+                    title="Nodos conectados (trueStep)"
                     nodesList={trueConnections}
                     accentColor="text-green-700 dark:text-green-300"
                 />
                 <NodeSelectionAccordion
-                    title="Seleccionar nodo OnTrue"
+                    title="Seleccionar nodo trueStep"
                     availableNodes={availableNodes}
                     hasConnection={hasConnection}
                     toggleConnection={toggleConnection}

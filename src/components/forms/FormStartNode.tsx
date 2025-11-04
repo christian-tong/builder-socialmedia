@@ -43,7 +43,7 @@ export default function FormStartNode({
             {/* 🏷️ Encabezado */}
             <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
                 <Label className="text-sm font-semibold text-green-600 dark:text-green-300">
-                    Nodo de Inicio
+                    Paso Inicial
                 </Label>
                 <Badge
                     variant="outline"
@@ -68,31 +68,6 @@ export default function FormStartNode({
                 toggleConnection={toggleConnection}
                 accentColor="text-green-700 dark:text-green-300"
             />
-
-            {/* 🧾 Campos editables */}
-            <div className="mt-3 flex flex-col gap-2">
-                <Label className="text-sm font-medium">Título</Label>
-                <Input
-                    value={data.label || ''}
-                    onChange={(e) =>
-                        updateNodeData(id, { label: e.target.value })
-                    }
-                    placeholder="Título del nodo inicial"
-                    className="text-sm dark:bg-gray-900/50"
-                />
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <Label className="text-sm font-medium">Descripción</Label>
-                <Input
-                    value={data.message || ''}
-                    onChange={(e) =>
-                        updateNodeData(id, { message: e.target.value })
-                    }
-                    placeholder="Mensaje inicial del flujo"
-                    className="text-sm dark:bg-gray-900/50"
-                />
-            </div>
         </div>
     )
 }

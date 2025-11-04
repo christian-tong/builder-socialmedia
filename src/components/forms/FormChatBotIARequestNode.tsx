@@ -14,8 +14,11 @@ import {
     AccordionTrigger,
     AccordionContent,
 } from '@/components/ui/accordion'
-import { Settings2, Plus, Trash2, Code } from 'lucide-react'
-import { NodeSelectAccordion } from '@/components/shared/NodeSelectAccordion'
+import { Plus, Trash2, Code } from 'lucide-react'
+import {
+    NodeConnectionsAccordion,
+    NodeSelectionAccordion,
+} from '@/components/shared/NodeConnectionsAccordion'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import {
@@ -30,25 +33,24 @@ interface KeyValue {
 }
 
 /**
- * 🤖 FormChatBotIARequestNode
- * ------------------------------------------------------
- * - Control completo del nodo IA
- * - Crea y elimina conexiones dinámicas (onTrue/onFalse)
- * - Modo visual / JSON para cuerpo de petición
- * - Sincronización diferida v1.1
+ * 🤖 FormChatBotIARequestNode (v2.0 — Unified Visual Standard)
+ * ------------------------------------------------------------
+ * ✅ Usa text-wrap en el textarea
+ * ✅ Reestructura onTrue/onFalse en acordeón unificado
+ * ✅ Estandariza colores y divisores según Prompt Base de Estilos
  */
 export default function FormChatBotIARequestNode({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
     const { initNode, getNodeData, setNodeData } = useChatBotIAStore()
-    const { availableNodes, createConnection, removeConnection } =
+    const { prevNodes, availableNodes, hasConnection, toggleConnection } =
         useNodeConnections(id)
 
     const [localData, setLocalData] = useState<Partial<ChatBotIARequest>>({})
     const [pairs, setPairs] = useState<KeyValue[]>([])
     const [jsonMode, setJsonMode] = useState(false)
 
-    /** 🧩 Inicializa nodo desde el store */
+    /* 🧩 Inicialización del nodo */
     useEffect(() => {
         initNode(id)
         const current = getNodeData(id)
@@ -68,14 +70,12 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
         } catch {
             setPairs([])
         }
-    }, [id, initNode, getNodeData])
+    }, [id])
 
-    /** 💾 Guardado diferido */
+    /* 💾 Guardado diferido */
     useEffect(() => {
         registerSaveCallback(id, () => {
             let finalBody = localData.body || '{}'
-
-            // 🧠 Si está en modo visual, serializa los pares clave/valor
             if (!jsonMode) {
                 finalBody = JSON.stringify(
                     Object.fromEntries(pairs.map((p) => [p.key, p.value])),
@@ -113,7 +113,7 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
         data,
     ])
 
-    /** ✏️ Manejadores de campos */
+    /* ✏️ Manejadores */
     const handleChange = (field: keyof ChatBotIARequest, value: string) =>
         setLocalData((prev) => ({ ...prev, [field]: value }))
 
@@ -131,7 +131,7 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
             prev.map((p) => (p.id === uid ? { ...p, [field]: val } : p))
         )
 
-    /** 🔄 Sincroniza body cuando se cambia a modo JSON */
+    /* 🔄 Sincroniza cuando cambia modo JSON */
     useEffect(() => {
         if (jsonMode) {
             const jsonStr = JSON.stringify(
@@ -143,59 +143,94 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
         }
     }, [jsonMode, pairs])
 
+    /* 🎨 Render */
     return (
         <div className="flex flex-col gap-6">
             {/* 🏷️ Encabezado */}
             <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
-                <Label className="text-sm font-semibold text-indigo-600">
+                <Label className="text-sm font-semibold text-indigo-600 dark:text-indigo-300">
                     🤖 Configuración ChatBot IA
                 </Label>
                 <Badge
                     variant="outline"
-                    className="border-indigo-600 px-2 py-0.5 text-[10px] text-indigo-600"
+                    className="border-indigo-300 bg-indigo-50 px-2 py-0.5 text-[10px] text-indigo-800 dark:border-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300"
                 >
                     {id}
                 </Badge>
             </div>
 
-            {/* ⚙️ Control de flujo */}
-            <Accordion type="single" collapsible className="w-full">
-                <AccordionItem value="flowConfig">
-                    <AccordionTrigger className="flex items-center gap-2 bg-gray-100 px-3 py-2 text-sm font-medium dark:bg-gray-800">
-                        <Settings2 className="h-4 w-4" />
-                        Control de flujo (onTrue / onFalse)
-                    </AccordionTrigger>
+            {/* 🔗 Nodo anterior */}
+            <NodeConnectionsAccordion
+                title="Nodo anterior"
+                nodesList={prevNodes}
+                accentColor="text-sky-700 dark:text-sky-300"
+            />
 
-                    <AccordionContent className="mt-2 space-y-3 rounded-md bg-gray-50 p-3 dark:bg-gray-900/40">
-                        {(['onTrue', 'onFalse'] as const).map((key) => (
-                            <NodeSelectAccordion
-                                key={key}
-                                title={
-                                    key === 'onTrue'
-                                        ? '🟢 onTrue (respuesta válida)'
-                                        : '🔴 onFalse (respuesta inválida)'
-                                }
-                                availableNodes={availableNodes}
-                                selectedId={data[key]}
-                                handleId={key}
-                                sourceId={id}
-                                deferred={true} // 👈 activa modo diferido
-                                onSelect={(val: string) =>
-                                    updateNodeData(id, { [key]: val })
-                                }
-                                onUnselect={() =>
-                                    updateNodeData(id, { [key]: '' })
-                                }
-                                accentColor="text-indigo-600"
-                            />
-                        ))}
-                    </AccordionContent>
-                </AccordionItem>
-            </Accordion>
+            {/* ⚡ Conexiones onTrue/onFalse en acordeón unificado */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="next-nodes">
+                        <AccordionTrigger className="rounded-md bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 dark:bg-indigo-900/10 dark:text-indigo-300">
+                            ⚡ Nodos siguientes (Centro de Control)
+                        </AccordionTrigger>
+                        <AccordionContent className="space-y-4 px-2 pt-2">
+                            {/* 🟢 OnTrue */}
+                            <div className="flex flex-col gap-2">
+                                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
+                                    Conexión trueStep
+                                </Label>
+                                <NodeConnectionsAccordion
+                                    title="Nodos conectados (trueStep)"
+                                    nodesList={availableNodes
+                                        .filter((n) =>
+                                            hasConnection(n.id, 'onTrue')
+                                        )
+                                        .map((n) => n.data?.label || n.id)}
+                                    accentColor="text-green-700 dark:text-green-300"
+                                />
+                                <NodeSelectionAccordion
+                                    title="Seleccionar nodo trueStep"
+                                    availableNodes={availableNodes}
+                                    hasConnection={hasConnection}
+                                    toggleConnection={toggleConnection}
+                                    handleId="onTrue"
+                                    accentColor="text-green-700 dark:text-green-300"
+                                />
+                            </div>
+
+                            {/* 🔴 OnFalse */}
+                            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                                <Label className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                                    Conexión falseStep
+                                </Label>
+                                <NodeConnectionsAccordion
+                                    title="Nodos conectados (falseStep)"
+                                    nodesList={availableNodes
+                                        .filter((n) =>
+                                            hasConnection(n.id, 'onFalse')
+                                        )
+                                        .map((n) => n.data?.label || n.id)}
+                                    accentColor="text-rose-700 dark:text-rose-300"
+                                />
+                                <NodeSelectionAccordion
+                                    title="Seleccionar nodo falseStep"
+                                    availableNodes={availableNodes}
+                                    hasConnection={hasConnection}
+                                    toggleConnection={toggleConnection}
+                                    handleId="onFalse"
+                                    accentColor="text-rose-700 dark:text-rose-300"
+                                />
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+            </div>
 
             {/* 🧾 Campos principales */}
-            <div className="flex flex-col gap-3">
-                <Label className="text-xs">Variable destino</Label>
+            <div className="flex flex-col gap-3 border-t pt-3 dark:border-gray-800">
+                <Label className="text-sm font-semibold text-indigo-600 dark:text-indigo-300">
+                    Variable destino
+                </Label>
                 <Input
                     value={localData.variable || ''}
                     onChange={(e) => handleChange('variable', e.target.value)}
@@ -203,7 +238,9 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
                     className="text-xs"
                 />
 
-                <Label className="mt-2 text-xs">URL de destino</Label>
+                <Label className="mt-2 text-sm font-semibold text-indigo-600 dark:text-indigo-300">
+                    URL de destino
+                </Label>
                 <Input
                     value={localData.url || ''}
                     onChange={(e) => handleChange('url', e.target.value)}
@@ -228,6 +265,7 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
                 </Button>
             </div>
 
+            {/* 🔤 Body con text-wrap */}
             {!jsonMode ? (
                 <div className="mt-2 flex flex-col gap-2">
                     <div className="flex justify-between text-[11px] font-semibold text-indigo-400 uppercase">
@@ -287,7 +325,7 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
                     value={localData.body || ''}
                     onChange={(e) => handleChange('body', e.target.value)}
                     placeholder='{"question":"${LASTVAR}","userId":"${DOCUMENTO}"}'
-                    className="font-mono text-xs"
+                    className="font-mono text-xs break-words whitespace-pre-wrap max-w-[510px]"
                     rows={8}
                 />
             )}

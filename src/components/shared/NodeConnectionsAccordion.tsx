@@ -39,7 +39,7 @@ const colorMap = {
         icon: (
             <PlugZap className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
         ),
-        label: 'On True',
+        label: 'trueStep',
     },
     onFalse: {
         base: 'text-rose-700 dark:text-rose-300',
@@ -49,7 +49,7 @@ const colorMap = {
         icon: (
             <Link2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
         ),
-        label: 'On False',
+        label: 'falseStep',
     },
     onError: {
         base: 'text-amber-700 dark:text-amber-300',
@@ -59,7 +59,7 @@ const colorMap = {
         icon: (
             <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
         ),
-        label: 'On Error',
+        label: 'errorStep',
     },
 }
 

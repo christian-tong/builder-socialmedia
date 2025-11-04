@@ -122,13 +122,13 @@ export default function TimeConditionNode({ id, data }: any) {
                 <Handle
                     type="source"
                     id="onTrue"
-                    position={sourcePosition}
+                    position={Position.Bottom}
                     className="!bg-green-400"
                 />
                 <Handle
                     type="source"
                     id="onFalse"
-                    position={sourcePosition}
+                    position={Position.Bottom}
                     className="ml-4 !bg-rose-400"
                 />
             </Card>

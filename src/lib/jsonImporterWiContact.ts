@@ -425,16 +425,59 @@ export function convertWiContactToFlow(json: any): {
                 break
             }
 
-            case 'chatbotiarequest':
+            case 'chatbotiarequest': {
                 nodeType = 'chatBotIARequestNode'
+
+                // 🔹 Cargar store zustand
+                const iaStore =
+                    require('@/store/useChatBotIAStore').useChatBotIAStore.getState()
+
+                // 🧱 Normalización del objeto
+                const variable = object?.variable || ''
+                const url = object?.url || ''
+                const bodyRaw = object?.body || '{}'
+                let bodyParsed = '{}'
+
+                // 🧩 Asegurar que el body sea JSON válido
+                try {
+                    if (typeof bodyRaw === 'string') {
+                        // si viene como string, validar estructura
+                        JSON.parse(bodyRaw)
+                        bodyParsed = bodyRaw
+                    } else if (typeof bodyRaw === 'object') {
+                        bodyParsed = JSON.stringify(bodyRaw, null, 2)
+                    }
+                } catch (err) {
+                    console.warn(`⚠️ [Importer] Body corrupto en ${id}`, err)
+                    bodyParsed = '{}'
+                }
+
+                // 🧠 Sincronizar con store
+                iaStore.initNode(id)
+                iaStore.setNodeData(id, {
+                    variable,
+                    url,
+                    body: bodyParsed,
+                })
+
+                // 🧩 Definir nodo visual
                 nodeData = {
                     label: id,
-                    variable: object.variable || '',
-                    url: object.url || '',
-                    body: object.body || '',
-                    prompt: object.prompt || '',
+                    variable,
+                    url,
+                    body: bodyParsed,
                 }
+
+                console.log(
+                    `🤖 [Importer] ChatBotIARequestNode inicializado: ${id}`,
+                    {
+                        variable,
+                        url,
+                        bodyParsed,
+                    }
+                )
                 break
+            }
 
             case 'saverecord': {
                 nodeType = 'saveRecordNode'

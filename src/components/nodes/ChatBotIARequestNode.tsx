@@ -1,5 +1,4 @@
 // src\components\nodes\ChatBotIARequestNode.tsx
-
 'use client'
 
 import { motion } from 'framer-motion'
@@ -12,11 +11,12 @@ import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useChatBotIAStore } from '@/store/useChatBotIAStore'
 
 /**
- * 🤖 ChatBotIARequestNode
+ * 🤖 ChatBotIARequestNode (v2.1 – AutoHeight + Colors Preserved)
  * ------------------------------------------------------------
- * - Visualiza variable, url y cuerpo (JSON)
- * - Ancho fijo y saltos automáticos
- * - Inspirado en el estilo del MenuNode
+ * ✅ Mantiene colores originales (indigo oscuro)
+ * ✅ Altura dinámica según contenido del body
+ * ✅ Formato JSON con saltos de línea visibles
+ * ✅ No se trunca ni oculta el contenido
  */
 export default function ChatBotIARequestNode({ id, data }: any) {
     const { setSelectedNode } = useNodeConfigStore()
@@ -25,14 +25,22 @@ export default function ChatBotIARequestNode({ id, data }: any) {
 
     const handleTarget =
         orientation === 'vertical' ? Position.Top : Position.Left
-    const handleSource =
-        orientation === 'vertical' ? Position.Bottom : Position.Right
 
     const nodeData = getNodeData(id)
     const variable = nodeData?.variable || '(sin variable)'
     const url = nodeData?.url || '(sin URL)'
-    const body =
-        nodeData?.body && nodeData.body.trim() !== '' ? nodeData.body : '{ }'
+    const rawBody =
+        nodeData?.body && nodeData.body.trim() !== '' ? nodeData.body : '{}'
+
+    // 🧩 Intenta formatear el body como JSON legible
+    let formattedBody = rawBody
+    try {
+        const parsed = JSON.parse(rawBody)
+        formattedBody = JSON.stringify(parsed, null, 2)
+    } catch {
+        // si no es JSON válido, se deja texto plano
+        formattedBody = rawBody
+    }
 
     return (
         <motion.div
@@ -47,7 +55,7 @@ export default function ChatBotIARequestNode({ id, data }: any) {
                     setSelectedNode({ id, type: 'chatBotIARequestNode', data })
                 }}
                 data-id={id}
-                className="relative w-full max-w-[240px] cursor-pointer overflow-visible rounded-xl border border-indigo-700 bg-indigo-950 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
+                className="relative w-full max-w-[260px] cursor-pointer overflow-visible rounded-xl border border-indigo-700 bg-indigo-950 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
             >
                 {/* 🔹 Encabezado */}
                 <div className="border-b border-indigo-800/40 px-3 pt-1.5 pb-1 text-center">
@@ -65,7 +73,8 @@ export default function ChatBotIARequestNode({ id, data }: any) {
                 </div>
 
                 {/* 🔸 Contenido principal */}
-                <div className="space-y-1 px-3 py-1.5 text-[11px] text-gray-200">
+                <div className="space-y-1 px-3 py-2 text-[11px] text-gray-200">
+                    {/* URL */}
                     <div className="break-words">
                         <span className="font-semibold text-indigo-300">
                             URL:
@@ -73,11 +82,14 @@ export default function ChatBotIARequestNode({ id, data }: any) {
                         {url}
                     </div>
 
+                    {/* Body dinámico */}
                     <div className="rounded-md border border-indigo-700/40 bg-indigo-900/30 px-2 py-1 font-mono text-[10px] leading-tight break-words whitespace-pre-wrap text-indigo-200">
                         <span className="font-semibold text-indigo-400">
                             Body:
-                        </span>{' '}
-                        {body}
+                        </span>
+                        <pre className="mt-1 break-words whitespace-pre-wrap">
+                            {formattedBody}
+                        </pre>
                     </div>
                 </div>
 
