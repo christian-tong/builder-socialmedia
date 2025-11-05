@@ -1,5 +1,4 @@
 // src/store/useSwitchConditionStore.ts
-
 'use client'
 
 import { create } from 'zustand'
@@ -31,7 +30,7 @@ export interface SwitchConditionState {
     setConnection: (nodeId: string, value: string, targetId: string) => void
     removeConnection: (nodeId: string, value: string) => void
 
-    addSetVar: (nodeId: string) => void
+    addSetVar: (nodeId: string, key?: string, value?: string) => void
     updateSetVar: (
         nodeId: string,
         index: number,
@@ -48,21 +47,22 @@ export interface SwitchConditionState {
 }
 
 /* -------------------------------------------------------------- */
-/* 🧩 getSwitchHandleId (v1.1 — SafeEncoding + ConsistencyFix)    */
+/* 🧩 getSwitchHandleId (v1.2 — SafeEncoding + ConsistencyFix)    */
 /* -------------------------------------------------------------- */
 export const getSwitchHandleId = (nodeId: string, value: string): string => {
-    const safeValue = encodeURIComponent(String(value).trim())
+    const safeValue = encodeURIComponent(String(value || '').trim())
+    // Estructura estándar para ReactFlow dynamic handles
     return `${nodeId}::switch::${safeValue}`
 }
 
 /* -------------------------------------------------------------- */
-/* 🧠 useSwitchConditionStore (v2.3 — AutoInit “SI”)              */
+/* 🧠 useSwitchConditionStore (v2.7 — Dynamic Sync SetVariables)  */
 /* -------------------------------------------------------------- */
 export const useSwitchConditionStore = create<SwitchConditionState>(
     (set, get) => ({
         byId: {},
 
-        /** 🆕 Inicializa el nodo con condición base “SI” si no existe */
+        /** 🆕 Inicializa nodo con “SI” */
         initNode: (nodeId) =>
             set((s) => {
                 if (s.byId[nodeId]) return s
@@ -73,8 +73,8 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                             variable: '',
                             alias: '',
                             mode: 'strict',
-                            values: ['SI'], // 👈 condición inicial
-                            setvariables: [],
+                            values: ['SI'],
+                            setvariables: [{ key: '1', value: 'SI' }],
                             connections: { SI: '' },
                         },
                     },
@@ -105,20 +105,23 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 },
             })),
 
-        /** ➕ Agregar valor y conexión (SAFE ADD) */
-        addValue: (nodeId, value?: string) =>
+        /** ➕ Agregar valor y mantener sync con setvariables */
+        addValue: (nodeId, value) =>
             set((s) => {
                 const cur = s.byId[nodeId]
                 if (!cur) return s
-
                 const safeValue =
-                    value && value.trim() !== '' ? value.trim() : 'SI'
-
-                // Evita duplicados
+                    value?.trim() || `COND_${cur.values.length + 1}`
                 if (cur.values.includes(safeValue)) return s
 
                 const newValues = [...cur.values, safeValue]
                 const newConnections = { ...cur.connections, [safeValue]: '' }
+
+                // 🧠 Recalcular setvariables 1:1 con valores
+                const newSetVars = newValues.map((v, i) => ({
+                    key: String(i + 1),
+                    value: v,
+                }))
 
                 return {
                     byId: {
@@ -127,113 +130,149 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                             ...cur,
                             values: newValues,
                             connections: newConnections,
+                            setvariables: newSetVars,
                         },
                     },
                 }
             }),
 
-        /** ✏️ Actualiza un valor y preserva conexión */
+        /** ✏️ Actualiza valor y mantiene sincronía */
         updateValue: (nodeId, index, value) =>
             set((s) => {
                 const cur = s.byId[nodeId]
                 if (!cur) return s
-
                 const oldValue = cur.values[index]
-                const safeNewVal =
-                    value && value.trim() !== ''
-                        ? value.trim()
-                        : `COND_${index + 1}`
+                const newValue = value?.trim() || `COND_${index + 1}`
 
                 const values = [...cur.values]
-                values[index] = safeNewVal
+                values[index] = newValue
 
-                const connections = { ...cur.connections }
-                if (connections[oldValue]) {
-                    connections[safeNewVal] = connections[oldValue]
-                    delete connections[oldValue]
+                const newConnections = { ...cur.connections }
+                if (newConnections[oldValue]) {
+                    newConnections[newValue] = newConnections[oldValue]
+                    delete newConnections[oldValue]
                 }
+
+                const newSetVars = values.map((v, i) => ({
+                    key: String(i + 1),
+                    value: v,
+                }))
 
                 return {
                     byId: {
                         ...s.byId,
-                        [nodeId]: { ...cur, values, connections },
+                        [nodeId]: {
+                            ...cur,
+                            values,
+                            connections: newConnections,
+                            setvariables: newSetVars,
+                        },
                     },
                 }
             }),
 
-        /** 🗑️ Elimina un valor y su conexión */
+        /** 🗑️ Elimina valor y reindexa setvariables */
         removeValue: (nodeId, index) =>
             set((s) => {
                 const cur = s.byId[nodeId]
                 if (!cur) return s
-
                 const val = cur.values[index]
-                const values = cur.values.filter((_, i) => i !== index)
-                const connections = { ...cur.connections }
-                delete connections[val]
+                const newValues = cur.values.filter((_, i) => i !== index)
+                const newConnections = { ...cur.connections }
+                delete newConnections[val]
+
+                const newSetVars = newValues.map((v, i) => ({
+                    key: String(i + 1),
+                    value: v,
+                }))
 
                 return {
                     byId: {
                         ...s.byId,
-                        [nodeId]: { ...cur, values, connections },
+                        [nodeId]: {
+                            ...cur,
+                            values: newValues,
+                            connections: newConnections,
+                            setvariables: newSetVars,
+                        },
                     },
                 }
             }),
 
-        /** 🔗 Asigna conexión a un valor */
+        /** 🔗 Asigna conexión y sincroniza setvariables */
         setConnection: (nodeId, value, targetId) =>
             set((s) => {
                 const cur = s.byId[nodeId]
                 if (!cur) return s
+
+                const newConnections = {
+                    ...cur.connections,
+                    [value.trim()]: targetId,
+                }
+
+                // Mantener setvariables en sync con keys de connections
+                const conditionKeys = Object.keys(newConnections)
+                const newSetVars = conditionKeys.map((v, i) => ({
+                    key: String(i + 1),
+                    value: v,
+                }))
+
                 return {
                     byId: {
                         ...s.byId,
                         [nodeId]: {
                             ...cur,
-                            connections: {
-                                ...cur.connections,
-                                [value.trim()]: targetId,
-                            },
+                            connections: newConnections,
+                            setvariables: newSetVars,
                         },
                     },
                 }
             }),
 
-        /** ❌ Quita conexión de un valor */
         removeConnection: (nodeId, value) =>
             set((s) => {
                 const cur = s.byId[nodeId]
                 if (!cur) return s
-                const connections = { ...cur.connections }
-                delete connections[value.trim()]
-                return {
-                    byId: {
-                        ...s.byId,
-                        [nodeId]: { ...cur, connections },
-                    },
-                }
-            }),
 
-        /** ➕ Añadir setvariable */
-        addSetVar: (nodeId) =>
-            set((s) => {
-                const cur = s.byId[nodeId]
-                if (!cur) return s
+                const newConnections = { ...cur.connections }
+                delete newConnections[value.trim()]
+
+                const conditionKeys = Object.keys(newConnections)
+                const newSetVars = conditionKeys.map((v, i) => ({
+                    key: String(i + 1),
+                    value: v,
+                }))
+
                 return {
                     byId: {
                         ...s.byId,
                         [nodeId]: {
                             ...cur,
-                            setvariables: [
-                                ...cur.setvariables,
-                                { key: '', value: '' },
-                            ],
+                            connections: newConnections,
+                            setvariables: newSetVars,
                         },
                     },
                 }
             }),
 
-        /** ✏️ Actualizar setvariable */
+        /** ➕ Añadir manual setvariable */
+        addSetVar: (nodeId, key, value) =>
+            set((s) => {
+                const cur = s.byId[nodeId]
+                if (!cur) return s
+                const nextKey = key || String(cur.setvariables.length + 1)
+                const newSetVar = { key: nextKey, value: value ?? '' }
+                return {
+                    byId: {
+                        ...s.byId,
+                        [nodeId]: {
+                            ...cur,
+                            setvariables: [...cur.setvariables, newSetVar],
+                        },
+                    },
+                }
+            }),
+
         updateSetVar: (nodeId, index, patch) =>
             set((s) => {
                 const cur = s.byId[nodeId]
@@ -248,7 +287,6 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 }
             }),
 
-        /** 🗑️ Eliminar setvariable */
         removeSetVar: (nodeId, index) =>
             set((s) => {
                 const cur = s.byId[nodeId]
@@ -262,21 +300,13 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 }
             }),
 
-        /** 🔁 Callbacks post-save */
+        /** 🔁 Callback post-save */
         setAfterSaveCallback: (cb) => set({ onAfterSave: cb }),
 
         triggerAfterSave: (nodeId) => {
             const cfg = get().byId[nodeId]
             const cb = get().onAfterSave
-            if (!cb || !cfg) return
-            try {
-                cb(nodeId, cfg)
-            } catch (err) {
-                console.error(
-                    '❌ [SwitchConditionStore] Error onAfterSave:',
-                    err
-                )
-            }
+            if (cb && cfg) cb(nodeId, cfg)
         },
     })
 )

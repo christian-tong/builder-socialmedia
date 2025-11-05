@@ -9,11 +9,12 @@ import { useSwitchConditionStore } from '@/store/useSwitchConditionStore'
 import { useVariablesStore } from '@/store/useVariablesStore'
 
 /**
- * 🧠 generateConversationJson (v5.8 – Full Store-Aware Export)
- * ------------------------------------------------------------
+ * 🧠 generateConversationJson (v5.9 – Full Store-Aware Export + Clean SwitchCondition)
+ * ------------------------------------------------------------------------
  * ✅ Lee datos directamente desde los Zustand stores activos
- * ✅ Corrige los campos vacíos (MySQL, SaveRecord, SwitchCondition, Variables)
- * ✅ Mantiene compatibilidad total con importador v5.6
+ * ✅ Limpia valores vacíos (MySQL, SaveRecord, SwitchCondition, Variables)
+ * ✅ Genera setvariables válidos en SwitchCondition
+ * ✅ Mantiene compatibilidad total con importador v5.6+
  * ✅ Estructura final: { process: { steps: [...] } }
  */
 export function generateConversationJson(
@@ -31,7 +32,7 @@ export function generateConversationJson(
         return match?.target ?? null
     }
 
-    // Stores activos
+    // 🧩 Stores activos
     const variantStore = useVariantTypeStore.getState()
     const mysqlStore = useMySQLQueryStore.getState()
     const saveRecordStore = useSaveRecordStore.getState()
@@ -67,7 +68,9 @@ export function generateConversationJson(
             case 'variablesNode': {
                 const nodeVars = varsStore.getNodeVariables(id)
                 const merged = Object.fromEntries(
-                    nodeVars.map((v) => [v.key, v.value])
+                    nodeVars
+                        .filter((v) => v.key?.trim())
+                        .map((v) => [v.key.trim(), v.value])
                 )
                 action = 'setvariables'
                 object = { setvars: JSON.stringify(merged) }
@@ -100,7 +103,7 @@ export function generateConversationJson(
                 }
                 break
 
-            // 🧩 MySQL Query — 🔄 lectura del store
+            // 🧩 MySQL Query
             case 'mysqlQueryNode': {
                 const storeObj = mysqlStore.getNodeData(id)
                 action = 'mysqlquery'
@@ -115,7 +118,7 @@ export function generateConversationJson(
                 break
             }
 
-            // 💾 Save Record — 🔄 lectura del store
+            // 💾 Save Record
             case 'saveRecordNode': {
                 const storeObj = saveRecordStore.getNodeData(id)
                 action = 'saverecord'
@@ -126,21 +129,50 @@ export function generateConversationJson(
                 break
             }
 
-            // 🧬 SwitchCondition — 🔄 lectura del store
+            // 🧬 SwitchCondition — v3.0 Smart Sync SetVariables
             case 'switchConditionNode': {
                 const cfg = switchStore.byId[id]
                 action = 'switchcondition'
-                object = cfg
-                    ? {
-                          setvariables: Object.fromEntries(
-                              cfg.setvariables.map((s) => [s.key, s.value])
-                          ),
-                          variable: cfg.variable ?? '',
-                          alias: cfg.alias ?? '',
-                          conditions: cfg.connections ?? {},
-                          body: cfg.mode ?? 'strict',
-                      }
-                    : {}
+
+                if (cfg) {
+                    // 🧠 1️⃣ Filtrar setvariables válidos existentes
+                    let safeSetVars = Object.fromEntries(
+                        cfg.setvariables
+                            .filter(
+                                (s) =>
+                                    s.key?.trim() !== '' &&
+                                    s.value?.trim() !== ''
+                            )
+                            .map((s) => [s.key.trim(), s.value.trim()])
+                    )
+
+                    // 🧩 2️⃣ Generar dinámicamente si está vacío
+                    if (Object.keys(safeSetVars).length === 0) {
+                        const conditionKeys = Object.keys(cfg.connections || {})
+                        safeSetVars = Object.fromEntries(
+                            conditionKeys.map((val, i) => [String(i + 1), val])
+                        )
+                    }
+
+                    // 🧩 3️⃣ Filtrar conexiones válidas
+                    const safeConnections = Object.fromEntries(
+                        Object.entries(cfg.connections || {}).filter(
+                            ([, target]) => target && target.trim() !== ''
+                        )
+                    )
+
+                    // 🧩 4️⃣ Ensamblar objeto final
+                    object = {
+                        setvariables: safeSetVars,
+                        variable: cfg.variable ?? '',
+                        alias: cfg.alias ?? '',
+                        conditions: safeConnections,
+                        body: cfg.mode ?? 'strict',
+                    }
+                } else {
+                    object = {}
+                }
+
                 break
             }
 
@@ -160,9 +192,11 @@ export function generateConversationJson(
                 const variantType = variantStore.getVariantType(id)
                 const options = variantStore.getVariantOptions(id)
                 const conditions = variantStore.getVariantConditions(id)
+
                 const setvariables: Record<string, string> = {}
                 options.forEach((opt) => {
-                    setvariables[opt.postbackText] = opt.title ?? ''
+                    if (opt.postbackText)
+                        setvariables[opt.postbackText] = opt.title ?? ''
                 })
 
                 const baseObject: Record<string, any> = {
