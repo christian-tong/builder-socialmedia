@@ -1,4 +1,5 @@
 // src/store/useSwitchConditionStore.ts
+
 'use client'
 
 import { create } from 'zustand'
@@ -46,20 +47,22 @@ export interface SwitchConditionState {
     triggerAfterSave: (nodeId: string) => void
 }
 
-export const getSwitchHandleId = (nodeId: string, value: string) =>
-    `${nodeId}::switch::${encodeURIComponent(value)}`
+/* -------------------------------------------------------------- */
+/* 🧩 getSwitchHandleId (v1.1 — SafeEncoding + ConsistencyFix)    */
+/* -------------------------------------------------------------- */
+export const getSwitchHandleId = (nodeId: string, value: string): string => {
+    const safeValue = encodeURIComponent(String(value).trim())
+    return `${nodeId}::switch::${safeValue}`
+}
 
-/**
- * 🧠 useSwitchConditionStore (v2.0 — con soporte post-save)
- * ----------------------------------------------------------------
- * ✅ Compatible con FlowAutoEdgeSync
- * ✅ Permite generar edges automáticos (onTrue / onFalse / custom)
- */
+/* -------------------------------------------------------------- */
+/* 🧠 useSwitchConditionStore (v2.3 — AutoInit “SI”)              */
+/* -------------------------------------------------------------- */
 export const useSwitchConditionStore = create<SwitchConditionState>(
     (set, get) => ({
         byId: {},
 
-        /** 🆕 Inicializa el nodo si no existe */
+        /** 🆕 Inicializa el nodo con condición base “SI” si no existe */
         initNode: (nodeId) =>
             set((s) => {
                 if (s.byId[nodeId]) return s
@@ -70,11 +73,9 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                             variable: '',
                             alias: '',
                             mode: 'strict',
-                            // ❌ Antes: values: ['SI', 'NO']
-                            // ✅ Ahora: sin valores por defecto
-                            values: [],
+                            values: ['SI'], // 👈 condición inicial
                             setvariables: [],
-                            connections: {},
+                            connections: { SI: '' },
                         },
                     },
                 }
@@ -82,26 +83,43 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
 
         setVariable: (nodeId, variable) =>
             set((s) => ({
-                byId: { ...s.byId, [nodeId]: { ...s.byId[nodeId], variable } },
+                byId: {
+                    ...s.byId,
+                    [nodeId]: { ...s.byId[nodeId], variable },
+                },
             })),
 
         setAlias: (nodeId, alias) =>
             set((s) => ({
-                byId: { ...s.byId, [nodeId]: { ...s.byId[nodeId], alias } },
+                byId: {
+                    ...s.byId,
+                    [nodeId]: { ...s.byId[nodeId], alias },
+                },
             })),
 
         setMode: (nodeId, mode) =>
             set((s) => ({
-                byId: { ...s.byId, [nodeId]: { ...s.byId[nodeId], mode } },
+                byId: {
+                    ...s.byId,
+                    [nodeId]: { ...s.byId[nodeId], mode },
+                },
             })),
 
-        /** ➕ Agregar valor y conexión */
-        addValue: (nodeId, value = '') =>
+        /** ➕ Agregar valor y conexión (SAFE ADD) */
+        addValue: (nodeId, value?: string) =>
             set((s) => {
                 const cur = s.byId[nodeId]
                 if (!cur) return s
-                const newValues = [...cur.values, value]
-                const newConnections = { ...cur.connections, [value]: '' }
+
+                const safeValue =
+                    value && value.trim() !== '' ? value.trim() : 'SI'
+
+                // Evita duplicados
+                if (cur.values.includes(safeValue)) return s
+
+                const newValues = [...cur.values, safeValue]
+                const newConnections = { ...cur.connections, [safeValue]: '' }
+
                 return {
                     byId: {
                         ...s.byId,
@@ -119,14 +137,22 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
             set((s) => {
                 const cur = s.byId[nodeId]
                 if (!cur) return s
+
                 const oldValue = cur.values[index]
+                const safeNewVal =
+                    value && value.trim() !== ''
+                        ? value.trim()
+                        : `COND_${index + 1}`
+
                 const values = [...cur.values]
-                values[index] = value
+                values[index] = safeNewVal
+
                 const connections = { ...cur.connections }
                 if (connections[oldValue]) {
-                    connections[value] = connections[oldValue]
+                    connections[safeNewVal] = connections[oldValue]
                     delete connections[oldValue]
                 }
+
                 return {
                     byId: {
                         ...s.byId,
@@ -140,10 +166,12 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
             set((s) => {
                 const cur = s.byId[nodeId]
                 if (!cur) return s
+
                 const val = cur.values[index]
                 const values = cur.values.filter((_, i) => i !== index)
                 const connections = { ...cur.connections }
                 delete connections[val]
+
                 return {
                     byId: {
                         ...s.byId,
@@ -164,7 +192,7 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                             ...cur,
                             connections: {
                                 ...cur.connections,
-                                [value]: targetId,
+                                [value.trim()]: targetId,
                             },
                         },
                     },
@@ -177,9 +205,12 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 const cur = s.byId[nodeId]
                 if (!cur) return s
                 const connections = { ...cur.connections }
-                delete connections[value]
+                delete connections[value.trim()]
                 return {
-                    byId: { ...s.byId, [nodeId]: { ...cur, connections } },
+                    byId: {
+                        ...s.byId,
+                        [nodeId]: { ...cur, connections },
+                    },
                 }
             }),
 
@@ -210,7 +241,10 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 const sv = [...cur.setvariables]
                 sv[index] = { ...sv[index], ...patch }
                 return {
-                    byId: { ...s.byId, [nodeId]: { ...cur, setvariables: sv } },
+                    byId: {
+                        ...s.byId,
+                        [nodeId]: { ...cur, setvariables: sv },
+                    },
                 }
             }),
 
@@ -221,7 +255,10 @@ export const useSwitchConditionStore = create<SwitchConditionState>(
                 if (!cur) return s
                 const sv = cur.setvariables.filter((_, i) => i !== index)
                 return {
-                    byId: { ...s.byId, [nodeId]: { ...cur, setvariables: sv } },
+                    byId: {
+                        ...s.byId,
+                        [nodeId]: { ...cur, setvariables: sv },
+                    },
                 }
             }),
 
