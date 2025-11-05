@@ -204,6 +204,7 @@ export function convertWiContactToFlow(json: any): {
             }
 
             /** 🧩 GETDATA COMPLETE / MENU / SIMPLETEXT VARIANTS */
+            /** 🧩 GETDATA COMPLETE / MENU / SIMPLETEXT VARIANTS (v5.10 — Normalize GetData) */
             case 'getdatacomplete':
             case 'getdata':
             case 'getdata_v2':
@@ -213,14 +214,37 @@ export function convertWiContactToFlow(json: any): {
                 const interactiveIn = object.interactive ?? {}
                 const setvars: Record<string, string> =
                     (object.setvariables as Record<string, string>) || {}
-                const conditions: Record<string, string> =
+                const conditionsRaw: Record<string, string> =
                     (object.conditions as Record<string, string>) || {}
 
-                type Variant = 'GETDATA' | 'SIMPLETEXT' | 'quick_reply' | 'list'
-                const declaredRaw = String(object.type || '')
-                const declaredUp = declaredRaw.toUpperCase()
+                // 🧠 Normalización para FormGetDataCompleteGetData
+                // --------------------------------------------------
+                // Si las keys de `conditions` son textos (ej: “DNI”) pero `setvariables` tiene índices (“1”: “DNI”),
+                // mapear conditions según los valores de setvariables.
+                const normalizedConditions: Record<string, string> = {}
+                if (
+                    Object.keys(conditionsRaw).length &&
+                    Object.keys(setvars).length
+                ) {
+                    for (const [numKey, val] of Object.entries(setvars)) {
+                        const match = Object.entries(conditionsRaw).find(
+                            ([condKey]) =>
+                                decodeURIComponent(condKey).trim() ===
+                                decodeURIComponent(val).trim()
+                        )
+                        if (match) normalizedConditions[numKey] = match[1]
+                    }
+                }
+                const finalConditions =
+                    Object.keys(normalizedConditions).length > 0
+                        ? normalizedConditions
+                        : conditionsRaw
 
+                // 🔎 Detectar variante de tipo
+                type Variant = 'GETDATA' | 'SIMPLETEXT' | 'quick_reply' | 'list'
+                const declaredUp = String(object.type || '').toUpperCase()
                 let variantType: Variant
+
                 if (declaredUp === 'GETDATA' || declaredUp === 'GET_DATA')
                     variantType = 'GETDATA'
                 else if (
@@ -235,6 +259,7 @@ export function convertWiContactToFlow(json: any): {
                     variantType = 'list'
                 else variantType = 'quick_reply'
 
+                // 🧩 Opciones estándar
                 const rawOptions =
                     interactiveIn.options ??
                     interactiveIn.items?.[0]?.options ??
@@ -266,8 +291,8 @@ export function convertWiContactToFlow(json: any): {
                         msgid: 'qr_import',
                         content: { text: prompt, type: 'text' },
                         options,
-                        conditions: Object.keys(conditions).length
-                            ? conditions
+                        conditions: Object.keys(finalConditions).length
+                            ? finalConditions
                             : undefined,
                     } as QuickReplyInteractive
                 } else if (variantType === 'list') {
@@ -282,8 +307,8 @@ export function convertWiContactToFlow(json: any): {
                         body: prompt,
                         items,
                         globalButtons: interactiveIn.globalButtons || [],
-                        conditions: Object.keys(conditions).length
-                            ? conditions
+                        conditions: Object.keys(finalConditions).length
+                            ? finalConditions
                             : undefined,
                     } as ListInteractive
                 } else if (variantType === 'GETDATA') {
@@ -300,6 +325,7 @@ export function convertWiContactToFlow(json: any): {
                     } as SimpleTextInteractive
                 }
 
+                // 🧱 Objeto completo y sincronización Zustand
                 const fullObject: GetDataCompleteObject = {
                     id,
                     action: 'getdatacomplete',
@@ -307,7 +333,7 @@ export function convertWiContactToFlow(json: any): {
                     variable: object.variable || '',
                     prompt,
                     setvariables: setvars,
-                    conditions,
+                    conditions: finalConditions,
                     type: variantType,
                     interactive,
                     description,
@@ -321,15 +347,11 @@ export function convertWiContactToFlow(json: any): {
 
                 gdcBaseStore.initNode(id)
                 gdcBaseStore.setNodeData(id, fullObject)
-
-                if (variantType === 'quick_reply' || variantType === 'list') {
-                    variantStore.setVariantType(id, variantType)
-                    variantStore.setVariantOptions(id, options)
-                    variantStore.setVariantConditions(id, conditions)
-                }
-
                 nodeData = { label: id, object: fullObject }
-                console.log(`🧩 [Importer] ${id} detectado como ${variantType}`)
+
+                console.log(
+                    `🧩 [Importer] ${id} detectado como ${variantType} (GetData Normalize)`
+                )
                 break
             }
 
@@ -572,7 +594,7 @@ export function convertWiContactToFlow(json: any): {
     }
 
     // ==========================
-    // 🔗 PASADA 2: CREAR EDGES
+    // 🔗 PASADA 2: CREAR EDGES (v5.10 Normalize)
     // ==========================
     for (const step of steps) {
         const { id, onTrue, onFalse, onError, object = {}, action = '' } = step
@@ -616,9 +638,12 @@ export function convertWiContactToFlow(json: any): {
         }
 
         // ==================================================================
-        // 🧩 2️⃣ MENUS / GETDATA / SIMPLETEXT: crea edges por condiciones u opciones
+        // 🧩 2️⃣ MENUS / GETDATA / SIMPLETEXT: crea edges por condiciones u opciones (v5.10 Normalize)
         // ==================================================================
         const conditions = (object as any)?.conditions as
+            | Record<string, string>
+            | undefined
+        const setvars = (object as any)?.setvariables as
             | Record<string, string>
             | undefined
         const interactiveType = (object as any)?.interactive?.type as
@@ -629,94 +654,38 @@ export function convertWiContactToFlow(json: any): {
             | undefined
         const declaredTypeUp = String((object as any)?.type || '').toUpperCase()
 
+        // 🧠 Para GETDATA / SIMPLETEXT → normaliza condiciones según las claves de setvariables
         if (
             (declaredTypeUp === 'GETDATA' || declaredTypeUp === 'SIMPLETEXT') &&
             conditions &&
             Object.keys(conditions).length
         ) {
-            for (const [key, targetId] of Object.entries(conditions)) {
-                addEdge(id, targetId as string, `cond_${key}`)
-            }
-        }
-
-        if (
-            (interactiveType === 'quick_reply' || interactiveType === 'list') &&
-            conditions &&
-            Object.keys(conditions).length
-        ) {
-            for (const [key, targetId] of Object.entries(conditions)) {
-                addEdge(id, targetId as string, `option_${key}`)
-            }
-        }
-    }
-    // ==========================
-    // 🔗 PASADA 2: CREAR EDGES
-    // ==========================
-    for (const step of steps) {
-        const { id, onTrue, onFalse, onError, object = {}, action = '' } = step
-        if (!uniqueNodeIds.has(id)) continue
-
-        const lowerAction = String(action).toLowerCase()
-
-        // 🔗 Conexiones estándar
-        addEdge(id, onTrue, 'onTrue')
-        addEdge(id, onFalse, 'onFalse')
-        addEdge(id, onError, 'onError')
-        if ((object as any)?.nextNodeId)
-            addEdge(id, (object as any).nextNodeId, 'onSuccess')
-
-        // ==================================================================
-        // 🧩 1️⃣ SWITCHCONDITION — Crear edges dinámicos por cada condición + onTrue
-        // ==================================================================
-        if (lowerAction === 'switchcondition') {
-            const switchModule = require('@/store/useSwitchConditionStore')
-            const getSwitchHandleId = switchModule.getSwitchHandleId
-            const conditions: Record<string, string> =
-                (object as any)?.conditions || {}
-
-            // 🟢 Crear edge onTrue (manejo estándar de flujo)
-            if (step.onTrue && typeof step.onTrue === 'string') {
-                addEdge(id, step.onTrue, 'onTrue', 'trueStep')
-                console.log(
-                    `🟢 [Importer] onTrue conectado → ${id} → ${step.onTrue}`
-                )
-            }
-
-            // 🔀 Crear edges dinámicos por cada condición (SI / NO / etc.)
-            for (const [condValue, targetId] of Object.entries(conditions)) {
-                if (targetId && condValue) {
-                    const handleId = getSwitchHandleId(id, condValue)
-                    addEdge(id, targetId, handleId, condValue)
+            const normalizedEdges: Record<string, string> = {}
+            if (setvars && Object.keys(setvars).length) {
+                for (const [numKey, val] of Object.entries(setvars)) {
+                    const match = Object.entries(conditions).find(
+                        ([condKey]) =>
+                            decodeURIComponent(condKey).trim() ===
+                            decodeURIComponent(val).trim()
+                    )
+                    if (match) normalizedEdges[numKey] = match[1]
                 }
             }
 
-            continue
-        }
+            const finalEdges =
+                Object.keys(normalizedEdges).length > 0
+                    ? normalizedEdges
+                    : conditions
 
-        // ==================================================================
-        // 🧩 2️⃣ MENUS / GETDATA / SIMPLETEXT: crea edges por condiciones u opciones
-        // ==================================================================
-        const conditions = (object as any)?.conditions as
-            | Record<string, string>
-            | undefined
-        const interactiveType = (object as any)?.interactive?.type as
-            | 'quick_reply'
-            | 'list'
-            | 'GETDATA'
-            | 'SIMPLETEXT'
-            | undefined
-        const declaredTypeUp = String((object as any)?.type || '').toUpperCase()
-
-        if (
-            (declaredTypeUp === 'GETDATA' || declaredTypeUp === 'SIMPLETEXT') &&
-            conditions &&
-            Object.keys(conditions).length
-        ) {
-            for (const [key, targetId] of Object.entries(conditions)) {
+            for (const [key, targetId] of Object.entries(finalEdges)) {
                 addEdge(id, targetId as string, `cond_${key}`)
+                console.log(
+                    `⚡ [Importer] Edge GETDATA ${id} → ${targetId} (${key})`
+                )
             }
         }
 
+        // 🧩 QuickReply / List → comportamiento estándar
         if (
             (interactiveType === 'quick_reply' || interactiveType === 'list') &&
             conditions &&
@@ -724,6 +693,9 @@ export function convertWiContactToFlow(json: any): {
         ) {
             for (const [key, targetId] of Object.entries(conditions)) {
                 addEdge(id, targetId as string, `option_${key}`)
+                console.log(
+                    `💬 [Importer] Edge ${interactiveType} ${id} → ${targetId} (${key})`
+                )
             }
         }
     }
