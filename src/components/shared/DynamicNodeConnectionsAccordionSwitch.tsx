@@ -19,12 +19,12 @@ import { useFlowStore } from '@/store/useFlowStore'
 import { getSwitchHandleId } from '@/store/useSwitchConditionStore'
 
 /**
- * ⚡ DynamicNodeConnectionsAccordionSwitch (v1.2 — DeferredEdgeSync + ConsistencyFix)
+ * ⚡ DynamicNodeConnectionsAccordionSwitch (v1.3 — SingleEdgePolicy + SafeCleanup)
  * ------------------------------------------------------------------
- * ✅ Evita advertencia ReactFlow #008 ("handle inexistente")
- * ✅ Sincroniza edges dinámicos con handles renderizados
- * ✅ Codifica de forma segura todos los IDs
- * ✅ Limpieza automática de edges obsoletos
+ * ✅ Mantiene creación de edges como en v1.2 (funcional)
+ * ✅ Cada handle solo puede tener 1 conexión activa
+ * ✅ El cambio o "Ninguno" elimina el edge anterior
+ * ✅ Sincronización visual intacta (sin errores #008)
  */
 interface SwitchConnectionOption {
     id: string
@@ -49,7 +49,7 @@ export function DynamicNodeConnectionsAccordionSwitch({
 }: Props) {
     const { availableNodes, createConnectionIfMissing } =
         useNodeConnections(nodeId)
-    const { edges, setEdges, nodes } = useFlowStore()
+    const { edges, setEdges } = useFlowStore()
     const mountedRef = useRef(false)
 
     /* 🧱 Opciones seguras */
@@ -82,7 +82,7 @@ export function DynamicNodeConnectionsAccordionSwitch({
         mountedRef.current = true
     }, [edges, nodeId, safeOptions, setEdges, debug])
 
-    /* 🔁 Sincronización diferida */
+    /* 🔁 Sincronización diferida (no se toca, mantiene render correcto) */
     useEffect(() => {
         const timeout = setTimeout(() => {
             safeOptions.forEach((opt) => {
@@ -91,7 +91,6 @@ export function DynamicNodeConnectionsAccordionSwitch({
                     String(opt.id).trim()
                 )
 
-                // 👀 Verifica si el handle realmente existe en el DOM
                 const handleExists = document.querySelector(
                     `[data-id="${nodeId}"] [id="${CSS.escape(handleId)}"]`
                 )
@@ -104,34 +103,51 @@ export function DynamicNodeConnectionsAccordionSwitch({
                 }
 
                 if (opt.nextNodeId) {
+                    // 🔒 Antes de crear, limpiar si ya hay duplicado
+                    setEdges((prev) =>
+                        prev.filter(
+                            (e) =>
+                                !(
+                                    e.source === nodeId &&
+                                    e.sourceHandle === handleId
+                                )
+                        )
+                    )
                     createConnectionIfMissing(opt.nextNodeId, handleId)
                 }
             })
-        }, 150) // pequeño retraso extra para asegurar render de handles
+        }, 150)
         return () => clearTimeout(timeout)
-    }, [safeOptions, nodeId, createConnectionIfMissing, debug])
+    }, [safeOptions, nodeId, createConnectionIfMissing, setEdges, debug])
 
-    /* 🔗 Crear/eliminar conexión */
+    /* 🔗 Crear o eliminar conexión (un solo edge por handle) */
     const handleSelectChange = useCallback(
         (value: string, targetId: string | null) => {
             const handleId = getSwitchHandleId(nodeId, String(value).trim())
-            if (targetId) {
-                createConnectionIfMissing(targetId, handleId)
-                onUpdateConnection(value, targetId)
-            } else {
-                setEdges((prev) =>
-                    prev.filter(
-                        (e) =>
-                            !(
-                                e.source === nodeId &&
-                                e.sourceHandle === handleId
-                            )
-                    )
+
+            // 🧹 Limpieza previa de cualquier edge del handle
+            setEdges((prev) =>
+                prev.filter(
+                    (e) => !(e.source === nodeId && e.sourceHandle === handleId)
                 )
+            )
+
+            // Si selecciona "ninguno", solo limpia
+            if (!targetId || targetId === 'none') {
                 onUpdateConnection(value, null)
+                debug && console.log(`🧹 Edge eliminado (${handleId})`)
+                return
             }
+
+            // ✅ Crear nueva conexión
+            createConnectionIfMissing(targetId, handleId)
+            onUpdateConnection(value, targetId)
+            debug &&
+                console.log(
+                    `✅ Conectado ${nodeId} → ${targetId} (${handleId})`
+                )
         },
-        [nodeId, createConnectionIfMissing, onUpdateConnection, setEdges]
+        [nodeId, createConnectionIfMissing, onUpdateConnection, setEdges, debug]
     )
 
     /* 🎨 Render */
@@ -176,6 +192,7 @@ export function DynamicNodeConnectionsAccordionSwitch({
                                     {opt.label || opt.id}
                                 </span>
                             </div>
+
                             {opt.nextNodeId && (
                                 <Button
                                     variant="ghost"
@@ -192,7 +209,7 @@ export function DynamicNodeConnectionsAccordionSwitch({
                         </div>
 
                         <Select
-                            value={opt.nextNodeId || ''}
+                            value={opt.nextNodeId || 'none'}
                             onValueChange={(val) =>
                                 handleSelectChange(opt.id, val || null)
                             }
@@ -201,6 +218,7 @@ export function DynamicNodeConnectionsAccordionSwitch({
                                 <SelectValue placeholder="Seleccionar nodo siguiente..." />
                             </SelectTrigger>
                             <SelectContent>
+                                <SelectItem value="none">Ninguno</SelectItem>
                                 {availableNodes.length === 0 && (
                                     <SelectItem value="no_nodes" disabled>
                                         No hay otros nodos
