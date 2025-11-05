@@ -575,15 +575,49 @@ export function convertWiContactToFlow(json: any): {
     // 🔗 PASADA 2: CREAR EDGES
     // ==========================
     for (const step of steps) {
-        const { id, onTrue, onFalse, onError, object = {} } = step
+        const { id, onTrue, onFalse, onError, object = {}, action = '' } = step
         if (!uniqueNodeIds.has(id)) continue
 
+        const lowerAction = String(action).toLowerCase()
+
+        // 🔗 Conexiones estándar
         addEdge(id, onTrue, 'onTrue')
         addEdge(id, onFalse, 'onFalse')
         addEdge(id, onError, 'onError')
         if ((object as any)?.nextNodeId)
             addEdge(id, (object as any).nextNodeId, 'onSuccess')
 
+        // ==================================================================
+        // 🧩 1️⃣ SWITCHCONDITION — Crear edges dinámicos por cada condición + onTrue
+        // ==================================================================
+        if (lowerAction === 'switchcondition') {
+            const switchModule = require('@/store/useSwitchConditionStore')
+            const getSwitchHandleId = switchModule.getSwitchHandleId
+            const conditions: Record<string, string> =
+                (object as any)?.conditions || {}
+
+            // 🟢 Crear edge onTrue (manejo estándar de flujo)
+            if (step.onTrue && typeof step.onTrue === 'string') {
+                addEdge(id, step.onTrue, 'onTrue', 'trueStep')
+                console.log(
+                    `🟢 [Importer] onTrue conectado → ${id} → ${step.onTrue}`
+                )
+            }
+
+            // 🔀 Crear edges dinámicos por cada condición (SI / NO / etc.)
+            for (const [condValue, targetId] of Object.entries(conditions)) {
+                if (targetId && condValue) {
+                    const handleId = getSwitchHandleId(id, condValue)
+                    addEdge(id, targetId, handleId, condValue)
+                }
+            }
+
+            continue
+        }
+
+        // ==================================================================
+        // 🧩 2️⃣ MENUS / GETDATA / SIMPLETEXT: crea edges por condiciones u opciones
+        // ==================================================================
         const conditions = (object as any)?.conditions as
             | Record<string, string>
             | undefined
@@ -599,17 +633,99 @@ export function convertWiContactToFlow(json: any): {
             (declaredTypeUp === 'GETDATA' || declaredTypeUp === 'SIMPLETEXT') &&
             conditions &&
             Object.keys(conditions).length
-        )
-            for (const [key, targetId] of Object.entries(conditions))
+        ) {
+            for (const [key, targetId] of Object.entries(conditions)) {
                 addEdge(id, targetId as string, `cond_${key}`)
+            }
+        }
 
         if (
             (interactiveType === 'quick_reply' || interactiveType === 'list') &&
             conditions &&
             Object.keys(conditions).length
-        )
-            for (const [key, targetId] of Object.entries(conditions))
+        ) {
+            for (const [key, targetId] of Object.entries(conditions)) {
                 addEdge(id, targetId as string, `option_${key}`)
+            }
+        }
+    }
+    // ==========================
+    // 🔗 PASADA 2: CREAR EDGES
+    // ==========================
+    for (const step of steps) {
+        const { id, onTrue, onFalse, onError, object = {}, action = '' } = step
+        if (!uniqueNodeIds.has(id)) continue
+
+        const lowerAction = String(action).toLowerCase()
+
+        // 🔗 Conexiones estándar
+        addEdge(id, onTrue, 'onTrue')
+        addEdge(id, onFalse, 'onFalse')
+        addEdge(id, onError, 'onError')
+        if ((object as any)?.nextNodeId)
+            addEdge(id, (object as any).nextNodeId, 'onSuccess')
+
+        // ==================================================================
+        // 🧩 1️⃣ SWITCHCONDITION — Crear edges dinámicos por cada condición + onTrue
+        // ==================================================================
+        if (lowerAction === 'switchcondition') {
+            const switchModule = require('@/store/useSwitchConditionStore')
+            const getSwitchHandleId = switchModule.getSwitchHandleId
+            const conditions: Record<string, string> =
+                (object as any)?.conditions || {}
+
+            // 🟢 Crear edge onTrue (manejo estándar de flujo)
+            if (step.onTrue && typeof step.onTrue === 'string') {
+                addEdge(id, step.onTrue, 'onTrue', 'trueStep')
+                console.log(
+                    `🟢 [Importer] onTrue conectado → ${id} → ${step.onTrue}`
+                )
+            }
+
+            // 🔀 Crear edges dinámicos por cada condición (SI / NO / etc.)
+            for (const [condValue, targetId] of Object.entries(conditions)) {
+                if (targetId && condValue) {
+                    const handleId = getSwitchHandleId(id, condValue)
+                    addEdge(id, targetId, handleId, condValue)
+                }
+            }
+
+            continue
+        }
+
+        // ==================================================================
+        // 🧩 2️⃣ MENUS / GETDATA / SIMPLETEXT: crea edges por condiciones u opciones
+        // ==================================================================
+        const conditions = (object as any)?.conditions as
+            | Record<string, string>
+            | undefined
+        const interactiveType = (object as any)?.interactive?.type as
+            | 'quick_reply'
+            | 'list'
+            | 'GETDATA'
+            | 'SIMPLETEXT'
+            | undefined
+        const declaredTypeUp = String((object as any)?.type || '').toUpperCase()
+
+        if (
+            (declaredTypeUp === 'GETDATA' || declaredTypeUp === 'SIMPLETEXT') &&
+            conditions &&
+            Object.keys(conditions).length
+        ) {
+            for (const [key, targetId] of Object.entries(conditions)) {
+                addEdge(id, targetId as string, `cond_${key}`)
+            }
+        }
+
+        if (
+            (interactiveType === 'quick_reply' || interactiveType === 'list') &&
+            conditions &&
+            Object.keys(conditions).length
+        ) {
+            for (const [key, targetId] of Object.entries(conditions)) {
+                addEdge(id, targetId as string, `option_${key}`)
+            }
+        }
     }
 
     // 📍 Layout básico
