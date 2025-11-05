@@ -4,13 +4,9 @@
 
 import React, { useMemo, useCallback, useEffect, useRef } from 'react'
 import { Label } from '@/components/ui/label'
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
+import { PlugZap, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import {
     Select,
     SelectTrigger,
@@ -18,8 +14,12 @@ import {
     SelectValue,
     SelectItem,
 } from '@/components/ui/select'
-import { PlugZap, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import {
+    Accordion,
+    AccordionItem,
+    AccordionTrigger,
+    AccordionContent,
+} from '@/components/ui/accordion'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import { useFlowStore } from '@/store/useFlowStore'
 
@@ -39,15 +39,17 @@ interface DynamicNodeConnectionsAccordionProps {
     ) => void
     variant?: 'list' | 'quick_reply' | 'getdata' | 'simpletext'
     maxOptions?: number
+    debug?: boolean
 }
 
 /**
- * 🎛️ DynamicNodeConnectionsAccordion (v1.4.1 — HookSafe Edge Retention)
+ * ⚡ DynamicNodeConnectionsAccordion (v1.5 — Full Reactive EdgeSync)
  * ------------------------------------------------------------------
- * ✅ Mantiene edges base (onTrue/onFalse/onError)
- * ✅ Limpia solo edges obsoletos del tipo dinámico
- * ✅ Evita errores de hooks (“Rendered fewer hooks than expected”)
- * ✅ Primera renderización protegida con mountedRef
+ * ✅ Mantiene toda la lógica de v1.4
+ * ✅ Detecta creación manual de edges → actualiza store automáticamente
+ * ✅ Detecta eliminación manual de edges → limpia conexión (nextNodeId = 'none')
+ * ✅ Un solo edge por handle (single-edge policy)
+ * ✅ Sin loops infinitos (verificación por divergencia)
  */
 export function DynamicNodeConnectionsAccordion({
     nodeId,
@@ -55,23 +57,20 @@ export function DynamicNodeConnectionsAccordion({
     onUpdateOption,
     variant = 'quick_reply',
     maxOptions = 10,
+    debug = false,
 }: DynamicNodeConnectionsAccordionProps) {
     const { availableNodes, createConnectionIfMissing } =
         useNodeConnections(nodeId)
-    const { edges, setEdges } = useFlowStore()
+    const { edges, setEdges, nodes } = useFlowStore()
     const mountedRef = useRef(false)
 
-    /* -------------------------------------------------------------------------- */
-    /* 🧱 Opciones seguras limitadas                                              */
-    /* -------------------------------------------------------------------------- */
+    /* 🧱 Opciones seguras */
     const safeOptions = useMemo(
         () => options.slice(0, maxOptions),
         [options, maxOptions]
     )
 
-    /* -------------------------------------------------------------------------- */
-    /* 🪄 Genera un handle ID estable según la variante                           */
-    /* -------------------------------------------------------------------------- */
+    /* 🪄 Genera un handle ID según la variante */
     const getHandleId = useCallback(
         (optionId: string) => {
             switch (variant) {
@@ -88,14 +87,11 @@ export function DynamicNodeConnectionsAccordion({
         [variant]
     )
 
-    /* -------------------------------------------------------------------------- */
-    /* 🧹 Limpieza de edges obsoletos (sin tocar onTrue/onFalse/onError)          */
-    /* -------------------------------------------------------------------------- */
+    /* 🧹 Limpieza de edges obsoletos (mantiene onTrue/onFalse/onError) */
     useEffect(() => {
         const validHandles = safeOptions.map((o) => getHandleId(o.id))
         const baseHandles = ['onTrue', 'onFalse', 'onError']
 
-        // Solo ejecutar la limpieza después del primer montaje
         if (mountedRef.current) {
             const newEdges = edges.filter(
                 (e) =>
@@ -105,39 +101,67 @@ export function DynamicNodeConnectionsAccordion({
                         (validHandles.includes(e.sourceHandle) ||
                             baseHandles.includes(e.sourceHandle)))
             )
-
-            if (newEdges.length !== edges.length) {
-                setEdges(newEdges)
-            }
+            if (newEdges.length !== edges.length) setEdges(newEdges)
         }
-
         mountedRef.current = true
     }, [safeOptions, edges, nodeId, getHandleId, setEdges])
 
-    /* -------------------------------------------------------------------------- */
-    /* 🔗 Crear o eliminar conexión dinámica                                      */
-    /* -------------------------------------------------------------------------- */
+    /* 🔁 Sincronización bidireccional (creación y eliminación manual) */
+    useEffect(() => {
+        safeOptions.forEach((opt) => {
+            const handleId = getHandleId(opt.id)
+            const outgoingEdge = edges.find(
+                (e) => e.source === nodeId && e.sourceHandle === handleId
+            )
+
+            // 1️⃣ Edge eliminado manualmente
+            if (!outgoingEdge && opt.nextNodeId && opt.nextNodeId !== 'none') {
+                debug &&
+                    console.log(
+                        `🧭 Edge eliminado (${handleId}) → limpiar conexión`
+                    )
+                onUpdateOption(opt.id, 'nextNodeId', null)
+            }
+
+            // 2️⃣ Edge creado manualmente
+            if (
+                outgoingEdge &&
+                (!opt.nextNodeId || opt.nextNodeId === 'none')
+            ) {
+                const targetNode = nodes.find(
+                    (n) => n.id === outgoingEdge.target
+                )
+                debug &&
+                    console.log(
+                        `✨ Edge manual detectado: ${nodeId}::${opt.id} → ${targetNode?.data?.label || outgoingEdge.target}`
+                    )
+                onUpdateOption(opt.id, 'nextNodeId', outgoingEdge.target)
+            }
+        })
+    }, [edges, nodes, nodeId, safeOptions, onUpdateOption, getHandleId, debug])
+
+    /* 🔗 Crear o eliminar conexión manual desde el selector */
     const handleSelectChange = useCallback(
         (optionId: string, targetId: string | null) => {
             const handleId = getHandleId(optionId)
-
-            if (targetId) {
-                // ✅ Crear conexión si no existe
-                createConnectionIfMissing(targetId, handleId)
-                onUpdateOption(optionId, 'nextNodeId', targetId)
-            } else {
-                // 🧹 Eliminar edges asociados a ese handle
-                setEdges((prev) =>
-                    prev.filter(
-                        (e) =>
-                            !(
-                                e.source === nodeId &&
-                                e.sourceHandle === handleId
-                            )
-                    )
+            // 🔒 Un solo edge por handle
+            setEdges((prev) =>
+                prev.filter(
+                    (e) => !(e.source === nodeId && e.sourceHandle === handleId)
                 )
+            )
+
+            if (!targetId || targetId === 'none') {
                 onUpdateOption(optionId, 'nextNodeId', null)
+                return
             }
+
+            createConnectionIfMissing(targetId, handleId)
+            onUpdateOption(optionId, 'nextNodeId', targetId)
+            debug &&
+                console.log(
+                    `✅ Conectado ${nodeId} → ${targetId} (${handleId})`
+                )
         },
         [
             nodeId,
@@ -145,19 +169,18 @@ export function DynamicNodeConnectionsAccordion({
             onUpdateOption,
             getHandleId,
             setEdges,
+            debug,
         ]
     )
 
-    /* -------------------------------------------------------------------------- */
-    /* 🧱 Render principal                                                        */
-    /* -------------------------------------------------------------------------- */
+    /* 🎨 Render principal */
     return (
         <div className="mt-5 rounded-xl border border-purple-300 bg-purple-50/40 p-3 dark:border-purple-800 dark:bg-purple-900/10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <PlugZap className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                     <Label className="text-sm font-semibold text-purple-700 dark:text-purple-300">
-                        🔗 Conexiones de opciones
+                        🔗 Conexiones dinámicas
                     </Label>
                 </div>
                 <Badge
@@ -199,23 +222,27 @@ export function DynamicNodeConnectionsAccordion({
                                         </span>
                                     </div>
 
-                                    {opt.nextNodeId && (
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() =>
-                                                handleSelectChange(opt.id, null)
-                                            }
-                                            className="h-6 w-6 text-gray-400 hover:text-red-500"
-                                            title="Eliminar conexión"
-                                        >
-                                            <X className="h-3.5 w-3.5" />
-                                        </Button>
-                                    )}
+                                    {opt.nextNodeId &&
+                                        opt.nextNodeId !== 'none' && (
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    handleSelectChange(
+                                                        opt.id,
+                                                        null
+                                                    )
+                                                }
+                                                className="h-6 w-6 text-gray-400 hover:text-red-500"
+                                                title="Eliminar conexión"
+                                            >
+                                                <X className="h-3.5 w-3.5" />
+                                            </Button>
+                                        )}
                                 </div>
 
                                 <Select
-                                    value={opt.nextNodeId || ''}
+                                    value={opt.nextNodeId || 'none'}
                                     onValueChange={(val) =>
                                         handleSelectChange(opt.id, val || null)
                                     }
@@ -224,11 +251,9 @@ export function DynamicNodeConnectionsAccordion({
                                         <SelectValue placeholder="Seleccionar nodo siguiente..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {availableNodes.length === 0 && (
-                                            <SelectItem value="" disabled>
-                                                No hay otros nodos
-                                            </SelectItem>
-                                        )}
+                                        <SelectItem value="none">
+                                            Ninguno
+                                        </SelectItem>
                                         {availableNodes.map((n) => (
                                             <SelectItem key={n.id} value={n.id}>
                                                 {n.data?.label || n.id}
