@@ -15,35 +15,29 @@ import {
 } from '@/store/useSwitchConditionStore'
 
 /**
- * 🧩 SwitchConditionNode (v3.4 — Target dinámico, opciones fijas)
+ * 🧩 SwitchConditionNode (v3.5 — with onTrue Handle)
  * --------------------------------------------------------------------
- * ✅ Handle de entrada cambia (Top/Left) según orientación
- * ✅ Handles de salida (opciones) fijos a la derecha
- * ✅ Compatible con orientación vertical u horizontal
- * ✅ Estilo coherente con VariablesNode y MenuNode
+ * ✅ Handle de entrada adaptable
+ * ✅ Handle onTrue verde (estándar)
+ * ✅ Handles dinámicos para SI / NO / TAL VEZ
  */
 const SwitchConditionNode: React.FC<NodeProps> = ({ id, data }) => {
     const { setSelectedNode } = useNodeConfigStore()
     const { orientation } = useFlowOrientationStore()
     const { byId, initNode } = useSwitchConditionStore()
 
-    // 🔹 Entrada se adapta a orientación
     const targetPosition =
         orientation === 'vertical' ? Position.Top : Position.Left
+    const sourcePosition =
+        orientation === 'vertical' ? Position.Bottom : Position.Right
 
-    // 🧠 Inicializa nodo
     useEffect(() => {
         initNode(id)
     }, [id, initNode])
 
     const cfg = byId[id]
-    const values = cfg?.values ?? ['SI'] // fallback
+    const values = cfg?.values ?? ['SI']
 
-    const nodeColor = 'violet'
-    const bgColor = `bg-${nodeColor}-600`
-    const borderColor = `border-${nodeColor}-800`
-
-    // 🔀 Handles dinámicos
     const dynamicHandles = useMemo(
         () =>
             values.map((val, i) => ({
@@ -66,7 +60,7 @@ const SwitchConditionNode: React.FC<NodeProps> = ({ id, data }) => {
                     setSelectedNode({ id, type: 'switchConditionNode', data })
                 }}
                 data-id={id}
-                className={`relative cursor-pointer overflow-visible rounded-xl border ${borderColor} ${bgColor} text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg`}
+                className="relative cursor-pointer overflow-visible rounded-xl border border-violet-800 bg-violet-600 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
             >
                 {/* 🏷️ Encabezado */}
                 <div className="px-3 pt-1.5 pb-1 text-center">
@@ -84,7 +78,7 @@ const SwitchConditionNode: React.FC<NodeProps> = ({ id, data }) => {
                     )}
                 </div>
 
-                {/* 🎯 Handle de entrada (dinámico según orientación) */}
+                {/* 🎯 Handle de entrada */}
                 <Handle
                     type="target"
                     position={targetPosition}
@@ -100,7 +94,16 @@ const SwitchConditionNode: React.FC<NodeProps> = ({ id, data }) => {
                     }}
                 />
 
-                {/* 🔀 Handles de opciones (fijos a la derecha) */}
+                {/* 🟢 Handle OnTrue */}
+                <Handle
+                    type="source"
+                    id="onTrue"
+                    position={Position.Bottom}
+                    className="h-[10px] w-[10px] rounded-full !bg-green-400 hover:scale-110"
+                    title="onTrue"
+                />
+
+                {/* 🔀 Handles dinámicos */}
                 <div className="relative mt-0.5 flex flex-col">
                     {dynamicHandles.length === 0 ? (
                         <div className="border-t border-white/20 bg-violet-700/30 px-3 py-[6px] text-[12px] italic opacity-80">
@@ -120,8 +123,6 @@ const SwitchConditionNode: React.FC<NodeProps> = ({ id, data }) => {
                                         {h.label}
                                     </span>
                                 </div>
-
-                                {/* 🎯 Handle fijo lateral derecho */}
                                 <Handle
                                     id={h.id}
                                     type="source"

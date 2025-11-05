@@ -21,19 +21,21 @@ import {
     SelectValue,
     SelectItem,
 } from '@/components/ui/select'
-import { useNodeConnections } from '@/hooks/useNodeConnections'
 import {
-    useSwitchConditionStore,
-} from '@/store/useSwitchConditionStore'
+    NodeConnectionsAccordion,
+    NodeSelectionAccordion,
+} from '@/components/shared/NodeConnectionsAccordion'
+import { useNodeConnections } from '@/hooks/useNodeConnections'
+import { useSwitchConditionStore } from '@/store/useSwitchConditionStore'
 import { DynamicNodeConnectionsAccordionSwitch } from '@/components/shared/DynamicNodeConnectionsAccordionSwitch'
 
 /**
- * 🧩 FormSwitchConditionNode (v3.1 – SafeInit + RealTimeHandleSync)
- * ----------------------------------------------------------------
- * ✅ Inicializa con condiciones SI/NO (ya visibles en el nodo)
- * ✅ Patrón igual a GetDataComplete: editar → guardar → conectar
- * ✅ Evita advertencia React Flow #008 (handle inexistente)
- * ✅ Compatible con DynamicNodeConnectionsAccordionSwitch
+ * 🧩 FormSwitchConditionNode (v4.1 — Estandarizado con onTrue + prev)
+ * -------------------------------------------------------------------
+ * ✅ Modo fijo: SI / NO / TAL VEZ (máx. 3)
+ * ✅ Secciones prev y onTrue idénticas a FormSimpleTextNode
+ * ✅ Mantiene la lógica de DynamicNodeConnectionsAccordionSwitch
+ * ✅ No rompe la estructura existente
  */
 export default function FormSwitchConditionNode({
     id,
@@ -55,12 +57,14 @@ export default function FormSwitchConditionNode({
         removeConnection,
     } = useSwitchConditionStore()
 
-    const { availableNodes } = useNodeConnections(id)
-    const [accordionValue, setAccordionValue] = useState<string[]>(['edit'])
+    const { prevNodes, availableNodes, hasConnection, toggleConnection } =
+        useNodeConnections(id)
 
-    /* -------------------------------------------------------------------------- */
-    /* 🧠 Inicialización segura                                                   */
-    /* -------------------------------------------------------------------------- */
+    const [accordionValue, setAccordionValue] = useState<string[]>(['edit'])
+    const FIXED_OPTIONS = ['SI', 'NO', 'TAL VEZ']
+    const MAX_CONDITIONS = 3
+
+    // 🧠 Inicialización
     useEffect(() => {
         initNode(id)
     }, [id, initNode])
@@ -68,7 +72,7 @@ export default function FormSwitchConditionNode({
     const cfg = byId[id]
     if (!cfg) return null
 
-    // 🧱 Si el nodo aún no tiene valores, inicializa con SI / NO visibles
+    // Inicializa valores base
     useEffect(() => {
         if (!cfg.values || cfg.values.length === 0) {
             addValue(id, 'SI')
@@ -76,34 +80,65 @@ export default function FormSwitchConditionNode({
         }
     }, [cfg.values, addValue, id])
 
-    const BASE_OPTIONS = ['SI', 'NO']
-    const canAddMore = cfg.values.length < BASE_OPTIONS.length
+    const canAddMore = (cfg.values?.length ?? 0) < MAX_CONDITIONS
+    const availableFixedOptions = useMemo(
+        () => FIXED_OPTIONS.filter((opt) => !cfg.values.includes(opt)),
+        [cfg.values]
+    )
 
-    const selectableOptions = useMemo(() => {
-        const unique = Array.from(new Set([...BASE_OPTIONS, ...cfg.values]))
-        return unique
-    }, [cfg.values])
+    // 🔍 Conexiones onTrue (igual que FormSimpleTextNode)
+    const trueConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onTrue'))
+        .map((n) => n.id)
 
     /* -------------------------------------------------------------------------- */
     /* 🧱 Render principal                                                        */
     /* -------------------------------------------------------------------------- */
     return (
-        <div className="space-y-6">
-            {/* ⚙️ CONFIGURACIÓN BASE */}
-            <section className="space-y-3">
-                <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
-                    <Label className="text-sm font-semibold text-fuchsia-700 dark:text-fuchsia-300">
-                        ⚙️ Switch Condition
-                    </Label>
-                    <Badge
-                        variant="outline"
-                        className="border-fuchsia-300 bg-fuchsia-50 px-2 py-0.5 text-[10px] text-fuchsia-700 dark:border-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300"
-                    >
-                        {id}
-                    </Badge>
-                </div>
+        <div className="flex flex-col gap-5">
+            {/* 🔹 Encabezado */}
+            <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
+                <Label className="text-sm font-semibold text-fuchsia-700 dark:text-fuchsia-300">
+                    Nodo Condicional (Switch)
+                </Label>
+                <Badge
+                    variant="outline"
+                    className="border-fuchsia-300 bg-fuchsia-50 px-2 py-0.5 text-[10px] text-fuchsia-700 dark:border-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300"
+                >
+                    {id}
+                </Badge>
+            </div>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {/* 🔵 Nodo anterior */}
+            <NodeConnectionsAccordion
+                title="Nodo anterior"
+                nodesList={prevNodes}
+                accentColor="text-sky-700 dark:text-sky-300"
+            />
+
+            {/* 🟢 Conexión onTrue */}
+            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
+                    Conexión trueStep
+                </Label>
+                <NodeConnectionsAccordion
+                    title="Nodos conectados (trueStep)"
+                    nodesList={trueConnections}
+                    accentColor="text-green-700 dark:text-green-300"
+                />
+                <NodeSelectionAccordion
+                    title="Seleccionar nodo trueStep"
+                    availableNodes={availableNodes}
+                    hasConnection={hasConnection}
+                    toggleConnection={toggleConnection}
+                    handleId="onTrue"
+                    accentColor="text-green-700 dark:text-green-300"
+                />
+            </div>
+
+            {/* ⚙️ CONFIGURACIÓN BASE */}
+            <section className="space-y-3 border-t pt-3 dark:border-gray-800">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <div>
                         <Label className="text-sm">Variable</Label>
                         <Input
@@ -160,19 +195,32 @@ export default function FormSwitchConditionNode({
                             ✏️ Editar condiciones ({cfg.values.length})
                         </AccordionTrigger>
                         <AccordionContent className="mt-2 space-y-3">
-                            <div className="flex justify-end">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[11px] text-gray-500">
+                                    Máximo permitido: {MAX_CONDITIONS}
+                                </span>
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => addValue(id)}
-                                    disabled={!canAddMore}
+                                    onClick={() => {
+                                        if (availableFixedOptions.length > 0)
+                                            addValue(
+                                                id,
+                                                availableFixedOptions[0]
+                                            )
+                                    }}
+                                    disabled={
+                                        !canAddMore ||
+                                        availableFixedOptions.length === 0
+                                    }
                                     className={`${
                                         canAddMore
                                             ? 'border-fuchsia-600 bg-fuchsia-600 text-white hover:bg-fuchsia-500'
                                             : 'cursor-not-allowed opacity-60'
                                     }`}
                                 >
-                                    <Plus className="mr-1 h-4 w-4" /> Añadir valor
+                                    <Plus className="mr-1 h-4 w-4" /> Añadir
+                                    valor
                                 </Button>
                             </div>
 
@@ -190,6 +238,7 @@ export default function FormSwitchConditionNode({
                                             size="icon"
                                             onClick={() => removeValue(id, idx)}
                                             className="h-5 w-5 text-red-500 hover:text-red-700"
+                                            title="Eliminar condición"
                                         >
                                             <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
@@ -209,21 +258,19 @@ export default function FormSwitchConditionNode({
                                                 <SelectValue placeholder="Selecciona valor..." />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {selectableOptions.map(
-                                                    (opt) => (
-                                                        <SelectItem
-                                                            key={opt}
-                                                            value={opt}
-                                                            disabled={
-                                                                cfg.values.includes(
-                                                                    opt
-                                                                ) && val !== opt
-                                                            }
-                                                        >
-                                                            {opt}
-                                                        </SelectItem>
-                                                    )
-                                                )}
+                                                {FIXED_OPTIONS.map((opt) => (
+                                                    <SelectItem
+                                                        key={opt}
+                                                        value={opt}
+                                                        disabled={
+                                                            cfg.values.includes(
+                                                                opt
+                                                            ) && val !== opt
+                                                        }
+                                                    >
+                                                        {opt}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
