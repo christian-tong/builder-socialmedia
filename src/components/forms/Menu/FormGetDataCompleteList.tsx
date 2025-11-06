@@ -2,7 +2,7 @@
 
 'use client'
 
-import React, { useEffect, useCallback, useMemo, useState } from 'react'
+import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react'
 import {
     Label,
     Input,
@@ -13,12 +13,13 @@ import {
     SelectContent,
     SelectValue,
     SelectItem,
+    Switch,
 } from '@/components/ui'
+import { toast } from 'sonner'
 import { Plus, Trash2 } from 'lucide-react'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
 import { useGetDataCompleteListStore } from '@/store/GetDataComplete/useGetDataCompleteListStore'
 import type { ListInteractive } from '@/types/getDataComplete'
-import { Switch } from '@/components/ui/switch'
 import { DynamicNodeConnectionsAccordion } from '@/components/shared/DynamicNodeConnectionsAccordion'
 import {
     Accordion,
@@ -28,12 +29,15 @@ import {
 } from '@/components/ui/accordion'
 
 /**
- * 🔵 FormGetDataCompleteList (v4.1 — Sync Conditions + AutoEdgeReflect)
- * -----------------------------------------------------------------------
- * ✅ Sincroniza condiciones importadas (object.conditions) con opciones dinámicas
- * ✅ Actualiza automáticamente nextNodeId ↔ conditions en tiempo real
- * ✅ Compatible con DynamicNodeConnectionsAccordion v1.3
- * ✅ Mantiene el patrón de sincronización diferida (triggerAfterSave)
+ * 💙 FormGetDataCompleteList (v4.8 — Azul + Campos Editables)
+ * ------------------------------------------------------------
+ * ✅ Validaciones WhatsApp List:
+ *    - body.text: máx. 1024 caracteres
+ *    - button.title: máx. 20 caracteres
+ *    - item.title: máx. 24 caracteres
+ *    - option.description: máx. 72 caracteres
+ * ✅ Colores azules (coherentes con nodo List)
+ * ✅ Editable: título del botón y título del grupo
  */
 export function FormGetDataCompleteList({ id }: { id: string }) {
     const { getNodeData, setNodeData, triggerAfterSave } =
@@ -41,9 +45,13 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
     const { updateField, toggleSaveHidden } = useGetDataCompleteListStore()
     const nodeData = getNodeData(id)
     if (nodeData.interactive?.type !== 'list') return null
-    const list = nodeData.interactive as ListInteractive
 
+    const list = nodeData.interactive as ListInteractive
     const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const
+    const [accordionValue, setAccordionValue] = useState<string[]>([
+        'options-edit',
+    ])
+    const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
     /** 🧱 Inicialización mínima */
     useEffect(() => {
@@ -52,15 +60,19 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                 ...list,
                 type: 'list',
                 body: list.body || '',
-                globalButtons:
-                    list.globalButtons && list.globalButtons.length > 0
-                        ? list.globalButtons
-                        : [{ type: 'text', title: 'Elegir' }],
+                globalButtons: list.globalButtons?.length
+                    ? list.globalButtons
+                    : [{ type: 'text', title: 'Elegir' }],
                 items: [
                     {
-                        title: 'Elija una opción',
+                        title: 'Seleccione una opción',
                         options: [
-                            { postbackText: '1', type: 'text', title: '' },
+                            {
+                                postbackText: '1',
+                                type: 'text',
+                                title: '',
+                                description: '',
+                            },
                         ],
                     },
                 ],
@@ -78,9 +90,7 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                     title: i.title,
                     options: i.options.map((o) => ({ ...o })),
                 })),
-                globalButtons: list.globalButtons
-                    ? list.globalButtons.map((b) => ({ ...b }))
-                    : [],
+                globalButtons: list.globalButtons?.map((b) => ({ ...b })) || [],
                 conditions: { ...(list as any).conditions },
             }
             updater(copy)
@@ -89,50 +99,34 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
         [list, setNodeData, id]
     )
 
-    /* 🧩 Sincroniza condiciones importadas con opciones (v4.3 — TypeSafe Sync)
-     * ------------------------------------------------------------------------
-     * ✅ nodeData ya es un GetDataCompleteObject, no un nodo completo
-     * ✅ Compatible con ListOption.nextNodeId?: string
-     * ✅ Convierte valores nullish a undefined (TS safe)
-     * ✅ Se ejecuta una sola vez tras el montaje
-     */
-    useEffect(() => {
-        // Extrae las condiciones existentes (del objeto o del bloque interactivo)
-        const conditions: Record<string, string> =
-            nodeData?.conditions ||
-            (list?.conditions as Record<string, string>) ||
-            {}
+    /* -------------------------------------------------------------------------- */
+    /* 💬 BODY VALIDATION (máx. 1024 caracteres)                                  */
+    /* -------------------------------------------------------------------------- */
+    const handleBodyChange = (value: string) => {
+        if (value.length > 1024) {
+            toast.warning('Máximo 1024 caracteres permitidos.')
+            return
+        }
+        updateInteractive((d) => (d.body = value))
+    }
 
-        const listData = nodeData.interactive as ListInteractive
-
-        // Evita ejecución innecesaria si no hay items o condiciones
-        if (!listData?.items?.length || !Object.keys(conditions).length) return
-
-        updateInteractive((draft) => {
-            const firstGroup = draft.items[0]
-            if (!firstGroup?.options?.length) return
-
-            // Actualiza nextNodeId para cada opción de forma segura
-            firstGroup.options = firstGroup.options.map((opt) => ({
-                ...opt,
-                nextNodeId:
-                    conditions?.[opt.postbackText] ||
-                    opt.nextNodeId ||
-                    undefined, // ✅ evita null → mantiene compatibilidad con TS
-            }))
+    /* -------------------------------------------------------------------------- */
+    /* 🧩 CAMPOS BASE + BUTTON TITLE                                              */
+    /* -------------------------------------------------------------------------- */
+    const handleButtonTitleChange = (val: string) => {
+        if (val.length > 20) {
+            toast.warning('Máx. 20 caracteres para el texto del botón.')
+            return
+        }
+        updateInteractive((d) => {
+            if (!d.globalButtons || !d.globalButtons.length)
+                d.globalButtons = [{ type: 'text', title: val }]
+            else d.globalButtons[0].title = val
         })
-    }, [])
+    }
 
-    /* -------------------------------------------------------------------------- */
-    /* 🧱 CAMPOS BASE                                                            */
-    /* -------------------------------------------------------------------------- */
     const baseFields = [
         { key: 'condition', label: '🧩 Condition', placeholder: '[0-5]' },
-        {
-            key: 'groodText',
-            label: '💬 GroodText',
-            placeholder: 'Texto positivo...',
-        },
         { key: 'setvar', label: '🏷️ SetVar', placeholder: 'TERCER_NIVEL' },
         { key: 'variable', label: '🔡 Variable', placeholder: 'TerceraOpcion' },
         { key: 'alias', label: '🪪 Alias', placeholder: 'Alias descriptivo' },
@@ -150,11 +144,8 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
         triggerAfterSave(id)
     }
 
-    const handleBodyChange = (val: string) =>
-        updateInteractive((d) => (d.body = val))
-
     /* -------------------------------------------------------------------------- */
-    /* 🧱 RENDER                                                                 */
+    /* 🧩 RENDER PRINCIPAL                                                       */
     /* -------------------------------------------------------------------------- */
     return (
         <div className="mt-6 space-y-6">
@@ -198,20 +189,41 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                 </div>
             </section>
 
+            {/* 🔘 TEXTO DEL BOTÓN */}
+            <section>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    🔘 Texto del botón (máx. 20 caracteres)
+                </Label>
+                <Input
+                    value={decodeURIComponent(
+                        list.globalButtons?.[0]?.title || ''
+                    )}
+                    onChange={(e) => handleButtonTitleChange(e.target.value)}
+                    placeholder="Ej: Elegir opción"
+                    className="mt-1 text-xs"
+                />
+            </section>
+
             {/* 💬 BODY */}
             <section>
                 <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    💬 Mensaje principal (body)
+                    💬 Mensaje principal (body.text)
                 </Label>
                 <Textarea
                     value={decodeURIComponent(list.body || '')}
                     onChange={(e) =>
                         handleBodyChange(encodeURIComponent(e.target.value))
                     }
-                    placeholder="Texto del mensaje principal..."
-                    rows={3}
+                    placeholder="Texto principal..."
+                    rows={4}
                     className="mt-1 font-mono text-xs"
                 />
+                <div className="mt-1 flex justify-between text-[10px] text-gray-400">
+                    <span>
+                        {decodeURIComponent(list.body || '').length} / 1024
+                        caracteres
+                    </span>
+                </div>
             </section>
 
             {/* 🧩 LIST ITEMS */}
@@ -233,6 +245,8 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                             )
                         })
                         triggerAfterSave(id)
+                        setAccordionValue(['connections'])
+                        toast.success('Opciones guardadas correctamente.')
                     }, [
                         localOptions,
                         itemIdx,
@@ -244,34 +258,65 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                     return (
                         <div
                             key={itemIdx}
-                            className="rounded-lg border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/40"
+                            className="rounded-lg border border-blue-200 bg-blue-50/60 p-3 dark:border-blue-700 dark:bg-gray-900/40"
                         >
-                            <Label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                                🏷️ Grupo {itemIdx + 1}:{' '}
-                                {decodeURIComponent(item.title || '')}
+                            <Label className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                                🏷️ Grupo {itemIdx + 1}
                             </Label>
+                            <Input
+                                value={decodeURIComponent(item.title || '')}
+                                onChange={(e) => {
+                                    const val = e.target.value
+                                    if (val.length > 24) {
+                                        toast.warning(
+                                            'Máx. 24 caracteres en título del grupo.'
+                                        )
+                                        return
+                                    }
+                                    updateInteractive((d) => {
+                                        d.items[itemIdx].title =
+                                            encodeURIComponent(val)
+                                    })
+                                }}
+                                placeholder="Título del grupo..."
+                                className="mt-1 text-xs"
+                            />
 
-                            <Accordion type="multiple" className="mt-2">
-                                {/* ✏️ Edición de opciones */}
+                            <Accordion
+                                type="multiple"
+                                value={accordionValue}
+                                onValueChange={(v) =>
+                                    setAccordionValue(v as string[])
+                                }
+                                className="mt-2"
+                            >
+                                {/* ✏️ Editar opciones */}
                                 <AccordionItem value="options-edit">
-                                    <AccordionTrigger className="rounded-md bg-emerald-100/70 px-3 py-2 text-xs text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
+                                    <AccordionTrigger className="rounded-md bg-blue-100/70 px-3 py-2 text-xs text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                                         ✏️ Editar opciones (
                                         {localOptions.length})
                                     </AccordionTrigger>
-                                    <AccordionContent className="mt-2 space-y-3">
+                                    <AccordionContent className="mt-2 space-y-3 px-1">
                                         <div className="flex justify-end">
                                             <Button
                                                 variant="outline"
                                                 size="sm"
+                                                disabled={
+                                                    localOptions.length >= 10
+                                                }
                                                 onClick={() => {
-                                                    const used = new Set(
-                                                        localOptions.map(
-                                                            (o) =>
-                                                                o.postbackText
+                                                    if (
+                                                        localOptions.length >=
+                                                        10
+                                                    ) {
+                                                        toast.warning(
+                                                            'Máximo 10 opciones permitidas.'
                                                         )
-                                                    )
+                                                        return
+                                                    }
                                                     const next = DIGITS.find(
-                                                        (d) => !used.has(d)
+                                                        (d) =>
+                                                            !usedDigits.has(d)
                                                     )
                                                     if (!next) return
                                                     setLocalOptions((prev) => [
@@ -284,112 +329,198 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                                         },
                                                     ])
                                                 }}
-                                                className="border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500 hover:text-white"
+                                                className="border-blue-600 bg-blue-600 text-white hover:bg-blue-500"
                                             >
-                                                <Plus className="mr-1 h-4 w-4" />
+                                                <Plus className="mr-1 h-4 w-4" />{' '}
                                                 Añadir opción
                                             </Button>
                                         </div>
 
-                                        {localOptions.map((opt, optIdx) => (
-                                            <div
-                                                key={optIdx}
-                                                className="rounded-md border border-emerald-200 bg-white/80 p-2 text-xs shadow-sm dark:border-emerald-700 dark:bg-gray-950"
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <Label className="text-[10px] text-gray-500">
-                                                        Opción {optIdx + 1}
-                                                    </Label>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            setLocalOptions(
-                                                                (prev) =>
-                                                                    prev.filter(
-                                                                        (
-                                                                            _,
-                                                                            i
-                                                                        ) =>
-                                                                            i !==
-                                                                            optIdx
-                                                                    )
-                                                            )
-                                                        }
-                                                        className="h-5 w-5 text-red-500 hover:text-red-700"
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </div>
-                                                <div className="mt-2 grid grid-cols-2 gap-2">
-                                                    <div>
-                                                        <Label className="text-[10px] text-gray-500">
-                                                            postbackText
+                                        {localOptions.map((opt, optIdx) => {
+                                            const titleDecoded =
+                                                decodeURIComponent(
+                                                    opt.title || ''
+                                                )
+                                            const descDecoded =
+                                                decodeURIComponent(
+                                                    opt.description || ''
+                                                )
+                                            const titleInvalid =
+                                                titleDecoded.length > 24
+                                            const descTooLong =
+                                                descDecoded.length > 72
+
+                                            return (
+                                                <div
+                                                    key={optIdx}
+                                                    className="rounded-md border border-blue-200 bg-white/80 p-3 text-xs shadow-sm transition-all hover:shadow-md dark:border-blue-700 dark:bg-gray-950"
+                                                >
+                                                    <div className="mb-1 flex items-center justify-between">
+                                                        <Label className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                                                            Opción {optIdx + 1}
                                                         </Label>
-                                                        <Select
-                                                            value={
-                                                                opt.postbackText
-                                                            }
-                                                            onValueChange={(
-                                                                digit
-                                                            ) =>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() =>
                                                                 setLocalOptions(
                                                                     (prev) =>
-                                                                        prev.map(
+                                                                        prev.filter(
                                                                             (
-                                                                                o,
+                                                                                _,
                                                                                 i
                                                                             ) =>
-                                                                                i ===
+                                                                                i !==
                                                                                 optIdx
-                                                                                    ? {
-                                                                                          ...o,
-                                                                                          postbackText:
-                                                                                              digit,
-                                                                                      }
-                                                                                    : o
                                                                         )
                                                                 )
                                                             }
+                                                            className="h-5 w-5 text-red-500 hover:text-red-700"
                                                         >
-                                                            <SelectTrigger className="h-8 border-emerald-400 text-xs">
-                                                                <SelectValue placeholder="Seleccionar..." />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {DIGITS.map(
-                                                                    (d) => (
-                                                                        <SelectItem
-                                                                            key={
-                                                                                d
-                                                                            }
-                                                                            value={
-                                                                                d
-                                                                            }
-                                                                            disabled={
-                                                                                usedDigits.has(
-                                                                                    d
-                                                                                ) &&
-                                                                                opt.postbackText !==
-                                                                                    d
-                                                                            }
-                                                                        >
-                                                                            {d}
-                                                                        </SelectItem>
-                                                                    )
-                                                                )}
-                                                            </SelectContent>
-                                                        </Select>
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
                                                     </div>
 
-                                                    <div>
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="w-fit">
+                                                            <Label className="text-[10px] text-gray-500">
+                                                                postbackText
+                                                            </Label>
+                                                            <Select
+                                                                value={
+                                                                    opt.postbackText
+                                                                }
+                                                                onValueChange={(
+                                                                    digit
+                                                                ) =>
+                                                                    setLocalOptions(
+                                                                        (
+                                                                            prev
+                                                                        ) =>
+                                                                            prev.map(
+                                                                                (
+                                                                                    o,
+                                                                                    i
+                                                                                ) =>
+                                                                                    i ===
+                                                                                    optIdx
+                                                                                        ? {
+                                                                                              ...o,
+                                                                                              postbackText:
+                                                                                                  digit,
+                                                                                          }
+                                                                                        : o
+                                                                            )
+                                                                    )
+                                                                }
+                                                            >
+                                                                <SelectTrigger className="h-8 border-blue-400 text-xs">
+                                                                    <SelectValue placeholder="N°" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {DIGITS.map(
+                                                                        (d) => (
+                                                                            <SelectItem
+                                                                                key={
+                                                                                    d
+                                                                                }
+                                                                                value={
+                                                                                    d
+                                                                                }
+                                                                                disabled={
+                                                                                    usedDigits.has(
+                                                                                        d
+                                                                                    ) &&
+                                                                                    opt.postbackText !==
+                                                                                        d
+                                                                                }
+                                                                            >
+                                                                                {
+                                                                                    d
+                                                                                }
+                                                                            </SelectItem>
+                                                                        )
+                                                                    )}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+
+                                                        <div className="flex-1">
+                                                            <Label className="text-[10px] text-gray-500">
+                                                                title
+                                                            </Label>
+                                                            <Input
+                                                                value={
+                                                                    titleDecoded
+                                                                }
+                                                                onChange={(
+                                                                    e
+                                                                ) => {
+                                                                    const val =
+                                                                        e.target
+                                                                            .value
+                                                                    if (
+                                                                        val.length >
+                                                                        24
+                                                                    ) {
+                                                                        toast.warning(
+                                                                            'Máx. 24 caracteres en título.'
+                                                                        )
+                                                                        return
+                                                                    }
+                                                                    setLocalOptions(
+                                                                        (
+                                                                            prev
+                                                                        ) =>
+                                                                            prev.map(
+                                                                                (
+                                                                                    o,
+                                                                                    i
+                                                                                ) =>
+                                                                                    i ===
+                                                                                    optIdx
+                                                                                        ? {
+                                                                                              ...o,
+                                                                                              title: encodeURIComponent(
+                                                                                                  val
+                                                                                              ),
+                                                                                          }
+                                                                                        : o
+                                                                            )
+                                                                    )
+                                                                }}
+                                                                placeholder="Ej: Servicio Técnico"
+                                                                className="text-xs"
+                                                            />
+                                                            {titleInvalid && (
+                                                                <p className="mt-1 text-[10px] text-red-500">
+                                                                    ❌ Máx. 24
+                                                                    caracteres.
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mt-2">
                                                         <Label className="text-[10px] text-gray-500">
-                                                            title
+                                                            description
+                                                            (opcional)
                                                         </Label>
                                                         <Input
-                                                            value={decodeURIComponent(
-                                                                opt.title || ''
-                                                            )}
-                                                            onChange={(e) =>
+                                                            value={descDecoded}
+                                                            onChange={(e) => {
+                                                                const val =
+                                                                    e.target
+                                                                        .value
+                                                                if (
+                                                                    val.length >
+                                                                    72
+                                                                ) {
+                                                                    toast.warning(
+                                                                        'Máx. 72 caracteres en descripción.'
+                                                                    )
+                                                                    return
+                                                                }
                                                                 setLocalOptions(
                                                                     (prev) =>
                                                                         prev.map(
@@ -401,65 +532,37 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                                                                 optIdx
                                                                                     ? {
                                                                                           ...o,
-                                                                                          title: encodeURIComponent(
-                                                                                              e
-                                                                                                  .target
-                                                                                                  .value
-                                                                                          ),
+                                                                                          description:
+                                                                                              encodeURIComponent(
+                                                                                                  val
+                                                                                              ),
                                                                                       }
                                                                                     : o
                                                                         )
                                                                 )
-                                                            }
-                                                            placeholder="Ej: Instalación"
+                                                            }}
+                                                            placeholder="Descripción de la opción..."
                                                             className="text-xs"
                                                         />
+                                                        {descTooLong && (
+                                                            <p className="text-[10px] text-yellow-500">
+                                                                ⚠️ Máx. 72
+                                                                caracteres
+                                                                sugerido.
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div className="mt-1">
-                                                    <Label className="text-[10px] text-gray-500">
-                                                        description
-                                                    </Label>
-                                                    <Input
-                                                        value={decodeURIComponent(
-                                                            opt.description ||
-                                                                ''
-                                                        )}
-                                                        onChange={(e) =>
-                                                            setLocalOptions(
-                                                                (prev) =>
-                                                                    prev.map(
-                                                                        (
-                                                                            o,
-                                                                            i
-                                                                        ) =>
-                                                                            i ===
-                                                                            optIdx
-                                                                                ? {
-                                                                                      ...o,
-                                                                                      description:
-                                                                                          encodeURIComponent(
-                                                                                              e
-                                                                                                  .target
-                                                                                                  .value
-                                                                                          ),
-                                                                                  }
-                                                                                : o
-                                                                    )
-                                                            )
-                                                        }
-                                                        placeholder="Descripción..."
-                                                        className="text-xs"
-                                                    />
-                                                </div>
-                                            </div>
-                                        ))}
+                                            )
+                                        })}
+
                                         <div className="flex justify-end pt-2">
                                             <Button
                                                 onClick={handleSaveOptions}
-                                                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                                className="bg-blue-600 text-white hover:bg-blue-700"
                                             >
-                                                💾 Guardar opciones
+                                                💾 Guardar opciones y ver
+                                                conexiones
                                             </Button>
                                         </div>
                                     </AccordionContent>
@@ -467,7 +570,7 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
 
                                 {/* 🔗 Conexiones */}
                                 <AccordionItem value="connections">
-                                    <AccordionTrigger className="rounded-md bg-purple-100/60 px-3 py-2 text-xs text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                    <AccordionTrigger className="rounded-md bg-blue-100/60 px-3 py-2 text-xs text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                                         🔗 Conexiones de opciones
                                     </AccordionTrigger>
                                     <AccordionContent className="mt-2">
@@ -477,10 +580,10 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                             options={item.options.map(
                                                 (opt) => ({
                                                     id: opt.postbackText,
-                                                    label: decodeURIComponent(
-                                                        opt.title ||
-                                                            opt.postbackText
-                                                    ),
+                                                    label:
+                                                        decodeURIComponent(
+                                                            opt.title || ''
+                                                        ) || opt.postbackText,
                                                     nextNodeId: (opt as any)
                                                         .nextNodeId,
                                                 })
@@ -505,7 +608,7 @@ export function FormGetDataCompleteList({ id }: { id: string }) {
                                                         d.conditions = {}
                                                     if (value)
                                                         d.conditions[optionId] =
-                                                            value
+                                                            value as string
                                                     else
                                                         delete d.conditions[
                                                             optionId
