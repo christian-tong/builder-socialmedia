@@ -325,7 +325,6 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
                     value={localData.body || ''}
                     onChange={(e) => handleChange('body', e.target.value)}
                     placeholder='{"question":"${LASTVAR}","userId":"${DOCUMENTO}"}'
-                    className="font-mono text-xs break-words whitespace-pre-wrap max-w-[510px]"
                     rows={8}
                 />
             )}

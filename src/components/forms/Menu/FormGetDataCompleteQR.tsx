@@ -1,9 +1,7 @@
 // src/components/forms/Menu/FormGetDataCompleteQR.tsx
-
-// src/components/forms/Menu/FormGetDataCompleteQR.tsx
 'use client'
 
-import React, { useEffect, useMemo, useCallback, useState } from 'react'
+import React, { useEffect, useCallback, useState, useRef } from 'react'
 import {
     Label,
     Input,
@@ -16,6 +14,7 @@ import {
     SelectItem,
     Switch,
 } from '@/components/ui'
+import { toast } from 'sonner'
 import { Plus, Trash2 } from 'lucide-react'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
 import { useGetDataCompleteQRStore } from '@/store/GetDataComplete/useGetDataCompleteQRStore'
@@ -29,13 +28,14 @@ import {
 } from '@/components/ui/accordion'
 
 /**
- * 💬 FormGetDataCompleteQR (v4.4 — AutoAccordionSwitch + TypeSafe Sync)
+ * 💬 FormGetDataCompleteQR (v4.7 — Visual Refactor + Responsive Layout)
  * -----------------------------------------------------------------------
- * ✅ DualAccordion (Editar opciones / Conexiones)
- * ✅ Al guardar opciones → se abre el acordeón de Conexiones
- * ✅ Usa DynamicNodeConnectionsAccordion v1.3
- * ✅ Paleta morado/verde (QuickReply Theme)
- * ✅ Patrón de sincronización diferida
+ * ✅ Layout mejorado: title ocupa todo el espacio restante
+ * ✅ Compacto y limpio: postbackText ancho fijo, description full width
+ * ✅ Validaciones WhatsApp Quick Reply (máx. 3 botones)
+ * ✅ AutoGrow dinámico (altura ajustable sin ancho infinito)
+ * ✅ Validaciones con debounce 3s
+ * ✅ Toasts shadcn/sonner
  */
 export function FormGetDataCompleteQR({ id }: { id: string }) {
     const { getNodeData, setNodeData, triggerAfterSave } =
@@ -46,11 +46,10 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
 
     const qr = nodeData.interactive as QuickReplyInteractive
     const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const
-
-    // Estado controlado de acordeones
     const [accordionValue, setAccordionValue] = useState<string[]>([
         'options-edit',
     ])
+    const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
     /** 🧱 Inicialización mínima */
     useEffect(() => {
@@ -91,36 +90,11 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
         [qr, setNodeData, id]
     )
 
-    /* 🧩 Sincroniza condiciones importadas (v4.4 — TypeSafe Sync) */
-    useEffect(() => {
-        const conditions: Record<string, string> =
-            nodeData?.conditions ||
-            (qr?.conditions as Record<string, string>) ||
-            {}
-
-        if (!qr.options?.length || !Object.keys(conditions).length) return
-
-        updateInteractive((draft) => {
-            draft.options = draft.options.map((opt) => ({
-                ...opt,
-                nextNodeId:
-                    conditions?.[opt.postbackText] ||
-                    opt.nextNodeId ||
-                    undefined,
-            }))
-        })
-    }, [])
-
     /* -------------------------------------------------------------------------- */
     /* 🧱 CAMPOS BASE                                                            */
     /* -------------------------------------------------------------------------- */
     const baseFields = [
         { key: 'condition', label: '🧩 Condition', placeholder: '[1-3]' },
-        {
-            key: 'groodText',
-            label: '💬 GroodText',
-            placeholder: 'Texto positivo...',
-        },
         { key: 'setvar', label: '🏷️ SetVar', placeholder: 'PRIMER_NIVEL' },
         { key: 'variable', label: '🔡 Variable', placeholder: 'PrimeraOpcion' },
         { key: 'alias', label: '🪪 Alias', placeholder: 'Alias descriptivo' },
@@ -138,8 +112,37 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
         triggerAfterSave(id)
     }
 
-    const handleContentTextChange = (value: string) =>
+    /* -------------------------------------------------------------------------- */
+    /* 💬 BODY (content.text)                                                    */
+    /* -------------------------------------------------------------------------- */
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+    const autoResizeTextarea = () => {
+        const el = textareaRef.current
+        if (!el) return
+        el.style.height = 'auto'
+        el.style.height = `${el.scrollHeight}px`
+    }
+    const handleContentTextChange = (value: string) => {
+        // 🚫 Bloquea cualquier caracter adicional
+        if (value.length > 1024) {
+            toast.warning('Máximo 1024 caracteres permitidos.')
+            return
+        }
+
         updateInteractive((d) => (d.content.text = value))
+        autoResizeTextarea()
+
+        // 🔁 Reinicia debounce de validación
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => {
+            if (value.length > 1024) {
+                toast.error(
+                    'El texto del cuerpo no puede exceder 1024 caracteres.'
+                )
+            }
+        }, 3000)
+    }
 
     /* -------------------------------------------------------------------------- */
     /* 🧱 RENDER                                                                 */
@@ -192,12 +195,17 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
                     💬 Mensaje principal (content.text)
                 </Label>
                 <Textarea
+                    ref={textareaRef}
                     value={qr.content.text || ''}
                     onChange={(e) => handleContentTextChange(e.target.value)}
                     placeholder="Texto principal..."
-                    rows={3}
-                    className="mt-1 font-mono text-xs"
+                    rows={4}
                 />
+                <div className="mt-1 flex justify-between text-[10px] text-gray-400">
+                    <span>
+                        {qr.content.text?.length || 0} / 1024 caracteres
+                    </span>
+                </div>
             </section>
 
             {/* 🧩 OPCIONES QUICK REPLY */}
@@ -220,12 +228,19 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
                             <AccordionTrigger className="rounded-md bg-purple-100/70 px-3 py-2 text-xs text-purple-800 dark:bg-purple-900/20 dark:text-purple-300">
                                 ✏️ Editar opciones ({qr.options.length})
                             </AccordionTrigger>
-                            <AccordionContent className="mt-2 space-y-3">
+                            <AccordionContent className="mt-2 space-y-3 px-1">
                                 <div className="flex justify-end">
                                     <Button
                                         variant="outline"
                                         size="sm"
+                                        disabled={qr.options.length >= 3}
                                         onClick={() => {
+                                            if (qr.options.length >= 3) {
+                                                toast.warning(
+                                                    'Máximo 3 opciones permitidas.'
+                                                )
+                                                return
+                                            }
                                             const used = new Set(
                                                 qr.options.map(
                                                     (o) => o.postbackText
@@ -245,132 +260,217 @@ export function FormGetDataCompleteQR({ id }: { id: string }) {
                                             })
                                             triggerAfterSave(id)
                                         }}
-                                        className="border-purple-600 bg-purple-600 text-white hover:bg-purple-500 hover:text-white"
+                                        className={`border-purple-600 ${
+                                            qr.options.length >= 3
+                                                ? 'cursor-not-allowed bg-gray-400 text-white'
+                                                : 'bg-purple-600 text-white hover:bg-purple-500'
+                                        }`}
                                     >
                                         <Plus className="mr-1 h-4 w-4" />
                                         Añadir opción
                                     </Button>
                                 </div>
 
-                                {qr.options.map((opt, optIdx) => (
-                                    <div
-                                        key={optIdx}
-                                        className="rounded-md border border-purple-200 bg-white/80 p-2 text-xs shadow-sm dark:border-purple-700 dark:bg-gray-950"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-[10px] text-gray-500">
-                                                Opción {optIdx + 1}
-                                            </Label>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => {
-                                                    updateInteractive((d) => {
-                                                        d.options.splice(
-                                                            optIdx,
-                                                            1
-                                                        )
-                                                    })
-                                                    triggerAfterSave(id)
-                                                }}
-                                                className="h-5 w-5 text-red-500 hover:text-red-700"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
+                                {qr.options.map((opt, optIdx) => {
+                                    const titleDecoded = decodeURIComponent(
+                                        opt.title || ''
+                                    )
+                                    const descDecoded = decodeURIComponent(
+                                        opt.description || ''
+                                    )
+                                    const titleInvalid =
+                                        titleDecoded.length > 20 ||
+                                        /[\p{Emoji_Presentation}\p{Emoji}\u200d]/u.test(
+                                            titleDecoded
+                                        )
+                                    const descTooLong = descDecoded.length > 72
 
-                                        <div className="mt-2 grid grid-cols-2 gap-2">
-                                            <div>
-                                                <Label className="text-[10px] text-gray-500">
-                                                    postbackText
+                                    const debouncedValidate = (
+                                        fn: () => void
+                                    ) => {
+                                        if (debounceRef.current)
+                                            clearTimeout(debounceRef.current)
+                                        debounceRef.current = setTimeout(
+                                            fn,
+                                            3000
+                                        )
+                                    }
+
+                                    return (
+                                        <div
+                                            key={optIdx}
+                                            className="rounded-md border border-purple-200 bg-white/80 p-3 text-xs shadow-sm transition-all hover:shadow-md dark:border-purple-700 dark:bg-gray-950"
+                                        >
+                                            <div className="mb-1 flex items-center justify-between">
+                                                <Label className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                                                    Opción {optIdx + 1}
                                                 </Label>
-                                                <Select
-                                                    value={opt.postbackText}
-                                                    onValueChange={(digit) =>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => {
                                                         updateInteractive(
                                                             (d) => {
-                                                                d.options[
-                                                                    optIdx
-                                                                ].postbackText =
-                                                                    digit
+                                                                d.options.splice(
+                                                                    optIdx,
+                                                                    1
+                                                                )
                                                             }
                                                         )
-                                                    }
+                                                        triggerAfterSave(id)
+                                                    }}
+                                                    className="h-5 w-5 text-red-500 hover:text-red-700"
                                                 >
-                                                    <SelectTrigger className="h-8 border-purple-400 text-xs">
-                                                        <SelectValue placeholder="Seleccionar..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {DIGITS.map((d) => (
-                                                            <SelectItem
-                                                                key={d}
-                                                                value={d}
-                                                                disabled={qr.options.some(
-                                                                    (o, i) =>
-                                                                        o.postbackText ===
-                                                                            d &&
-                                                                        i !==
-                                                                            optIdx
-                                                                )}
-                                                            >
-                                                                {d}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
                                             </div>
 
-                                            <div>
+                                            {/* Línea superior */}
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-fit">
+                                                    <Label className="text-[10px] text-gray-500">
+                                                        postbackText
+                                                    </Label>
+                                                    <Select
+                                                        value={opt.postbackText}
+                                                        onValueChange={(
+                                                            digit
+                                                        ) =>
+                                                            updateInteractive(
+                                                                (d) => {
+                                                                    d.options[
+                                                                        optIdx
+                                                                    ].postbackText =
+                                                                        digit
+                                                                }
+                                                            )
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="h-8 border-purple-400 text-xs">
+                                                            <SelectValue placeholder="N°" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {DIGITS.map((d) => (
+                                                                <SelectItem
+                                                                    key={d}
+                                                                    value={d}
+                                                                    disabled={qr.options.some(
+                                                                        (
+                                                                            o,
+                                                                            i
+                                                                        ) =>
+                                                                            o.postbackText ===
+                                                                                d &&
+                                                                            i !==
+                                                                                optIdx
+                                                                    )}
+                                                                >
+                                                                    {d}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+
+                                                <div className="flex-1">
+                                                    <Label className="text-[10px] text-gray-500">
+                                                        title
+                                                    </Label>
+                                                    <Input
+                                                        value={titleDecoded}
+                                                        onChange={(e) => {
+                                                            const value =
+                                                                e.target.value
+                                                            updateInteractive(
+                                                                (d) => {
+                                                                    d.options[
+                                                                        optIdx
+                                                                    ].title =
+                                                                        encodeURIComponent(
+                                                                            value
+                                                                        )
+                                                                }
+                                                            )
+                                                            debouncedValidate(
+                                                                () => {
+                                                                    if (
+                                                                        value.length >
+                                                                        20
+                                                                    ) {
+                                                                        toast.error(
+                                                                            'Máx. 20 caracteres en título.'
+                                                                        )
+                                                                    } else if (
+                                                                        /[\p{Emoji_Presentation}\p{Emoji}\u200d]/u.test(
+                                                                            value
+                                                                        )
+                                                                    ) {
+                                                                        toast.error(
+                                                                            'No se permiten emojis en título.'
+                                                                        )
+                                                                    }
+                                                                }
+                                                            )
+                                                        }}
+                                                        placeholder="Ej: Soporte técnico"
+                                                        className="text-xs"
+                                                    />
+                                                    {titleInvalid && (
+                                                        <p className="mt-1 text-[10px] text-red-500">
+                                                            ❌ Máx. 20
+                                                            caracteres y sin
+                                                            emojis.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Descripción */}
+                                            <div className="mt-2">
                                                 <Label className="text-[10px] text-gray-500">
-                                                    title
+                                                    description
                                                 </Label>
                                                 <Input
-                                                    value={decodeURIComponent(
-                                                        opt.title || ''
-                                                    )}
-                                                    onChange={(e) =>
+                                                    value={descDecoded}
+                                                    onChange={(e) => {
+                                                        const val =
+                                                            e.target.value
                                                         updateInteractive(
                                                             (d) => {
                                                                 d.options[
                                                                     optIdx
-                                                                ].title =
+                                                                ].description =
                                                                     encodeURIComponent(
-                                                                        e.target
-                                                                            .value
+                                                                        val
                                                                     )
                                                             }
                                                         )
-                                                    }
-                                                    placeholder="Ej: Soporte técnico"
+                                                        debouncedValidate(
+                                                            () => {
+                                                                if (
+                                                                    val.length >
+                                                                    72
+                                                                ) {
+                                                                    toast.warning(
+                                                                        'Máx. 72 caracteres en descripción.'
+                                                                    )
+                                                                }
+                                                            }
+                                                        )
+                                                    }}
+                                                    placeholder="Descripción..."
                                                     className="text-xs"
                                                 />
+                                                {descTooLong && (
+                                                    <p className="text-[10px] text-yellow-500">
+                                                        ⚠️ Máx. 72 caracteres
+                                                        sugerido.
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
-
-                                        <div className="mt-1">
-                                            <Label className="text-[10px] text-gray-500">
-                                                description
-                                            </Label>
-                                            <Input
-                                                value={decodeURIComponent(
-                                                    opt.description || ''
-                                                )}
-                                                onChange={(e) =>
-                                                    updateInteractive((d) => {
-                                                        d.options[
-                                                            optIdx
-                                                        ].description =
-                                                            encodeURIComponent(
-                                                                e.target.value
-                                                            )
-                                                    })
-                                                }
-                                                placeholder="Descripción..."
-                                                className="text-xs"
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
+                                    )
+                                })}
 
                                 <div className="flex justify-end pt-2">
                                     <Button
