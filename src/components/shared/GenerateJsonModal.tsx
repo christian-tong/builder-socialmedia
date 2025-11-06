@@ -82,7 +82,7 @@ export function GenerateJsonModal({
                         value={jsonText}
                         onChange={(e) => setJsonText(e.target.value)}
                         className={cn(
-                            'h-full min-h-[300px] w-full resize-none font-mono text-sm',
+                            'h-full min-h-[300px] max-w-[860px] resize-none font-mono text-sm',
                             isDark
                                 ? 'border-gray-700 bg-[#1c1c1e] text-gray-100 focus-visible:ring-indigo-600'
                                 : 'border-gray-300 bg-gray-50 text-gray-800 focus-visible:ring-indigo-500'
