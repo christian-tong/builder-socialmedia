@@ -7,6 +7,9 @@ import { useSaveRecordStore } from '@/store/useSaveRecordStore'
 import { useSwitchConditionStore } from '@/store/useSwitchConditionStore'
 import { useVariablesStore } from '@/store/useVariablesStore'
 import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
+import { useGenerateTokenStore } from '@/store/useGenerateTokenStore'
+import { useChatBotIAStore } from '@/store/useChatBotIAStore'
+import { useSetCustomerIDStore } from '@/store/useSetCustomerIDStore'
 
 function getTrueVariantType(base: any): string {
     const possible = [
@@ -108,23 +111,34 @@ export function generateConversationJson(
                 object = { setvars: JSON.stringify(merged) }
                 break
             }
+            
+            case 'setCustomerIDNode': {
+                // 🧠 Obtener desde store persistente
+                const custStore = useSetCustomerIDStore.getState()
+                const s = custStore.getNodeData(id)
 
-            case 'setCustomerIDNode':
                 action = 'setcustomerid'
                 object = {
-                    variable: data?.variable ?? '',
-                    alias: data?.alias ?? '',
+                    options: s.options ?? {}, // ← los pares clave–valor
                 }
                 break
+            }
 
-            case 'chatBotIARequestNode':
+            case 'chatBotIARequestNode': {
+                // 🧠 Obtener desde store persistente
+                const chatStore = useChatBotIAStore.getState()
+                const s = chatStore.getNodeData(id)
+
                 action = 'chatbotiarequest'
                 object = {
-                    variable: data?.variable ?? '',
-                    url: data?.url ?? '',
-                    body: data?.body ?? '{}',
+                    variable: s.variable ?? data?.variable ?? '',
+                    url: s.url ?? data?.url ?? '',
+                    body: s.body ?? data?.body ?? '{}',
+                    lastRequest: s.lastRequest ?? undefined,
+                    lastResponse: s.lastResponse ?? undefined,
                 }
                 break
+            }
 
             case 'mysqlQueryNode': {
                 const s = mysqlStore.getNodeData(id)
@@ -172,15 +186,19 @@ export function generateConversationJson(
                 break
             }
 
-            case 'generateTokenNode':
+            case 'generateTokenNode': {
+                const tokenStore = useGenerateTokenStore.getState()
+                const s = tokenStore.getNodeData(id)
+
                 action = 'generatetoken'
                 object = {
-                    mode: data?.mode ?? 'simpletext',
-                    text: data?.text ?? '',
-                    body: data?.body ?? '',
-                    script: data?.script ?? '',
+                    mode: s.mode ?? data?.mode ?? 'simpletext',
+                    text: s.text ?? data?.text ?? '',
+                    body: s.body ?? data?.body ?? '',
+                    script: s.script ?? data?.script ?? '',
                 }
                 break
+            }
 
             /** 🧩 Menu Node (QuickReply/List/GetData/SimpleText) */
             case 'menuNode': {
