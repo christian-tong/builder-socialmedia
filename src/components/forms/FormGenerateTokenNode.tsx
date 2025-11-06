@@ -1,6 +1,5 @@
 // src\components\forms\FormGenerateTokenNode.tsx
 
-// src/components/forms/FormGenerateTokenNode.tsx
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -20,6 +19,13 @@ import {
 } from '@/store/useGenerateTokenStore'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import { Plus, Trash2, Code } from 'lucide-react'
+import {
+    Select,
+    SelectTrigger,
+    SelectContent,
+    SelectValue,
+    SelectItem,
+} from '@/components/ui/select'
 
 interface KeyValue {
     id: string
@@ -28,12 +34,11 @@ interface KeyValue {
 }
 
 /**
- * 🪄 FormGenerateTokenNode (v2.0 – Adaptado a estándar SaveRecord visual)
+ * 🪄 FormGenerateTokenNode (v2.1 – Dual Mode simpletext/button)
  * ------------------------------------------------------------
- * ✅ Estructura y colores estandarizados (violeta)
- * ✅ Mismo patrón que FormSaveRecordNode
- * ✅ Incluye sección onTrue
- * ✅ Alterna modo Visual / JSON
+ * ✅ Modo selector: simpletext / button
+ * ✅ Refleja valores: mode, text, body, script
+ * ✅ Integrado con conexiones onTrue
  */
 export default function FormGenerateTokenNode({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
@@ -42,12 +47,11 @@ export default function FormGenerateTokenNode({ id, data }: any) {
     const { prevNodes, availableNodes, hasConnection, toggleConnection } =
         useNodeConnections(id)
 
-    /** Estado local */
     const [localData, setLocalData] = useState<Partial<GenerateTokenObject>>({})
     const [pairs, setPairs] = useState<KeyValue[]>([])
     const [jsonMode, setJsonMode] = useState(false)
 
-    // 🧩 Inicializa datos desde el store
+    // 🧩 Inicialización
     useEffect(() => {
         initNode(id)
         const current = getNodeData(id)
@@ -62,7 +66,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
         )
     }, [id])
 
-    // 💾 Guardado diferido (solo al confirmar cambios globales)
+    // 💾 Guardado
     useEffect(() => {
         registerSaveCallback(id, () => {
             let parsedBody: Record<string, string> = {}
@@ -97,7 +101,6 @@ export default function FormGenerateTokenNode({ id, data }: any) {
         return () => unregisterSaveCallback(id)
     }, [id, pairs, localData, jsonMode])
 
-    /** ✏️ Helpers */
     const handleChange = (field: keyof GenerateTokenObject, value: any) =>
         setLocalData((prev) => ({ ...prev, [field]: value }))
 
@@ -110,7 +113,6 @@ export default function FormGenerateTokenNode({ id, data }: any) {
             p.map((x) => (x.id === uid ? { ...x, [field]: val } : x))
         )
 
-    /** 🔍 Filtra conexiones salientes específicas */
     const trueConnections = availableNodes
         .filter((n) => hasConnection(n.id, 'onTrue'))
         .map((n) => n.id)
@@ -130,14 +132,14 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                 </Badge>
             </div>
 
-            {/* 🔗 Conexión entrante */}
+            {/* 🔗 Nodo anterior */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* ⚡ Sección OnTrue */}
+            {/* 🟢 Conexión onTrue */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium text-green-600 dark:text-green-400">
                     Conexión trueStep
@@ -160,7 +162,28 @@ export default function FormGenerateTokenNode({ id, data }: any) {
             {/* ⚙️ Configuración principal */}
             <div className="flex flex-col gap-3 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
-                    🧩 Texto
+                    ⚙️ Modo de operación
+                </Label>
+                <Select
+                    value={localData.mode || 'simpletext'}
+                    onValueChange={(v) => handleChange('mode', v)}
+                >
+                    <SelectTrigger className="w-1/2 border-[#AA3E98] text-xs">
+                        <SelectValue placeholder="Seleccionar modo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="simpletext">
+                            🟣 SimpleText (mensaje)
+                        </SelectItem>
+                        <SelectItem value="button">
+                            🔵 Button (WhatsApp)
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+
+                {/* Texto */}
+                <Label className="mt-3 text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
+                    🧩 Texto del botón / mensaje
                 </Label>
                 <Input
                     value={localData.text || ''}
@@ -169,7 +192,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                     className="w-full border-[#AA3E98] text-xs focus-visible:ring-[#AA3E98]"
                 />
 
-                {/* 📦 Body */}
+                {/* Body */}
                 <div className="mt-3 flex items-center justify-between">
                     <Label className="text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
                         📦 Parámetros (body)
@@ -187,11 +210,6 @@ export default function FormGenerateTokenNode({ id, data }: any) {
 
                 {!jsonMode ? (
                     <div className="flex w-full flex-col gap-2 overflow-x-auto">
-                        <div className="flex justify-between text-[11px] font-semibold text-[#AA3E98] uppercase">
-                            <span>KEY</span>
-                            <span>VALUE</span>
-                        </div>
-
                         {pairs.map((p) => (
                             <div
                                 key={p.id}
@@ -252,6 +270,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                     />
                 )}
 
+                {/* Script */}
                 <Label className="mt-3 text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
                     📝 Script (HTML)
                 </Label>
