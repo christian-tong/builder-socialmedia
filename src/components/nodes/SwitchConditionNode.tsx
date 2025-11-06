@@ -1,5 +1,4 @@
 // src\components\nodes\SwitchConditionNode.tsx
-
 'use client'
 
 import React, { useEffect, useMemo } from 'react'
@@ -15,11 +14,11 @@ import {
 } from '@/store/useSwitchConditionStore'
 
 /**
- * 🧩 SwitchConditionNode (v3.5 — with onTrue Handle)
+ * 🧩 SwitchConditionNode (v3.6 — con badge dinámico de modo)
  * --------------------------------------------------------------------
- * ✅ Handle de entrada adaptable
- * ✅ Handle onTrue verde (estándar)
- * ✅ Handles dinámicos para SI / NO / TAL VEZ
+ * ✅ Muestra modo de coincidencia (estricto o flexible)
+ * ✅ Mantiene colores originales violeta
+ * ✅ Badge dinámico azul/violeta claro
  */
 const SwitchConditionNode: React.FC<NodeProps> = ({ id, data }) => {
     const { setSelectedNode } = useNodeConfigStore()
@@ -47,6 +46,13 @@ const SwitchConditionNode: React.FC<NodeProps> = ({ id, data }) => {
         [values, id]
     )
 
+    // 🎨 Badge dinámico según modo
+    const mode = cfg?.mode === 'strict' ? 'Estricto' : 'Flexible'
+    const badgeColor =
+        cfg?.mode === 'strict'
+            ? 'bg-violet-200 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200'
+            : 'bg-blue-200 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
+
     return (
         <motion.div
             layout
@@ -60,23 +66,34 @@ const SwitchConditionNode: React.FC<NodeProps> = ({ id, data }) => {
                     setSelectedNode({ id, type: 'switchConditionNode', data })
                 }}
                 data-id={id}
-                className="relative cursor-pointer overflow-visible rounded-xl border border-violet-800 bg-violet-600 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
+                className="relative w-[280px] cursor-pointer overflow-visible rounded-xl border border-violet-800 bg-violet-600 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
             >
                 {/* 🏷️ Encabezado */}
-                <div className="px-3 pt-1.5 pb-1 text-center">
-                    <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center justify-between border-b border-white/20 px-3 pt-1.5 pb-1">
+                    <div className="flex items-center gap-2">
                         <GitBranch className="h-4 w-4" />
                         <span className="text-sm font-semibold break-words">
                             {data?.label || 'Condición por Variable'}
                         </span>
                     </div>
-                    {cfg?.variable && (
-                        <p className="mt-0.5 font-mono text-[11px] break-words opacity-90">
-                            Var: {cfg.variable}{' '}
-                            {cfg.mode === 'strict' ? '(=)' : '(~)'}
-                        </p>
-                    )}
+
+                    {/* 🔹 Badge dinámico de modo */}
+                    <span
+                        className={`rounded-full px-2 py-[1px] text-[10px] font-semibold capitalize ${badgeColor}`}
+                    >
+                        {mode}
+                    </span>
                 </div>
+
+                {/* Variable + alias */}
+                {cfg?.variable && (
+                    <p className="px-3 pt-1 font-mono text-[11px] break-words opacity-90">
+                        Var: {cfg.variable}{' '}
+                        <span className="opacity-70">
+                            {cfg.alias ? `(${cfg.alias})` : ''}
+                        </span>
+                    </p>
+                )}
 
                 {/* 🎯 Handle de entrada */}
                 <Handle

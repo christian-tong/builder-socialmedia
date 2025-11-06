@@ -1,5 +1,4 @@
 // src/components/forms/FormSwitchConditionNode.tsx
-
 'use client'
 
 import React, { useEffect, useState, useMemo } from 'react'
@@ -30,12 +29,11 @@ import { useSwitchConditionStore } from '@/store/useSwitchConditionStore'
 import { DynamicNodeConnectionsAccordionSwitch } from '@/components/shared/DynamicNodeConnectionsAccordionSwitch'
 
 /**
- * 🧩 FormSwitchConditionNode (v4.1 — Estandarizado con onTrue + prev)
+ * 🧩 FormSwitchConditionNode (v4.3 — Visual refinado + Colores de nodo Switch)
  * -------------------------------------------------------------------
- * ✅ Modo fijo: SI / NO / TAL VEZ (máx. 3)
- * ✅ Secciones prev y onTrue idénticas a FormSimpleTextNode
- * ✅ Mantiene la lógica de DynamicNodeConnectionsAccordionSwitch
- * ✅ No rompe la estructura existente
+ * ✅ Botón “Añadir condición”
+ * ✅ Colores violetas coherentes con SwitchConditionNode
+ * ✅ Valores condicionales pintados
  */
 export default function FormSwitchConditionNode({
     id,
@@ -98,12 +96,12 @@ export default function FormSwitchConditionNode({
         <div className="flex flex-col gap-5">
             {/* 🔹 Encabezado */}
             <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
-                <Label className="text-sm font-semibold text-fuchsia-700 dark:text-fuchsia-300">
+                <Label className="text-sm font-semibold text-violet-700 dark:text-violet-300">
                     Nodo Condicional (Switch)
                 </Label>
                 <Badge
                     variant="outline"
-                    className="border-fuchsia-300 bg-fuchsia-50 px-2 py-0.5 text-[10px] text-fuchsia-700 dark:border-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300"
+                    className="border-violet-400 bg-violet-50 px-2 py-0.5 text-[10px] text-violet-700 dark:border-violet-700 dark:bg-violet-900/30 dark:text-violet-300"
                 >
                     {id}
                 </Badge>
@@ -178,8 +176,8 @@ export default function FormSwitchConditionNode({
             </section>
 
             {/* 🧩 OPCIONES Y CONEXIONES */}
-            <section className="rounded-lg border border-fuchsia-300 bg-fuchsia-50/40 p-3 dark:border-fuchsia-700 dark:bg-fuchsia-900/10">
-                <Label className="text-xs font-semibold text-fuchsia-700 dark:text-fuchsia-300">
+            <section className="rounded-lg border border-violet-300 bg-violet-50/40 p-3 dark:border-violet-700 dark:bg-violet-900/10">
+                <Label className="text-xs font-semibold text-violet-700 dark:text-violet-300">
                     🧩 Condiciones del Switch
                 </Label>
 
@@ -189,9 +187,9 @@ export default function FormSwitchConditionNode({
                     onValueChange={(val) => setAccordionValue(val as string[])}
                     className="mt-2"
                 >
-                    {/* ✏️ Edición de opciones */}
+                    {/* ✏️ Edición de condiciones */}
                     <AccordionItem value="edit">
-                        <AccordionTrigger className="rounded-md bg-fuchsia-100/70 px-3 py-2 text-xs text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-200">
+                        <AccordionTrigger className="rounded-md bg-violet-100/70 px-3 py-2 text-xs text-violet-800 dark:bg-violet-900/30 dark:text-violet-200">
                             ✏️ Editar condiciones ({cfg.values.length})
                         </AccordionTrigger>
                         <AccordionContent className="mt-2 space-y-3">
@@ -215,19 +213,19 @@ export default function FormSwitchConditionNode({
                                     }
                                     className={`${
                                         canAddMore
-                                            ? 'border-fuchsia-600 bg-fuchsia-600 text-white hover:bg-fuchsia-500'
+                                            ? 'border-violet-600 bg-violet-600 text-white hover:bg-violet-500'
                                             : 'cursor-not-allowed opacity-60'
                                     }`}
                                 >
                                     <Plus className="mr-1 h-4 w-4" /> Añadir
-                                    valor
+                                    condición
                                 </Button>
                             </div>
 
                             {cfg.values.map((val, idx) => (
                                 <div
                                     key={`${val}-${idx}`}
-                                    className="rounded-md border border-fuchsia-200 bg-white/80 p-3 text-xs shadow-sm dark:border-fuchsia-700 dark:bg-gray-950"
+                                    className="rounded-md border border-violet-200 bg-violet-50/60 p-3 text-xs shadow-sm dark:border-violet-700 dark:bg-violet-900/20"
                                 >
                                     <div className="flex items-center justify-between">
                                         <Label className="text-[10px] text-gray-500">
@@ -254,8 +252,8 @@ export default function FormSwitchConditionNode({
                                                 updateValue(id, idx, newVal)
                                             }
                                         >
-                                            <SelectTrigger className="h-8 border-fuchsia-400 text-xs">
-                                                <SelectValue placeholder="Selecciona valor..." />
+                                            <SelectTrigger className="h-8 border-violet-400 text-xs text-violet-700 dark:text-violet-200">
+                                                <SelectValue placeholder="Selecciona condición..." />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {FIXED_OPTIONS.map((opt) => (
@@ -282,7 +280,7 @@ export default function FormSwitchConditionNode({
                                     onClick={() =>
                                         setAccordionValue(['connections'])
                                     }
-                                    className="bg-fuchsia-600 text-white hover:bg-fuchsia-700"
+                                    className="bg-violet-600 text-white hover:bg-violet-700"
                                 >
                                     💾 Guardar y ver conexiones
                                 </Button>
@@ -292,7 +290,7 @@ export default function FormSwitchConditionNode({
 
                     {/* 🔗 Conexiones dinámicas */}
                     <AccordionItem value="connections">
-                        <AccordionTrigger className="rounded-md bg-fuchsia-100/60 px-3 py-2 text-xs text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-200">
+                        <AccordionTrigger className="rounded-md bg-violet-100/60 px-3 py-2 text-xs text-violet-800 dark:bg-violet-900/30 dark:text-violet-200">
                             🔗 Conexiones condicionales
                         </AccordionTrigger>
                         <AccordionContent className="mt-2">
