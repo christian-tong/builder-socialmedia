@@ -1,6 +1,5 @@
 // src/components/forms/Menu/FormGetDataCompleteSimpleText.tsx
 
-// src/components/forms/Menu/FormGetDataCompleteSimpleText.tsx
 'use client'
 
 import React, { useCallback, useState, useEffect } from 'react'

@@ -1,21 +1,44 @@
 // src/lib/jsonFlowGenerator.ts
 
-// src/lib/jsonFlowGenerator.ts
 import type { Edge, Node } from 'reactflow'
-import { useVariantTypeStore } from '@/store/useVariantTypeStore'
 import { useMySQLQueryStore } from '@/store/useMySQLQueryStore'
 import { useSaveRecordStore } from '@/store/useSaveRecordStore'
 import { useSwitchConditionStore } from '@/store/useSwitchConditionStore'
 import { useVariablesStore } from '@/store/useVariablesStore'
+import { useGetDataCompleteBaseStore } from '@/store/GetDataComplete/useGetDataCompleteBaseStore'
 
 /**
- * 🧠 generateConversationJson (v5.9 – Full Store-Aware Export + Clean SwitchCondition)
+ * 🔍 getTrueVariantType
+ * --------------------------------------------------
+ * Detecta el tipo real de nodo (list, quick_reply, GETDATA o SIMPLETEXT)
+ */
+function getTrueVariantType(base: any): string {
+    const possible = [
+        base?.interactive?.type,
+        base?.object?.interactive?.type,
+        base?.object?.type,
+        base?.type,
+    ]
+        .filter(Boolean)
+        .map((t) => String(t).toLowerCase())
+
+    if (possible.includes('list')) return 'list'
+    if (possible.includes('quick_reply')) return 'quick_reply'
+    if (possible.includes('getdata')) return 'getdata'
+    if (possible.includes('simpletext') || possible.includes('simple_text'))
+        return 'simpletext'
+
+    const hasInteractive =
+        base?.interactive || base?.object?.interactive || false
+    return hasInteractive ? 'quick_reply' : 'getdata'
+}
+
+/**
+ * 🧠 generateConversationJson (v7.4.1 – TypeSafe Full WiContact Compatibility)
  * ------------------------------------------------------------------------
- * ✅ Lee datos directamente desde los Zustand stores activos
- * ✅ Limpia valores vacíos (MySQL, SaveRecord, SwitchCondition, Variables)
- * ✅ Genera setvariables válidos en SwitchCondition
- * ✅ Mantiene compatibilidad total con importador v5.6+
- * ✅ Estructura final: { process: { steps: [...] } }
+ * ✅ TypeScript seguro (sin errores ni advertencias)
+ * ✅ Soporta QuickReply, List, GetData, SimpleText
+ * ✅ Extrae alias, setvariables, condition, groodText, etc.
  */
 export function generateConversationJson(
     nodes: Node<Record<string, any>>[],
@@ -27,17 +50,17 @@ export function generateConversationJson(
         const match = edges.find(
             (e) =>
                 e.source === sourceId &&
-                (handleId ? e.sourceHandle === handleId : true)
+                (!handleId || e.sourceHandle === handleId)
         )
         return match?.target ?? null
     }
 
-    // 🧩 Stores activos
-    const variantStore = useVariantTypeStore.getState()
+    // Stores activos
     const mysqlStore = useMySQLQueryStore.getState()
     const saveRecordStore = useSaveRecordStore.getState()
     const switchStore = useSwitchConditionStore.getState()
     const varsStore = useVariablesStore.getState()
+    const gdcBaseStore = useGetDataCompleteBaseStore.getState()
 
     for (const node of nodes) {
         const { id, type, data } = node
@@ -47,24 +70,24 @@ export function generateConversationJson(
         const onSuccess = findTarget(id, 'onSuccess')
 
         let action = ''
-        let object: any = {}
-        let description = data?.description ?? ''
-        let isTemplate = false
+        let object: Record<string, any> = {}
+        const description = data?.description ?? ''
+        const isTemplate = false
 
         switch (type) {
-            // 🟢 Inicio
+            /** 🟢 Inicio */
             case 'startNode':
                 action = 'startstep'
                 object = {}
                 break
 
-            // 🟦 Texto simple
+            /** 🟦 Texto simple */
             case 'simpleTextNode':
                 action = 'simpletext'
                 object = { text: encodeURIComponent(data?.message ?? '') }
                 break
 
-            // 🧩 Variables
+            /** 🧩 Variables */
             case 'variablesNode': {
                 const nodeVars = varsStore.getNodeVariables(id)
                 const merged = Object.fromEntries(
@@ -77,14 +100,9 @@ export function generateConversationJson(
                 break
             }
 
-            // 👤 Set Customer ID
+            /** 👤 Set Customer ID */
             case 'setCustomerIDNode': {
-                type CustomerData = {
-                    variable?: string
-                    alias?: string
-                    object?: any
-                }
-                const d = (data ?? {}) as CustomerData
+                const d = data ?? {}
                 action = 'setcustomerid'
                 object = d.object ?? {
                     variable: d.variable ?? '',
@@ -93,7 +111,7 @@ export function generateConversationJson(
                 break
             }
 
-            // 🧠 IA Request
+            /** 🤖 ChatBot IA Request */
             case 'chatBotIARequestNode':
                 action = 'chatbotiarequest'
                 object = {
@@ -103,65 +121,44 @@ export function generateConversationJson(
                 }
                 break
 
-            // 🧩 MySQL Query
+            /** 🧩 MySQL Query */
             case 'mysqlQueryNode': {
-                const storeObj = mysqlStore.getNodeData(id)
+                const s = mysqlStore.getNodeData(id)
                 action = 'mysqlquery'
                 object = {
-                    mode: storeObj.mode ?? 'simpletext',
-                    setvar: storeObj.setvar ?? '',
-                    query: storeObj.query ?? '',
-                    variable: storeObj.variable ?? '',
-                    alias: storeObj.alias ?? '',
-                    script: storeObj.script ?? '',
+                    mode: s.mode ?? 'simpletext',
+                    setvar: s.setvar ?? '',
+                    query: s.query ?? '',
+                    variable: s.variable ?? '',
+                    alias: s.alias ?? '',
+                    script: s.script ?? '',
                 }
                 break
             }
 
-            // 💾 Save Record
+            /** 💾 Save Record */
             case 'saveRecordNode': {
-                const storeObj = saveRecordStore.getNodeData(id)
+                const s = saveRecordStore.getNodeData(id)
                 action = 'saverecord'
-                object = {
-                    auth: storeObj.auth,
-                    body: storeObj.body,
-                }
+                object = { auth: s.auth, body: s.body }
                 break
             }
 
-            // 🧬 SwitchCondition — v3.0 Smart Sync SetVariables
+            /** 🧬 Switch Condition */
             case 'switchConditionNode': {
                 const cfg = switchStore.byId[id]
                 action = 'switchcondition'
-
                 if (cfg) {
-                    // 🧠 1️⃣ Filtrar setvariables válidos existentes
-                    let safeSetVars = Object.fromEntries(
+                    const safeSetVars = Object.fromEntries(
                         cfg.setvariables
-                            .filter(
-                                (s) =>
-                                    s.key?.trim() !== '' &&
-                                    s.value?.trim() !== ''
-                            )
+                            .filter((s) => s.key?.trim() && s.value?.trim())
                             .map((s) => [s.key.trim(), s.value.trim()])
                     )
-
-                    // 🧩 2️⃣ Generar dinámicamente si está vacío
-                    if (Object.keys(safeSetVars).length === 0) {
-                        const conditionKeys = Object.keys(cfg.connections || {})
-                        safeSetVars = Object.fromEntries(
-                            conditionKeys.map((val, i) => [String(i + 1), val])
-                        )
-                    }
-
-                    // 🧩 3️⃣ Filtrar conexiones válidas
                     const safeConnections = Object.fromEntries(
                         Object.entries(cfg.connections || {}).filter(
-                            ([, target]) => target && target.trim() !== ''
+                            ([, t]) => t && t.trim() !== ''
                         )
                     )
-
-                    // 🧩 4️⃣ Ensamblar objeto final
                     object = {
                         setvariables: safeSetVars,
                         variable: cfg.variable ?? '',
@@ -169,14 +166,11 @@ export function generateConversationJson(
                         conditions: safeConnections,
                         body: cfg.mode ?? 'strict',
                     }
-                } else {
-                    object = {}
                 }
-
                 break
             }
 
-            // 🔑 Generar Token
+            /** 🔑 Generate Token */
             case 'generateTokenNode':
                 action = 'generatetoken'
                 object = data?.object ?? {
@@ -187,79 +181,182 @@ export function generateConversationJson(
                 }
                 break
 
-            // 🧩 GetDataComplete (menú)
+            /** 🧩 Menu Node (List / QuickReply / GetData / SimpleText) */
             case 'menuNode': {
-                const variantType = variantStore.getVariantType(id)
-                const options = variantStore.getVariantOptions(id)
-                const conditions = variantStore.getVariantConditions(id)
+                const base = gdcBaseStore.getNodeData(id) || {}
+                const vt = getTrueVariantType(base).toLowerCase()
+                const isInteractive = vt === 'list' || vt === 'quick_reply'
+
+                // Buscar estructura interactiva
+                const interactive: any =
+                    base.interactive ??
+                    base.object?.interactive ??
+                    base.object ??
+                    {}
+
+                const items: any[] =
+                    interactive.options ?? interactive.items?.[0]?.options ?? []
+
+                const baseConditions: Record<string, string> =
+                    base.conditions ??
+                    base.object?.conditions ??
+                    interactive.conditions ??
+                    {}
 
                 const setvariables: Record<string, string> = {}
-                options.forEach((opt) => {
-                    if (opt.postbackText)
-                        setvariables[opt.postbackText] = opt.title ?? ''
-                })
+                const conditions: Record<string, string> = {}
+                const itemsOptions: any[] = []
 
-                const baseObject: Record<string, any> = {
-                    setvariables,
-                    variable: data?.object?.variable ?? 'Opcion',
-                    alias: data?.object?.alias ?? 'Opcion',
-                    conditions,
-                    iterations: '2',
-                    timeOut: '90000',
+                for (const [i, opt] of items.entries()) {
+                    const key = String(opt.postbackText || i + 1)
+                    const title = decodeURIComponent(opt.title ?? key)
+                    const desc = decodeURIComponent(opt.description ?? '')
+                    const next = opt.nextNodeId ?? baseConditions[key] ?? ''
+                    setvariables[key] = title
+                    if (next) conditions[key] = next
+
+                    itemsOptions.push({
+                        postbackText: key,
+                        type: opt.type ?? 'text',
+                        title: encodeURIComponent(title),
+                        description: encodeURIComponent(desc),
+                        nextNodeId: next,
+                    })
                 }
 
-                baseObject.interactive =
-                    variantType === 'quick_reply'
-                        ? {
-                              type: 'quick_reply',
-                              content: {
-                                  type: 'text',
-                                  text: encodeURIComponent(data?.message ?? ''),
-                              },
-                              options: options.map((o) => ({
-                                  postbackText: o.postbackText,
-                                  type: 'text',
-                                  title: encodeURIComponent(o.title ?? ''),
-                              })),
-                          }
-                        : {
-                              globalButtons: [
-                                  { type: 'text', title: 'Elegir' },
-                              ],
-                              type: 'list',
-                              body: encodeURIComponent(data?.message ?? ''),
-                              items: [
-                                  {
-                                      options: options.map((o) => ({
-                                          postbackText: o.postbackText,
-                                          type: 'text',
-                                          title: encodeURIComponent(
-                                              o.title ?? ''
-                                          ),
-                                      })),
-                                      title: 'Elija una opción',
+                // Generar patrón de condición
+                const keys = Object.keys(setvariables)
+                let conditionPattern = ''
+                if (keys.length > 0) {
+                    const numericKeys = keys
+                        .map((k) => parseInt(k))
+                        .filter((n) => !isNaN(n))
+                    conditionPattern =
+                        numericKeys.length > 0
+                            ? `[${Math.min(...numericKeys)}-${Math.max(
+                                  ...numericKeys
+                              )}]`
+                            : `[${keys.join('|')}]`
+                }
+
+                // Base del objeto (para todos los tipos)
+                const shared = {
+                    source: 'GetData',
+                    setvariables: base.setvariables ?? setvariables,
+                    variable: base.variable ?? base.object?.variable ?? '',
+                    alias: base.alias ?? base.object?.alias ?? '',
+                    setvar: base.setvar ?? base.object?.setvar ?? '',
+                    condition:
+                        base.condition ??
+                        base.object?.condition ??
+                        conditionPattern,
+                    groodText: base.groodText ?? base.object?.groodText ?? '',
+                    saveHidden:
+                        base.saveHidden ?? base.object?.saveHidden ?? true,
+                    conditions,
+                    iterations:
+                        base.iterations ?? base.object?.iterations ?? '1',
+                    timeOut: base.timeOut ?? base.object?.timeOut ?? '60000',
+                }
+
+                if (isInteractive) {
+                    // Evita error TS: “esta expresión nunca es nula”
+                    const msgid: string =
+                        (interactive.msgid as string | undefined) ||
+                        `qr_${id}` ||
+                        'qr_default'
+
+                    const interactiveObj =
+                        vt === 'quick_reply'
+                            ? {
+                                  type: 'quick_reply',
+                                  msgid,
+                                  content: {
+                                      type: interactive.content?.type ?? 'text',
+                                      text: encodeURIComponent(
+                                          interactive.content?.text ??
+                                              base.message ??
+                                              data?.message ??
+                                              ''
+                                      ),
                                   },
-                              ],
-                          }
+                                  options: itemsOptions,
+                                  conditions,
+                              }
+                            : {
+                                  type: 'list',
+                                  body: encodeURIComponent(
+                                      base.message ??
+                                          data?.message ??
+                                          interactive.body ??
+                                          ''
+                                  ),
+                                  globalButtons: interactive.globalButtons ?? [
+                                      { type: 'text', title: 'Elegir' },
+                                  ],
+                                  items: [
+                                      {
+                                          title:
+                                              interactive.items?.[0]?.title ??
+                                              'Elija una opción',
+                                          options: itemsOptions,
+                                      },
+                                  ],
+                                  conditions,
+                              }
+
+                    object = {
+                        ...shared,
+                        interactiveVersion: 4,
+                        interactive: interactiveObj,
+                        type: 'GETDATA',
+                    }
+
+                    action = 'getdatacomplete'
+                    steps.push({
+                        id,
+                        source: 'GetData',
+                        action,
+                        onTrue,
+                        onFalse,
+                        onError,
+                        onSuccess,
+                        isInteractive: true,
+                        interactiveVersion: 4,
+                        isTemplate,
+                        description,
+                        object,
+                    })
+                    continue
+                }
+
+                // GETDATA / SIMPLETEXT plano
+                object = {
+                    ...shared,
+                    type: vt.toUpperCase(),
+                }
+
+                if (base.prompt) object.prompt = encodeURIComponent(base.prompt)
+                if (description)
+                    object.description = encodeURIComponent(description)
 
                 action = 'getdatacomplete'
-                object = baseObject
                 break
             }
 
-            // 🕓 Condición de tiempo
+            /** 🕓 TimeCondition */
             case 'timeConditionNode':
                 action = 'timecondition'
                 object = { condition: data?.condition ?? '' }
                 break
 
-            // 🧾 No-op
+            /** 🧾 No-op */
             case 'noopNode':
                 action = 'noop'
                 object = {}
                 break
 
-            // 🟠 Derivación
+            /** 🟠 Derivate */
             case 'derivateNode':
                 action = 'derivate'
                 object = {
@@ -274,7 +371,7 @@ export function generateConversationJson(
                 }
                 break
 
-            // 🔴 Fin
+            /** 🔴 Fin */
             case 'endNode':
                 action = 'hangup'
                 object = { HangupCause: data?.hangupCause ?? '' }

@@ -32,6 +32,8 @@ export interface GetDataCompleteNodeFull {
 /* -------------------------------------------------------------------------- */
 
 export interface GetDataCompleteObject {
+    message: any
+    object: any
     id?: string | number
 
     action?: string
