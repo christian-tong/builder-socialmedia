@@ -1,5 +1,4 @@
 // src\components\flow\FlowAutoEdgeSync.tsx
-
 'use client'
 
 import { useEffect } from 'react'
@@ -14,78 +13,81 @@ import type {
 } from '@/types/getDataComplete'
 
 /**
- * 🧠 FlowAutoEdgeSync (v3.6 — Deferred & Global Handle-Safe)
- * ------------------------------------------------------------------
- * - Sincroniza todos los tipos (QR, List, GETDATA, SIMPLETEXT)
- * - Espera 400 ms post-guardado para asegurar render de handles
- * - Usa createConnectionIfMissingGlobal (garantiza idempotencia)
+ * 🧠 FlowAutoEdgeSync (v3.8 — Safe Handles + Deferred)
+ * --------------------------------------------------------------
+ * - Solo crea edges cuando el handle existe visualmente.
+ * - Reintenta automáticamente si aún no está montado.
+ * - Evita superposición en importación masiva.
  */
 export function FlowAutoEdgeSync() {
     const { setAfterSaveCallback: setGetData } = useGetDataCompleteBaseStore()
     const { setAfterSaveCallback: setSaveRecord } = useSaveRecordStore()
     const { setAfterSaveCallback: setSwitch } = useSwitchConditionStore()
 
+    const safeCreate = (
+        sourceId: string,
+        targetId: string,
+        handleId?: string,
+        retries = 5
+    ) => {
+        const handleSel = `[data-handleid="${sourceId}-${handleId}"]`
+        const handleExists = document.querySelector(handleSel)
+        if (handleExists) {
+            createConnectionIfMissingGlobal(sourceId, targetId, handleId)
+            return
+        }
+        if (retries > 0) {
+            setTimeout(
+                () => safeCreate(sourceId, targetId, handleId, retries - 1),
+                150
+            )
+        }
+    }
+
     // 🟣 GetDataComplete
     useEffect(() => {
         setGetData((nodeId, data) => {
             const obj = data as Partial<GetDataCompleteObject>
-            const interactive = obj?.interactive as
+            if (!obj) return
+            const interactive = obj.interactive as
                 | QuickReplyInteractive
                 | ListInteractive
                 | undefined
-            if (!obj) return
             const type = obj.interactive?.type?.toUpperCase()
 
             setTimeout(() => {
-                // 💬 QUICK_REPLY
                 if (interactive?.type === 'quick_reply') {
                     interactive.options?.forEach((opt) => {
                         if (opt.nextNodeId)
-                            createConnectionIfMissingGlobal(
-                                nodeId,
-                                opt.nextNodeId,
-                                opt.postbackText
-                            )
+                            safeCreate(nodeId, opt.nextNodeId, opt.postbackText)
                     })
                     return
                 }
 
-                // 🔵 LIST
                 if (interactive?.type === 'list') {
                     interactive.items?.forEach((item) =>
                         item.options?.forEach((opt) => {
                             const nextId = (opt as any).nextNodeId
                             if (nextId)
-                                createConnectionIfMissingGlobal(
-                                    nodeId,
-                                    nextId,
-                                    opt.postbackText
-                                )
+                                safeCreate(nodeId, nextId, opt.postbackText)
                         })
                     )
                     return
                 }
 
-                // 🧾 GETDATA
                 if (type === 'GETDATA') {
                     Object.entries(obj.conditions || {}).forEach(
                         ([key, targetId]) => {
                             if (targetId)
-                                createConnectionIfMissingGlobal(
-                                    nodeId,
-                                    targetId as string,
-                                    key
-                                )
+                                safeCreate(nodeId, targetId as string, key)
                         }
                     )
                 }
 
-                // 🗒️ SIMPLETEXT
                 if (type === 'SIMPLETEXT') {
                     Object.keys(obj.setvariables || {}).forEach((k) => {
                         const target = (obj.setvariables as any)[k]
-                        if (target)
-                            createConnectionIfMissingGlobal(nodeId, target, k)
+                        if (target) safeCreate(nodeId, target, k)
                     })
                 }
             }, 400)
@@ -97,11 +99,7 @@ export function FlowAutoEdgeSync() {
         setSaveRecord((nodeId, data) => {
             setTimeout(() => {
                 if (data.nextNodeId)
-                    createConnectionIfMissingGlobal(
-                        nodeId,
-                        data.nextNodeId,
-                        'onSuccess'
-                    )
+                    safeCreate(nodeId, data.nextNodeId, 'onSuccess')
             }, 400)
         })
     }, [setSaveRecord])
@@ -112,12 +110,7 @@ export function FlowAutoEdgeSync() {
             setTimeout(() => {
                 Object.entries(cfg.connections || {}).forEach(
                     ([val, target]) => {
-                        if (target)
-                            createConnectionIfMissingGlobal(
-                                nodeId,
-                                target,
-                                `on:${val}`
-                            )
+                        if (target) safeCreate(nodeId, target, `on:${val}`)
                     }
                 )
             }, 400)

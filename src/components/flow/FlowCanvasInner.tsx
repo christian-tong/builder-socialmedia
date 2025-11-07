@@ -1,5 +1,5 @@
-// src\components\flow\FlowCanvasInner.tsx
 // src/components/flow/FlowCanvasInner.tsx
+
 'use client'
 
 import React, { useMemo, useEffect, useState } from 'react'
@@ -17,19 +17,19 @@ import { nodeTypes } from '@/config/nodesConfig'
 import { useFlowHandlers } from '@/hooks/useFlowHandlers'
 import { useFlowStyleStore } from '@/store/useFlowStyleStore'
 import { useThemeStore } from '@/store/useThemeStore'
+import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 import { FlowStylePanel } from './FlowStylePanel'
 import { useFlowStore } from '@/store/useFlowStore'
 import { useShallow } from 'zustand/react/shallow'
 import { convertWiContactToFlow } from '@/lib/jsonImporterWiContact'
 
 /**
- * 🧩 FlowCanvasInner (v6.1 Final — Importa JSON dinámico y crea en 2 fases)
+ * 🧩 FlowCanvasInner (v6.5 – Curvatura Dinámica + Anti-Solapamiento)
  * -------------------------------------------------------------------------
- * - El usuario sube un archivo JSON (WiContact)
- * - Se crean los nodos primero
- * - Luego de 600 ms se crean los edges (cuando ya existen los handles)
- * - Evita el error: "Couldn't create edge for source handle id"
- * - Mantiene compatibilidad total con todos tus nodos
+ * - Crea nodos y edges desde JSON WiContact (en 2 fases seguras)
+ * - Separa edges dinámicamente para evitar superposición
+ * - Recalcula curvaturas al cambiar la orientación del flujo
+ * - Muestra etiqueta visual del tipo de conexión (onTrue, onFalse, etc.)
  */
 export default function FlowCanvasInner() {
     const { theme } = useThemeStore()
@@ -41,6 +41,7 @@ export default function FlowCanvasInner() {
         edgeColor,
         edgeWidth,
     } = useFlowStyleStore()
+    const { orientation } = useFlowOrientationStore()
     const { handlers } = useFlowHandlers()
 
     const nodes = useFlowStore(useShallow((s) => s.nodes))
@@ -50,34 +51,25 @@ export default function FlowCanvasInner() {
     const [phase, setPhase] = useState<'idle' | 'nodes' | 'edges'>('idle')
     const [uploadedJson, setUploadedJson] = useState<any | null>(null)
 
-    /**
-     * 🗂️ Simula el archivo subido:
-     * En producción, este JSON llega desde tu uploader (ej. file input, drag & drop, API, etc.)
-     * Aquí puedes reemplazar por tu propio hook o prop.
-     */
+    /** 📥 Carga de JSON externo (simulación) */
     useEffect(() => {
         async function loadUploadedJson() {
-            const input = (window as any).__wicontactJson // ejemplo: variable global
+            const input = (window as any).__wicontactJson
             if (input) setUploadedJson(input)
         }
         loadUploadedJson()
     }, [])
 
-    /**
-     * 🧱 1️⃣ Fase: creación de nodos
-     * 🔗 2️⃣ Fase: creación de edges diferida
-     */
+    /** 🧱 Fase 1: Nodos | Fase 2: Edges diferidos */
     useEffect(() => {
         if (!uploadedJson) return
         const { nodes: builtNodes, edges: builtEdges } =
             convertWiContactToFlow(uploadedJson)
 
-        // --- FASE 1: crear solo nodos ---
         setNodes(builtNodes)
-        setEdges([]) // limpia edges antiguos
+        setEdges([])
         setPhase('nodes')
 
-        // --- FASE 2: crear edges después de que los nodos ya existen ---
         const timer = setTimeout(() => {
             const validIds = new Set(builtNodes.map((n) => n.id))
             const safeEdges = builtEdges.filter(
@@ -91,9 +83,9 @@ export default function FlowCanvasInner() {
         }, 600)
 
         return () => clearTimeout(timer)
-    }, [uploadedJson])
+    }, [uploadedJson, setNodes, setEdges])
 
-    // 🎨 Fondo del lienzo
+    /** 🎨 Fondo visual */
     const bgVariant =
         backgroundType === 'dots'
             ? BackgroundVariant.Dots
@@ -101,7 +93,7 @@ export default function FlowCanvasInner() {
               ? BackgroundVariant.Lines
               : BackgroundVariant.Cross
 
-    // 🔳 Tipo de trazo (línea normal, discontinua o punteada)
+    /** 🔳 Tipo de trazo (línea sólida, discontinua o punteada) */
     const dash = useMemo(() => {
         switch (edgeAspect) {
             case 'dashed':
@@ -113,30 +105,83 @@ export default function FlowCanvasInner() {
         }
     }, [edgeAspect])
 
-    // 🎨 Aplica estilos globales a los edges
-    const styledEdges: Edge[] = useMemo(
-        () =>
-            edges.map((e) => ({
+    /** 🌈 Etiquetas visuales por tipo de conexión */
+    const handleLabels: Record<string, string> = {
+        onTrue: '✅ onTrue',
+        onFalse: '❌ onFalse',
+        onError: '⚠️ onError',
+        onTimeOut: '⏳ onTimeOut',
+        onTimeOutError: '💥 onTimeOutError',
+    }
+
+    /** 🪄 Offsets curvos para separar edges según orientación */
+    const baseOffsets =
+        orientation === 'horizontal'
+            ? {
+                  onTrue: 0.25,
+                  onFalse: -0.25,
+                  onError: 0.4,
+                  onTimeOut: 0.15,
+                  onTimeOutError: -0.15,
+              }
+            : {
+                  onTrue: 0.35,
+                  onFalse: -0.35,
+                  onError: 0.6,
+                  onTimeOut: 0.2,
+                  onTimeOutError: -0.2,
+              }
+
+    /** ✨ Edge Styling Dinámico (anti-solapamiento + labels) */
+    const styledEdges: Edge[] = useMemo(() => {
+        return edges.map((e, i) => {
+            const offset =
+                baseOffsets[e.sourceHandle ?? ''] ?? (i % 2 ? 0.25 : -0.25)
+            const curvature =
+                orientation === 'horizontal' ? 0.35 + offset : 0.45 + offset
+            const label = handleLabels[e.sourceHandle ?? ''] ?? ''
+
+            return {
                 ...e,
                 type: edgeType,
                 animated: edgeAnimated,
+                label,
+                labelBgPadding: [6, 3],
+                labelBgBorderRadius: 4,
+                labelBgStyle: {
+                    fill: theme === 'dark' ? '#111' : '#fff',
+                    color: theme === 'dark' ? '#eee' : '#222',
+                    opacity: 0.85,
+                    stroke: theme === 'dark' ? '#333' : '#ddd',
+                    strokeWidth: 0.5,
+                },
                 markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
+                curvature,
                 style: {
                     ...(e.style ?? {}),
                     stroke: edgeColor,
                     strokeWidth: edgeWidth,
                     strokeDasharray: dash,
                 },
-            })),
-        [edges, edgeType, edgeAnimated, edgeColor, edgeWidth, dash]
-    )
+            }
+        })
+    }, [
+        edges,
+        edgeType,
+        edgeAnimated,
+        edgeColor,
+        edgeWidth,
+        dash,
+        theme,
+        handleLabels,
+        baseOffsets,
+        orientation, // recalcula curvatura al rotar el canvas
+    ])
 
     return (
         <>
-            {/* 🎨 Panel de estilo */}
             <FlowStylePanel />
 
-            {/* 🌊 Canvas principal */}
             <ReactFlow
                 nodes={nodes}
                 edges={styledEdges}
@@ -169,7 +214,6 @@ export default function FlowCanvasInner() {
                 />
                 <Controls />
             </ReactFlow>
-
         </>
     )
 }
