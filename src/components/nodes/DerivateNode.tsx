@@ -11,11 +11,13 @@ import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 
 /**
- * 🟨 DerivateNode (v2.3)
- * ----------------------------------------------------
- * - Muestra el skill destino y el mensaje de timeout
- * - Se actualiza en tiempo real con los cambios del formulario
- * - Diseño coherente con SimpleTextNode
+ * 🟨 DerivateNode (v2.5 – Integración SkillLabel + Mensajes)
+ * -------------------------------------------------------------------
+ * ✅ Muestra el skillLabel (nombre real del skill) si existe
+ * ✅ Si no tiene label, muestra “Skill {número}” o “Sin skill”
+ * ✅ Compatible con importador async (v5.7) y FormDerivateNode
+ * ✅ Incluye los mensajes Timeout, Queue e Inbound con iconos
+ * ✅ Diseño consistente con la familia de nodos amarillos (Derivate / SetCustomerID)
  */
 export default function DerivateNode({ id, data }: any) {
     const { setSelectedNode } = useNodeConfigStore()
@@ -26,11 +28,21 @@ export default function DerivateNode({ id, data }: any) {
     const sourcePosition =
         orientation === 'vertical' ? Position.Bottom : Position.Right
 
-    // 🧠 Datos principales
+    // 🎯 Datos principales
     const skillLabel =
-        data.skillLabel || (data.skill ? `Skill ${data.skill}` : 'Sin skill')
-    const timeoutMessage = data.timeoutMessage
+        data?.skillLabel?.trim() ||
+        (data?.skill ? `Skill ${data.skill}` : 'Sin skill')
+
+    const timeoutMessage = data?.timeoutMessage
         ? decodeURIComponent(data.timeoutMessage)
+        : ''
+
+    const queueMessage = data?.queueMessage
+        ? decodeURIComponent(data.queueMessage)
+        : ''
+
+    const inboundMessage = data?.inboundMessage
+        ? decodeURIComponent(data.inboundMessage)
         : ''
 
     return (
@@ -51,10 +63,10 @@ export default function DerivateNode({ id, data }: any) {
                     setSelectedNode({ id, type: 'derivateNode', data })
                 }}
                 data-id={id}
-                className="relative w-full max-w-[240px] cursor-pointer rounded-lg border border-amber-600 bg-amber-500 px-3 py-2 text-center text-white shadow-md transition-all duration-300 ease-out hover:scale-[1.03] hover:shadow-lg dark:bg-amber-700"
+                className="relative w-full max-w-[250px] cursor-pointer rounded-lg border border-amber-500 bg-amber-500 px-3 py-2 text-center text-white shadow-md transition-all duration-300 ease-out hover:scale-[1.03] hover:shadow-lg dark:border-amber-700 dark:bg-amber-800"
             >
                 <div className="flex flex-col items-center justify-center gap-1 overflow-hidden">
-                    {/* 🔹 Título */}
+                    {/* 🏷️ Título */}
                     <div className="flex items-center justify-center gap-2">
                         <UserCircle2 className="h-4 w-4 flex-shrink-0" />
                         <span className="text-sm font-medium break-words">
@@ -62,30 +74,42 @@ export default function DerivateNode({ id, data }: any) {
                         </span>
                     </div>
 
-                    {/* 🎯 Skill asociado */}
+                    {/* 🎯 Skill destino */}
                     {skillLabel && (
-                        <p className="text-[11px] leading-tight text-amber-50/90">
+                        <p className="mt-0.5 text-[11px] leading-tight text-amber-50/90">
                             Skill: {skillLabel}
                         </p>
                     )}
 
-                    {/* ⏳ Timeout Message */}
+                    {/* 🕓 Timeout */}
                     {timeoutMessage && (
                         <div className="mt-1 flex items-start justify-center gap-1">
+                            <Clock4 className="h-3 w-3 flex-shrink-0 text-amber-200/80" />
                             <p
                                 className="max-w-[200px] text-[10px] leading-snug break-words text-amber-50/80"
-                                style={{
-                                    whiteSpace: 'pre-wrap',
-                                    wordBreak: 'break-word',
-                                }}
+                                style={{ whiteSpace: 'pre-wrap' }}
                             >
                                 {timeoutMessage}
                             </p>
                         </div>
                     )}
+
+                    {/* ⏳ Queue message */}
+                    {queueMessage && (
+                        <p className="mt-0.5 max-w-[200px] text-[10px] leading-snug text-amber-50/70">
+                            {queueMessage}
+                        </p>
+                    )}
+
+                    {/* 📩 Inbound message */}
+                    {inboundMessage && (
+                        <p className="mt-0.5 max-w-[200px] text-[10px] leading-snug text-amber-50/70">
+                            {inboundMessage}
+                        </p>
+                    )}
                 </div>
 
-                {/* 🟢🟡🔴 Handles */}
+                {/* 🔘 Handles */}
                 <Handle
                     type="target"
                     position={targetPosition}

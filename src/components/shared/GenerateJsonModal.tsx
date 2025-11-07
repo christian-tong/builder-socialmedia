@@ -58,8 +58,6 @@ export function GenerateJsonModal({
         }
 
         try {
-            toast.loading('📡 Publicando flujo...', { duration: 1500 })
-
             // ✅ Conversión segura de FlowChannelType a string | undefined
             const safeChannel = channel ?? undefined
 

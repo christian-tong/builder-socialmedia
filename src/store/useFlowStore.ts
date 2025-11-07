@@ -36,30 +36,23 @@ export const useFlowStore = create<FlowState>((set, get) => ({
                 typeof updater === 'function' ? updater(state.edges) : updater,
         })),
 
-    // 🔁 Actualiza las opciones de un nodo en tiempo real
-    updateNodeOptions: (id, options) => {
+    updateNodeOptions: (id, options) =>
         set({
-            nodes: get().nodes.map((node) =>
-                node.id === id
-                    ? { ...node, data: { ...node.data, options } }
-                    : node
+            nodes: get().nodes.map((n) =>
+                n.id === id ? { ...n, data: { ...n.data, options } } : n
             ),
-        })
-    },
+        }),
 
-    // 🎨 Cambia el color visual del nodo
-    updateNodeColor: (id, color) => {
+    updateNodeColor: (id, color) =>
         set({
-            nodes: get().nodes.map((node) =>
-                node.id === id
-                    ? { ...node, data: { ...node.data, colorVariant: color } }
-                    : node
+            nodes: get().nodes.map((n) =>
+                n.id === id
+                    ? { ...n, data: { ...n.data, colorVariant: color } }
+                    : n
             ),
-        })
-    },
+        }),
 
-    // 🔗 Crea un nuevo edge programáticamente
-    createEdge: (sourceId, targetId, handleId = undefined) => {
+    createEdge: (sourceId, targetId, handleId) => {
         if (!targetId || !sourceId) return
         const { edges } = get()
         const exists = edges.some(
@@ -85,11 +78,13 @@ export const useFlowStore = create<FlowState>((set, get) => ({
 
     exportFlow: () => {
         const { nodes, edges } = get()
-        if (!nodes || nodes.length === 0) {
-            toast.warning('⚠️ No hay nodos en el flujo para exportar.')
-            return
-        }
-        exportToJsonFile({ nodes, edges }, 'builderSocialMedia')
+        exportToJsonFile(
+            {
+                nodes: Array.isArray(nodes) ? nodes : [],
+                edges: Array.isArray(edges) ? edges : [],
+            },
+            'builderSocialMedia'
+        )
         toast.success('✅ Flujo exportado correctamente')
     },
 
@@ -98,40 +93,31 @@ export const useFlowStore = create<FlowState>((set, get) => ({
             const parsed = await importFromJsonFile<any>(file)
             if (!parsed) return null
 
-            // 🧩 Caso 1: Formato ReactFlow
-            if (parsed.nodes && Array.isArray(parsed.nodes)) {
-                try {
-                    const laidOutNodes = applyAutoLayout(
-                        parsed.nodes,
-                        parsed.edges || [],
-                        'vertical'
-                    )
-                    set({ nodes: laidOutNodes, edges: parsed.edges || [] })
-                    toast.success('✅ Flujo importado (React Flow)')
-                    return { nodes: laidOutNodes, edges: parsed.edges || [] }
-                } catch {
-                    set({ nodes: parsed.nodes, edges: parsed.edges || [] })
-                    toast.success('✅ Flujo importado (React Flow)')
-                    return { nodes: parsed.nodes, edges: parsed.edges || [] }
-                }
+            // 🧩 Caso 1: ReactFlow
+            if (Array.isArray(parsed.nodes)) {
+                const laidOut = applyAutoLayout(
+                    parsed.nodes,
+                    parsed.edges || [],
+                    'vertical'
+                )
+                set({ nodes: laidOut, edges: parsed.edges || [] })
+                toast.success('✅ Flujo importado (React Flow)')
+                return { nodes: laidOut, edges: parsed.edges || [] }
             }
 
-            // 🧩 Caso 2: Formato WiContact
+            // 🧩 Caso 2: WiContact (async)
             if (parsed.process?.steps) {
-                const { nodes, edges } = convertWiContactToFlow(parsed)
-                try {
-                    const laidOut = applyAutoLayout(nodes, edges, 'vertical')
-                    set({ nodes: laidOut, edges })
-                    toast.success('✅ Flujo importado (WiContact)')
-                    return { nodes: laidOut, edges }
-                } catch {
-                    set({ nodes, edges })
-                    toast.success('✅ Flujo importado (WiContact)')
-                    return { nodes, edges }
-                }
+                const result = await convertWiContactToFlow(parsed)
+                const nodes = Array.isArray(result.nodes) ? result.nodes : []
+                const edges = Array.isArray(result.edges) ? result.edges : []
+
+                const laidOut = applyAutoLayout(nodes, edges, 'vertical')
+                set({ nodes: laidOut, edges })
+                toast.success('✅ Flujo importado (WiContact)')
+                return { nodes: laidOut, edges }
             }
 
-            toast.error('❌ El archivo no contiene un formato compatible.')
+            toast.error('❌ Formato de flujo no compatible.')
             return null
         } catch (err) {
             console.error('❌ Error al importar flujo:', err)
@@ -140,7 +126,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
         }
     },
 
-    getConnectedNodes: (id: string) => {
+    getConnectedNodes: (id) => {
         const { nodes, edges } = get()
         const prevIds = edges
             .filter((e) => e.target === id)

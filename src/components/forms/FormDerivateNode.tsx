@@ -1,4 +1,5 @@
 // src\components\forms\FormDerivateNode.tsx
+
 'use client'
 
 import type React from 'react'
@@ -8,7 +9,6 @@ import {
     NodeSelectionAccordion,
 } from '@/components/shared/NodeConnectionsAccordion'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
     Select,
@@ -19,16 +19,15 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
-import { getSkills, type Skill } from '@/services/skillService'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
+import { getListSkills, type SkillItem } from '@/services/getListSkillsService'
 
 /**
- * 🟨 FormDerivateNode (v2.2 – Estilo Estandarizado)
- * --------------------------------------------------
- * - Adopta estructura completa del Prompt Base v1.1
- * - Respeta jerarquía y colores onTrue / onFalse / onError
- * - Incluye secciones separadas por border-t
- * - Conserva lógica de skill, mensajes y auto-resize
+ * 🟨 FormDerivateNode (v2.4 – SkillName como label, SkillNumber como value)
+ * ------------------------------------------------------------------------
+ * - Usa getListSkillsService real
+ * - Muestra el skillName en el select
+ * - Guarda skillNumber como value en el nodo
  */
 export default function FormDerivateNode({
     id,
@@ -38,26 +37,17 @@ export default function FormDerivateNode({
     data: Record<string, any>
 }) {
     const { updateNodeData } = useNodeConfigStore()
-    const [skills, setSkills] = useState<Skill[]>([])
+    const [skills, setSkills] = useState<SkillItem[]>([])
 
-    // 🧠 Hook de conexiones centralizado
+    // 🧠 Hook de conexiones
     const { prevNodes, availableNodes, hasConnection, toggleConnection } =
         useNodeConnections(id)
 
-    // 🔍 Filtrado de conexiones condicionales
-    const trueConnections = availableNodes
-        .filter((n) => hasConnection(n.id, 'onTrue'))
-        .map((n) => n.id)
-    const falseConnections = availableNodes
-        .filter((n) => hasConnection(n.id, 'onFalse'))
-        .map((n) => n.id)
-    const errorConnections = availableNodes
-        .filter((n) => hasConnection(n.id, 'onError'))
-        .map((n) => n.id)
-
-    // ⚙️ Cargar skills del servicio
+    // ⚙️ Cargar lista de skills reales
     useEffect(() => {
-        getSkills().then(setSkills)
+        getListSkills().then((res) => {
+            if (res.success && res.data) setSkills(res.data)
+        })
     }, [])
 
     // 🪶 Auto-ajuste de altura dinámica
@@ -68,7 +58,7 @@ export default function FormDerivateNode({
         el.style.height = Math.min(el.scrollHeight, 400) + 'px'
     }
 
-    // Refs de textareas
+    // Refs para textareas
     const timeoutRef = useRef<HTMLTextAreaElement | null>(null)
     const queueRef = useRef<HTMLTextAreaElement | null>(null)
     const inboundRef = useRef<HTMLTextAreaElement | null>(null)
@@ -108,7 +98,9 @@ export default function FormDerivateNode({
                 </Label>
                 <NodeConnectionsAccordion
                     title="Nodos conectados (trueStep)"
-                    nodesList={trueConnections}
+                    nodesList={availableNodes
+                        .filter((n) => hasConnection(n.id, 'onTrue'))
+                        .map((n) => n.id)}
                     accentColor="text-green-700 dark:text-green-300"
                 />
                 <NodeSelectionAccordion
@@ -128,11 +120,11 @@ export default function FormDerivateNode({
                     value={String(data.skill ?? '')}
                     onValueChange={(val) => {
                         const selected = skills.find(
-                            (s) => String(s.id) === val
+                            (s) => String(s.skillNumber) === val
                         )
                         updateNodeData(id, {
                             skill: Number(val),
-                            skillLabel: selected?.label || '',
+                            skillLabel: selected?.skillName || '',
                         })
                     }}
                 >
@@ -141,8 +133,11 @@ export default function FormDerivateNode({
                     </SelectTrigger>
                     <SelectContent>
                         {skills.map((skill) => (
-                            <SelectItem key={skill.id} value={String(skill.id)}>
-                                {skill.label}
+                            <SelectItem
+                                key={skill.skillNumber}
+                                value={String(skill.skillNumber)}
+                            >
+                                {skill.skillName}
                             </SelectItem>
                         ))}
                     </SelectContent>

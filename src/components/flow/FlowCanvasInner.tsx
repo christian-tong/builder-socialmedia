@@ -24,12 +24,11 @@ import { useShallow } from 'zustand/react/shallow'
 import { convertWiContactToFlow } from '@/lib/jsonImporterWiContact'
 
 /**
- * 🧩 FlowCanvasInner (v6.6 – Tipado Estricto + Curvatura Dinámica)
- * -------------------------------------------------------------------------
- * - Genera nodos/edges desde JSON (2 fases seguras)
- * - Evita solapamiento de edges con curvatura adaptativa
- * - Recalcula curvas según orientación (vertical/horizontal)
- * - Tipado 100% seguro para baseOffsets y handleLabels
+ * 🧩 FlowCanvasInner (v6.7 – Safe Async Integration)
+ * ------------------------------------------------------------
+ * ✅ Usa await convertWiContactToFlow (async)
+ * ✅ Previene crash si nodes/edges son undefined
+ * ✅ Asegura arrays vacíos antes de pasar a ReactFlow
  */
 export default function FlowCanvasInner() {
     const { theme } = useThemeStore()
@@ -60,26 +59,44 @@ export default function FlowCanvasInner() {
     /** 🧱 Fase 1: Nodos | Fase 2: Edges diferidos */
     useEffect(() => {
         if (!uploadedJson) return
-        const { nodes: builtNodes, edges: builtEdges } =
-            convertWiContactToFlow(uploadedJson)
 
-        setNodes(builtNodes)
-        setEdges([])
-        setPhase('nodes')
+        const loadFlow = async () => {
+            try {
+                const result = await convertWiContactToFlow(uploadedJson)
+                const builtNodes = Array.isArray(result.nodes)
+                    ? result.nodes
+                    : []
+                const builtEdges = Array.isArray(result.edges)
+                    ? result.edges
+                    : []
 
-        const timer = setTimeout(() => {
-            const validIds = new Set(builtNodes.map((n) => n.id))
-            const safeEdges = builtEdges.filter(
-                (e) => validIds.has(e.source) && validIds.has(e.target)
-            )
-            setEdges(safeEdges)
-            setPhase('edges')
-            console.info(
-                `✅ Nodos: ${builtNodes.length} | Edges: ${safeEdges.length}`
-            )
-        }, 600)
+                // 🧱 Paso 1 — render inicial sin edges
+                setNodes(builtNodes)
+                setEdges([])
+                setPhase('nodes')
 
-        return () => clearTimeout(timer)
+                // 🧩 Paso 2 — agregar edges luego de un delay corto
+                const timer = setTimeout(() => {
+                    const validIds = new Set(builtNodes.map((n) => n.id))
+                    const safeEdges = builtEdges.filter(
+                        (e) => validIds.has(e.source) && validIds.has(e.target)
+                    )
+                    setEdges(safeEdges)
+                    setPhase('edges')
+                    console.info(
+                        `✅ Nodos: ${builtNodes.length} | Edges: ${safeEdges.length}`
+                    )
+                }, 600)
+
+                return () => clearTimeout(timer)
+            } catch (err) {
+                console.error('❌ Error al convertir JSON WiContact:', err)
+                setNodes([])
+                setEdges([])
+            }
+        }
+
+        loadFlow()
     }, [uploadedJson, setNodes, setEdges])
 
     /** 🎨 Fondo */
@@ -102,24 +119,17 @@ export default function FlowCanvasInner() {
         }
     }, [edgeAspect])
 
-    /** 🌈 Etiquetas visuales por handle */
-    type HandleKey =
-        | 'onTrue'
-        | 'onFalse'
-        | 'onError'
-        | 'onTimeOut'
-        | 'onTimeOutError'
+    /** 🌈 Etiquetas visuales */
+    const handleLabels = {
+        onTrue: '✅ trueStep',
+        onFalse: '❌ falseStep',
+        onError: '⚠️ errorStep',
+        onTimeOut: '⏳ timeOutStep',
+        onTimeOutError: '💥 timeOutError',
+    } as const
 
-    const handleLabels: Record<HandleKey, string> = {
-        onTrue: '✅ onTrue',
-        onFalse: '❌ onFalse',
-        onError: '⚠️ onError',
-        onTimeOut: '⏳ onTimeOut',
-        onTimeOutError: '💥 onTimeOutError',
-    }
-
-    /** 🪄 Offsets curvos para separar edges según orientación */
-    const baseOffsets: Record<HandleKey, number> =
+    /** 🪄 Offsets curvos para separar edges */
+    const baseOffsets =
         orientation === 'horizontal'
             ? {
                   onTrue: 0.25,
@@ -138,8 +148,9 @@ export default function FlowCanvasInner() {
 
     /** ✨ Edge Styling Dinámico */
     const styledEdges: Edge[] = useMemo(() => {
+        if (!Array.isArray(edges)) return []
         return edges.map((e, i) => {
-            const handle = e.sourceHandle as HandleKey | undefined
+            const handle = e.sourceHandle as keyof typeof handleLabels
             const offset = handle
                 ? (baseOffsets[handle] ?? 0)
                 : i % 2
@@ -181,7 +192,6 @@ export default function FlowCanvasInner() {
         edgeWidth,
         dash,
         theme,
-        handleLabels,
         baseOffsets,
         orientation,
     ])
@@ -190,8 +200,8 @@ export default function FlowCanvasInner() {
         <>
             <FlowStylePanel />
             <ReactFlow
-                nodes={nodes}
-                edges={styledEdges}
+                nodes={Array.isArray(nodes) ? nodes : []}
+                edges={Array.isArray(styledEdges) ? styledEdges : []}
                 nodeTypes={nodeTypes}
                 onNodesChange={handlers.onNodesChange}
                 onEdgesChange={handlers.onEdgesChange}

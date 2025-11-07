@@ -12,6 +12,7 @@ import type {
     SimpleTextInteractive,
 } from '@/types/getDataComplete'
 import { nodeTypes } from '@/config/nodesConfig'
+import { getListSkills } from '@/services/getListSkillsService'
 
 /**
  * 🔁 convertWiContactToFlow (v5.6 – VariablesStore Sync)
@@ -22,10 +23,10 @@ import { nodeTypes } from '@/config/nodesConfig'
  * ✅ Evita duplicados de IDs y crea edges válidos y únicos
  * ✅ Soporta importación desde WiContact y osm_wsp.json
  */
-export function convertWiContactToFlow(json: any): {
+export async function convertWiContactToFlow(json: any): Promise<{
     nodes: Node[]
     edges: Edge[]
-} {
+}> {
     const steps = json?.process?.steps
     if (!Array.isArray(steps))
         throw new Error('JSON inválido: falta process.steps')
@@ -120,11 +121,31 @@ export function convertWiContactToFlow(json: any): {
                 }
                 break
 
-            case 'derivate':
+            case 'derivate': {
                 nodeType = 'derivateNode'
+
+                const skillNumber = object.skill ? Number(object.skill) : null
+                let skillLabel = ''
+
+                // 🧠 Buscar skillName desde el servicio real (si existe número)
+                if (skillNumber) {
+                    try {
+                        const skillsResponse = await getListSkills()
+                        if (skillsResponse.success && skillsResponse.data) {
+                            const match = skillsResponse.data.find(
+                                (s) => s.skillNumber === skillNumber
+                            )
+                            if (match) skillLabel = match.skillName
+                        }
+                    } catch (err) {
+                        console.warn('⚠️ No se pudo obtener el skillName:', err)
+                    }
+                }
+
                 nodeData = {
                     label: id,
-                    skill: object.skill ? Number(object.skill) : null,
+                    skill: skillNumber,
+                    skillLabel,
                     timeoutMessage: decodeURIComponent(
                         object.timeoutMessage || ''
                     ),
@@ -134,6 +155,7 @@ export function convertWiContactToFlow(json: any): {
                     ),
                 }
                 break
+            }
 
             case 'timecondition':
                 nodeType = 'timeConditionNode'
