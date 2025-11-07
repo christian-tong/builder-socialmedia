@@ -1,5 +1,4 @@
 // src/components/forms/Menu/FormGetDataCompleteBase.tsx
-
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -34,40 +33,74 @@ import {
 import { FormGetDataCompleteGetData } from './FormGetDataCompleteGetData'
 
 /**
- * 🧩 FormGetDataCompleteBase (v4.7 — AutoVariantSync)
+ * 🧩 FormGetDataCompleteBase (v4.9 — One-Way Timeout Sync)
  * -------------------------------------------------------------------------
- * ✅ Detecta automáticamente tipo importado (GETDATA / SIMPLETEXT / List / QR)
- * ✅ Compatible con convertWiContactToFlow v5.4
- * ✅ Sincroniza Select inicial con variantStore y JSON importado
- * ✅ Mantiene lógica de conexión y guardado diferido
+ * ✅ Muestra campos onTimeOut / onTimeOutError solo para SIMPLETEXT / GETDATA
+ * ✅ onFalse → clona hacia onTimeOut si está vacío
+ * ✅ onError → clona hacia onTimeOutError si está vacío
+ * ✅ Sin sincronización inversa (one-way)
+ * ✅ Totalmente compatible con FlowAutoEdgeSync + useNodeConnections
  */
 export default function FormGetDataCompleteBase({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
     const { initNode, getNodeData, setNodeData, onAfterSave } =
         useGetDataCompleteBaseStore()
+
     const {
         createConnectionIfMissing,
         prevNodes,
         availableNodes,
         hasConnection,
-        toggleConnection,
+        toggleConnection: baseToggleConnection,
     } = useNodeConnections(id)
 
-    const [localData, setLocalData] = useState<Partial<GetDataCompleteObject>>(
-        {}
-    )
+    /* -------------------------------------------------------------------------- */
+    /* 🔁 Wrapper: toggleConnectionExtend con sincronización unidireccional        */
+    /* -------------------------------------------------------------------------- */
+    const toggleConnection = (
+        nodeId: string,
+        checked: boolean,
+        handleId?: string
+    ) => {
+        // Ejecuta la conexión base
+        baseToggleConnection(nodeId, checked, handleId)
+
+        // 🧠 Si conectamos onFalse → clona hacia onTimeOut (solo si vacío)
+        if (checked && handleId === 'onFalse') {
+            const hasTimeOut = availableNodes.some((n) =>
+                hasConnection(n.id, 'onTimeOut')
+            )
+            if (!hasTimeOut) {
+                baseToggleConnection(nodeId, true, 'onTimeOut')
+            }
+        }
+
+        // 🧠 Si conectamos onError → clona hacia onTimeOutError (solo si vacío)
+        if (checked && handleId === 'onError') {
+            const hasTimeOutError = availableNodes.some((n) =>
+                hasConnection(n.id, 'onTimeOutError')
+            )
+            if (!hasTimeOutError) {
+                baseToggleConnection(nodeId, true, 'onTimeOutError')
+            }
+        }
+    }
 
     /* -------------------------------------------------------------------------- */
     /* 🧠 Inicialización y carga local                                            */
     /* -------------------------------------------------------------------------- */
+    const [localData, setLocalData] = useState<Partial<GetDataCompleteObject>>(
+        {}
+    )
+
     useEffect(() => {
         initNode(id)
         setLocalData(getNodeData(id))
     }, [id])
 
     /* -------------------------------------------------------------------------- */
-    /* 💾 Callback de guardado diferido                                          */
+    /* 💾 Guardado diferido                                                      */
     /* -------------------------------------------------------------------------- */
     useEffect(() => {
         const saveFn = () => {
@@ -112,7 +145,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                 }
             }
 
-            // 🧾 GETDATA → crea edges por cada condición válida
+            // 🧾 GETDATA / SIMPLETEXT → crea edges por condiciones
             if (type === 'GETDATA' || type === 'SIMPLETEXT') {
                 const conditions = current.conditions || {}
                 Object.entries(conditions).forEach(([key, targetId]) => {
@@ -175,6 +208,13 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
         .map((n) => n.data?.label || n.id)
     const errorConnections = availableNodes
         .filter((n) => hasConnection(n.id, 'onError'))
+        .map((n) => n.data?.label || n.id)
+
+    const timeOutConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onTimeOut'))
+        .map((n) => n.data?.label || n.id)
+    const timeOutErrorConnections = availableNodes
+        .filter((n) => hasConnection(n.id, 'onTimeOutError'))
         .map((n) => n.data?.label || n.id)
 
     /* -------------------------------------------------------------------------- */
@@ -269,6 +309,57 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                                     accentColor="text-amber-700 dark:text-amber-300"
                                 />
                             </div>
+
+                            {/* ⏱️ OnTimeOut y OnTimeOutError */}
+                            {(type === 'GETDATA' || type === 'SIMPLETEXT') && (
+                                <>
+                                    <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                                        <Label className="text-sm font-medium text-sky-600 dark:text-sky-400">
+                                            Conexión timeOutStep
+                                        </Label>
+                                        <NodeConnectionsAccordion
+                                            title="Nodos conectados (timeOutStep)"
+                                            nodesList={
+                                                timeOutConnections.length
+                                                    ? timeOutConnections
+                                                    : falseConnections
+                                            }
+                                            accentColor="text-sky-700 dark:text-sky-300"
+                                        />
+                                        <NodeSelectionAccordion
+                                            title="Seleccionar nodo timeOutStep"
+                                            availableNodes={availableNodes}
+                                            hasConnection={hasConnection}
+                                            toggleConnection={toggleConnection}
+                                            handleId="onTimeOut"
+                                            accentColor="text-sky-700 dark:text-sky-300"
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                                        <Label className="text-sm font-medium text-violet-600 dark:text-violet-400">
+                                            Conexión timeOutErrorStep
+                                        </Label>
+                                        <NodeConnectionsAccordion
+                                            title="Nodos conectados (timeOutErrorStep)"
+                                            nodesList={
+                                                timeOutErrorConnections.length
+                                                    ? timeOutErrorConnections
+                                                    : errorConnections
+                                            }
+                                            accentColor="text-violet-700 dark:text-violet-300"
+                                        />
+                                        <NodeSelectionAccordion
+                                            title="Seleccionar nodo timeOutErrorStep"
+                                            availableNodes={availableNodes}
+                                            hasConnection={hasConnection}
+                                            toggleConnection={toggleConnection}
+                                            handleId="onTimeOutError"
+                                            accentColor="text-violet-700 dark:text-violet-300"
+                                        />
+                                    </div>
+                                </>
+                            )}
                         </AccordionContent>
                     </AccordionItem>
                 </Accordion>

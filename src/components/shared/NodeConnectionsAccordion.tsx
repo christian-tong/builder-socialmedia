@@ -1,8 +1,8 @@
-// src\components\shared\NodeConnectionsAccordion.tsx
+// src/components/shared/NodeConnectionsAccordion.tsx
 
 'use client'
 
-import { ChevronDown, Link2, PlugZap, AlertTriangle } from 'lucide-react'
+import { ChevronDown, Link2, PlugZap, AlertTriangle, Clock } from 'lucide-react'
 import React from 'react'
 import {
     Accordion,
@@ -26,10 +26,10 @@ interface NodeSelectionAccordionProps {
     hasConnection: (id: string, handleId?: string) => boolean
     toggleConnection: (id: string, checked: boolean, handleId?: string) => void
     accentColor?: string
-    handleId?: 'onTrue' | 'onFalse' | 'onError'
+    handleId?: 'onTrue' | 'onFalse' | 'onError' | 'onTimeOut' | 'onTimeOutError'
 }
 
-/* 🎨 Paleta contextual */
+/* 🎨 Paleta contextual extendida */
 const colorMap = {
     onTrue: {
         base: 'text-green-700 dark:text-green-300',
@@ -60,6 +60,24 @@ const colorMap = {
             <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
         ),
         label: 'errorStep',
+    },
+    onTimeOut: {
+        base: 'text-sky-700 dark:text-sky-300',
+        bg: 'bg-sky-50 dark:bg-sky-900/10',
+        border: 'border-sky-300 dark:border-sky-800',
+        badge: 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+        icon: <Clock className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />,
+        label: 'timeOutStep',
+    },
+    onTimeOutError: {
+        base: 'text-violet-700 dark:text-violet-300',
+        bg: 'bg-violet-50 dark:bg-violet-900/10',
+        border: 'border-violet-300 dark:border-violet-800',
+        badge: 'border-violet-300 bg-violet-50 text-violet-800 dark:border-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+        icon: (
+            <AlertTriangle className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+        ),
+        label: 'timeOutErrorStep',
     },
 }
 
@@ -167,7 +185,7 @@ export function NodeConnectionsAccordion({
     )
 }
 
-/* 🧩 NodeSelectionAccordion (v2.5 – sin cambios funcionales) */
+/* 🧩 NodeSelectionAccordion (v3.0 – con soporte TimeOut y TimeOutError) */
 export function NodeSelectionAccordion({
     title = 'Seleccionar conexión',
     availableNodes,

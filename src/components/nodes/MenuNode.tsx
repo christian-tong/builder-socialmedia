@@ -1,5 +1,4 @@
-// src\components\nodes\MenuNode.tsx
-
+// src/components/nodes/MenuNode.tsx
 'use client'
 
 import React from 'react'
@@ -19,7 +18,7 @@ import {
 } from '@/types/getDataComplete'
 import { MessageSquare, ListTree, FileText, StickyNote } from 'lucide-react'
 
-/* -------------------- QuickReplyPreview -------------------- */
+/* ---------- QuickReplyPreview ---------- */
 function QuickReplyPreview({
     interactive,
     handleColor,
@@ -47,8 +46,6 @@ function QuickReplyPreview({
                                 )}
                             </span>
                         </div>
-
-                        {/* 🎯 Handle para cada opción */}
                         <Handle
                             type="source"
                             position={Position.Right}
@@ -67,7 +64,7 @@ function QuickReplyPreview({
     )
 }
 
-/* -------------------- ListPreview -------------------- */
+/* ---------- ListPreview ---------- */
 function ListPreview({
     interactive,
     handleColor,
@@ -83,7 +80,6 @@ function ListPreview({
                     <div className="mb-0.5 truncate text-[10px] font-semibold text-blue-300/80">
                         {decodeURIComponent(item.title || `Grupo ${iIdx + 1}`)}
                     </div>
-
                     {item.options.map((opt: ListOption, oIdx: number) => {
                         const handleId = `option_${opt.postbackText}`
                         return (
@@ -106,8 +102,6 @@ function ListPreview({
                                         </span>
                                     )}
                                 </div>
-
-                                {/* 🎯 Handle individual para cada opción */}
                                 <Handle
                                     type="source"
                                     position={Position.Right}
@@ -128,7 +122,7 @@ function ListPreview({
     )
 }
 
-/* -------------------- GetDataPreview -------------------- */
+/* ---------- GetDataPreview ---------- */
 function GetDataPreview({ object }: { object: GetDataCompleteObject }) {
     const { setvariables, prompt } = object || {}
     const entries = Object.entries(setvariables || {})
@@ -167,7 +161,7 @@ function GetDataPreview({ object }: { object: GetDataCompleteObject }) {
     )
 }
 
-/* -------------------- SimpleTextPreview -------------------- */
+/* ---------- SimpleTextPreview ---------- */
 function SimpleTextPreview({ object }: { object: GetDataCompleteObject }) {
     const { prompt, description, setvariables } = object || {}
     const entries = Object.entries(setvariables || {})
@@ -211,7 +205,7 @@ function SimpleTextPreview({ object }: { object: GetDataCompleteObject }) {
     )
 }
 
-/* -------------------- MenuNode Principal -------------------- */
+/* ---------- MenuNode Principal ---------- */
 export function MenuNode({ id, data }: { id: string; data: any }) {
     const { orientation } = useFlowOrientationStore()
     const { getNodeData } = useGetDataCompleteBaseStore()
@@ -279,6 +273,22 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
     const targetPosition =
         orientation === 'vertical' ? Position.Top : Position.Left
 
+    /* 🧩 Handles dinámicos adaptativos */
+    const baseHandles = [
+        { id: 'onTrue', color: '!bg-green-500' },
+        { id: 'onFalse', color: '!bg-red-500' },
+        { id: 'onError', color: '!bg-orange-500' },
+    ]
+    const timeoutHandles =
+        normalizedType === 'GETDATA' || normalizedType === 'SIMPLETEXT'
+            ? [
+                  { id: 'onTimeOut', color: '!bg-sky-500' },
+                  { id: 'onTimeOutError', color: '!bg-violet-500' },
+              ]
+            : []
+
+    const allHandles = [...baseHandles, ...timeoutHandles]
+
     return (
         <motion.div
             layout
@@ -291,8 +301,6 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
                     e.stopPropagation()
                     setSelectedNode({ id, type: 'menuNode', data })
                 }}
-                data-id={id}
-                data-animated={data.__animated ? 'true' : 'false'}
                 className={`relative w-[320px] cursor-pointer rounded-xl border select-none ${config.bg} p-3 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg`}
             >
                 {/* 🏷️ Header */}
@@ -302,17 +310,14 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
                         <span>{config.label}</span>
                     </div>
                     <div className="flex max-w-[160px] flex-col items-end text-right">
-                        {/* 🔹 ID pequeño */}
                         <div className="text-center text-[10px] text-white/60">
                             <span className="rounded-md border border-white/10 bg-white/10 px-2 py-[1px]">
                                 {id}
                             </span>
                         </div>
-
-                        {/* 🧠 Alias con truncado visual elegante */}
                         <span
                             className="mt-[1px] max-w-full overflow-hidden text-[11px] font-medium text-ellipsis whitespace-nowrap opacity-80"
-                            title={nodeData.alias || nodeData.variable || id} // 👈 Tooltip para ver el texto completo
+                            title={nodeData.alias || nodeData.variable || id}
                         >
                             {nodeData.alias || nodeData.variable || id}
                         </span>
@@ -339,34 +344,27 @@ export function MenuNode({ id, data }: { id: string; data: any }) {
                     <SimpleTextPreview object={nodeData} />
                 )}
 
-                {/* 🎯 Handles generales */}
+                {/* 🎯 Handles */}
                 <Handle
                     type="target"
                     position={targetPosition}
                     id="in"
                     className={`!bg-${config.color}-400`}
                 />
-                <Handle
-                    type="source"
-                    position={Position.Bottom}
-                    id="onTrue"
-                    className="!bg-green-500"
-                    style={{ left: '30%' }}
-                />
-                <Handle
-                    type="source"
-                    position={Position.Bottom}
-                    id="onFalse"
-                    className="!bg-red-500"
-                    style={{ left: '50%' }}
-                />
-                <Handle
-                    type="source"
-                    position={Position.Bottom}
-                    id="onError"
-                    className="!bg-orange-500"
-                    style={{ left: '70%' }}
-                />
+
+                {/* Distribución adaptativa */}
+                {allHandles.map((h, i) => (
+                    <Handle
+                        key={h.id}
+                        type="source"
+                        position={Position.Bottom}
+                        id={h.id}
+                        className={h.color}
+                        style={{
+                            left: `${(100 / (allHandles.length + 1)) * (i + 1)}%`,
+                        }}
+                    />
+                ))}
             </Card>
         </motion.div>
     )
