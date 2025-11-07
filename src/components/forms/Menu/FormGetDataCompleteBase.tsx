@@ -1,7 +1,8 @@
 // src/components/forms/Menu/FormGetDataCompleteBase.tsx
+
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { Label, Badge } from '@/components/ui'
 import {
     NodeConnectionsAccordion,
@@ -32,16 +33,23 @@ import {
 } from '@/components/ui/select'
 import { FormGetDataCompleteGetData } from './FormGetDataCompleteGetData'
 
+import { useFlowChannelStore } from '@/store/useFlowChannelStore'
+import {
+    FLOW_CHANNEL_CAPABILITIES,
+    type InteractiveType,
+} from '@/config/flowChannelCapabilities'
+import { FlowChannelEnum } from '@/config/flowChannelsConfig'
+
 /**
- * 🧩 FormGetDataCompleteBase (v4.9 — One-Way Timeout Sync)
+ * 🧩 FormGetDataCompleteBase (v5.1 — Integración con canales)
  * -------------------------------------------------------------------------
- * ✅ Muestra campos onTimeOut / onTimeOutError solo para SIMPLETEXT / GETDATA
- * ✅ onFalse → clona hacia onTimeOut si está vacío
- * ✅ onError → clona hacia onTimeOutError si está vacío
- * ✅ Sin sincronización inversa (one-way)
- * ✅ Totalmente compatible con FlowAutoEdgeSync + useNodeConnections
+ * ✅ Detecta canal actual (WhatsApp / ChatWeb)
+ * ✅ Filtra tipos interactivos disponibles según canal
+ * ✅ Compatible con autoEdges + validaciones previas
+ * ✅ Tipado TypeScript totalmente seguro
  */
 export default function FormGetDataCompleteBase({ id, data }: any) {
+    const { channel } = useFlowChannelStore()
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
     const { initNode, getNodeData, setNodeData, onAfterSave } =
@@ -55,49 +63,77 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
         toggleConnection: baseToggleConnection,
     } = useNodeConnections(id)
 
+    const [localData, setLocalData] = useState<Partial<GetDataCompleteObject>>(
+        {}
+    )
+
     /* -------------------------------------------------------------------------- */
-    /* 🔁 Wrapper: toggleConnectionExtend con sincronización unidireccional        */
+    /* 🧠 Inicialización                                                          */
+    /* -------------------------------------------------------------------------- */
+    useEffect(() => {
+        initNode(id)
+        setLocalData(getNodeData(id))
+    }, [id])
+
+    /* -------------------------------------------------------------------------- */
+    /* ⚙️ Tipos disponibles por canal                                             */
+    /* -------------------------------------------------------------------------- */
+    const allowedTypes = useMemo(() => {
+        if (!channel) return []
+        const caps = FLOW_CHANNEL_CAPABILITIES[channel as FlowChannelEnum]
+        return caps?.allowedInteractiveTypes || []
+    }, [channel])
+
+    /* -------------------------------------------------------------------------- */
+    /* 🔄 Cambio de tipo interactivo                                              */
+    /* -------------------------------------------------------------------------- */
+    const handleInteractiveTypeChange = (
+        value: 'quick_reply' | 'list' | 'GETDATA' | 'SIMPLETEXT'
+    ) => {
+        // Normalizar para backend y store
+        const normalizedValue = value.toLowerCase() as
+            | 'quick_reply'
+            | 'list'
+            | 'GETDATA'
+            | 'SIMPLETEXT'
+
+        const interactive = createEmptyInteractive(normalizedValue)
+        setLocalData((prev): Partial<GetDataCompleteObject> => {
+            const updated: Partial<GetDataCompleteObject> = {
+                ...prev,
+                interactive,
+                type: normalizedValue,
+            }
+            setNodeData(id, updated)
+            return updated
+        })
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* 🔁 Wrapper toggleConnection extendido                                      */
     /* -------------------------------------------------------------------------- */
     const toggleConnection = (
         nodeId: string,
         checked: boolean,
         handleId?: string
     ) => {
-        // Ejecuta la conexión base
         baseToggleConnection(nodeId, checked, handleId)
 
-        // 🧠 Si conectamos onFalse → clona hacia onTimeOut (solo si vacío)
         if (checked && handleId === 'onFalse') {
             const hasTimeOut = availableNodes.some((n) =>
                 hasConnection(n.id, 'onTimeOut')
             )
-            if (!hasTimeOut) {
-                baseToggleConnection(nodeId, true, 'onTimeOut')
-            }
+            if (!hasTimeOut) baseToggleConnection(nodeId, true, 'onTimeOut')
         }
 
-        // 🧠 Si conectamos onError → clona hacia onTimeOutError (solo si vacío)
         if (checked && handleId === 'onError') {
             const hasTimeOutError = availableNodes.some((n) =>
                 hasConnection(n.id, 'onTimeOutError')
             )
-            if (!hasTimeOutError) {
+            if (!hasTimeOutError)
                 baseToggleConnection(nodeId, true, 'onTimeOutError')
-            }
         }
     }
-
-    /* -------------------------------------------------------------------------- */
-    /* 🧠 Inicialización y carga local                                            */
-    /* -------------------------------------------------------------------------- */
-    const [localData, setLocalData] = useState<Partial<GetDataCompleteObject>>(
-        {}
-    )
-
-    useEffect(() => {
-        initNode(id)
-        setLocalData(getNodeData(id))
-    }, [id])
 
     /* -------------------------------------------------------------------------- */
     /* 💾 Guardado diferido                                                      */
@@ -118,12 +154,11 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                 const qr = current.interactive
                 if ('options' in qr && Array.isArray(qr.options)) {
                     qr.options.forEach((opt) => {
-                        if (opt.nextNodeId) {
+                        if (opt.nextNodeId)
                             createConnectionIfMissing(
                                 opt.nextNodeId,
                                 opt.postbackText
                             )
-                        }
                     })
                 }
             }
@@ -134,12 +169,11 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                 if ('items' in list && Array.isArray(list.items)) {
                     list.items.forEach((item) => {
                         item.options?.forEach((opt) => {
-                            if ((opt as any).nextNodeId) {
+                            if ((opt as any).nextNodeId)
                                 createConnectionIfMissing(
                                     (opt as any).nextNodeId,
                                     opt.postbackText
                                 )
-                            }
                         })
                     })
                 }
@@ -168,29 +202,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
     ])
 
     /* -------------------------------------------------------------------------- */
-    /* ✏️ Edición local                                                          */
-    /* -------------------------------------------------------------------------- */
-    const handleChange = (field: keyof GetDataCompleteObject, value: any) => {
-        setLocalData((prev) => {
-            const updated = { ...prev, [field]: value }
-            setNodeData(id, updated)
-            return updated
-        })
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /* 🔄 Cambio de tipo interactivo dinámico                                     */
-    /* -------------------------------------------------------------------------- */
-    const handleInteractiveTypeChange = (
-        value: 'quick_reply' | 'list' | 'GETDATA' | 'SIMPLETEXT'
-    ) => {
-        const interactive = createEmptyInteractive(value)
-        handleChange('interactive', interactive)
-        handleChange('type', value)
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /* 🧠 Detección automática del tipo inicial                                   */
+    /* 🧠 Tipo actual detectado                                                   */
     /* -------------------------------------------------------------------------- */
     const type =
         (localData.type as string)?.toUpperCase?.() ||
@@ -209,7 +221,6 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
     const errorConnections = availableNodes
         .filter((n) => hasConnection(n.id, 'onError'))
         .map((n) => n.data?.label || n.id)
-
     const timeOutConnections = availableNodes
         .filter((n) => hasConnection(n.id, 'onTimeOut'))
         .map((n) => n.data?.label || n.id)
@@ -231,7 +242,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                     variant="outline"
                     className="border-purple-300 bg-purple-50 px-2 py-0.5 text-[10px] text-purple-800 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
                 >
-                    {id}
+                    {channel ? channel.toUpperCase() : 'SIN CANAL'}
                 </Badge>
             </div>
 
@@ -241,6 +252,47 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                 nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
+
+            {/* ⚙️ Tipo interactivo */}
+            <div className="space-y-3 border-t pt-3 dark:border-gray-800">
+                <Label className="mb-1 block text-sm font-medium">
+                    Tipo interactivo
+                </Label>
+                <Select
+                    value={type}
+                    onValueChange={(val) =>
+                        handleInteractiveTypeChange(
+                            val as
+                                | 'quick_reply'
+                                | 'list'
+                                | 'GETDATA'
+                                | 'SIMPLETEXT'
+                        )
+                    }
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Selecciona tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {allowedTypes.includes('quick_reply') && (
+                            <SelectItem value="QUICK_REPLY">
+                                💬 Quick Reply
+                            </SelectItem>
+                        )}
+                        {allowedTypes.includes('list') && (
+                            <SelectItem value="LIST">📋 List</SelectItem>
+                        )}
+                        {allowedTypes.includes('GETDATA') && (
+                            <SelectItem value="GETDATA">🧾 GetData</SelectItem>
+                        )}
+                        {allowedTypes.includes('SIMPLETEXT') && (
+                            <SelectItem value="SIMPLETEXT">
+                                🗒️ Simple Text
+                            </SelectItem>
+                        )}
+                    </SelectContent>
+                </Select>
+            </div>
 
             {/* ⚡ Nodos siguientes */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
@@ -365,38 +417,19 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                 </Accordion>
             </div>
 
-            {/* ⚙️ Configuración general */}
-            <div className="space-y-3 border-t pt-3 dark:border-gray-800">
-                <div className="pt-2">
-                    <Label className="mb-1 block text-sm font-medium">
-                        Tipo interactivo
-                    </Label>
-                    <Select
-                        value={type}
-                        onValueChange={handleInteractiveTypeChange}
-                    >
-                        <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Selecciona tipo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="QUICK_REPLY">
-                                💬 Quick Reply
-                            </SelectItem>
-                            <SelectItem value="LIST">📋 List</SelectItem>
-                            <SelectItem value="GETDATA">🧾 GetData</SelectItem>
-                            <SelectItem value="SIMPLETEXT">
-                                🗒️ Simple Text
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
-
             {/* 🧱 Formularios dinámicos */}
-            {type === 'QUICK_REPLY' && <FormGetDataCompleteQR id={id} />}
-            {type === 'LIST' && <FormGetDataCompleteList id={id} />}
-            {type === 'GETDATA' && <FormGetDataCompleteGetData id={id} />}
-            {type === 'SIMPLETEXT' && <FormGetDataCompleteSimpleText id={id} />}
+            {type === 'QUICK_REPLY' && channel === FlowChannelEnum.WHATSAPP && (
+                <FormGetDataCompleteQR id={id} />
+            )}
+            {type === 'LIST' && channel === FlowChannelEnum.WHATSAPP && (
+                <FormGetDataCompleteList id={id} />
+            )}
+            {type === 'GETDATA' && channel === FlowChannelEnum.CHATWEB && (
+                <FormGetDataCompleteGetData id={id} />
+            )}
+            {type === 'SIMPLETEXT' && channel === FlowChannelEnum.CHATWEB && (
+                <FormGetDataCompleteSimpleText id={id} />
+            )}
         </div>
     )
 }
