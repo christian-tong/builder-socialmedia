@@ -1,24 +1,35 @@
 // src\components\layout\Header.tsx
-
 'use client'
 
-import { FileJson, Menu, Settings2, UploadCloud } from 'lucide-react'
+import {
+    FileJson,
+    Menu,
+    Settings2,
+    UploadCloud,
+    Smartphone,
+    MessageSquare,
+} from 'lucide-react'
 import React, { useState } from 'react'
 import { GenerateJsonModal } from '@/components/shared/GenerateJsonModal'
 import { ImportJsonModal } from '@/components/shared/ImportJsonModal'
 import { SettingsModal } from '@/components/shared/SettingsModal'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
 import { useFlowStore } from '@/store/useFlowStore'
 import { useSidebarStore } from '@/store/useSidebarStore'
-import { validateBeforeExport } from '@/lib/flowValidations' // ✅ validación previa
+import { validateBeforeExport } from '@/lib/flowValidations'
 import LogoWimprove from '../shared/LogoWimprove'
+
+import { useFlowChannelStore } from '@/store/useFlowChannelStore'
+import { FlowChannelEnum } from '@/config/flowChannelsConfig'
 
 export function Header() {
     const { isDark } = useTheme()
     const { toggleSidebar } = useSidebarStore()
     const { exportFlow } = useFlowStore()
+    const { channel } = useFlowChannelStore()
 
     const [showJsonModal, setShowJsonModal] = useState(false)
     const [showImportModal, setShowImportModal] = useState(false)
@@ -30,7 +41,6 @@ export function Header() {
         const isValid = validateBeforeExport(nodes)
 
         if (!isValid) {
-            // 🔴 feedback visual breve
             const btn = e.currentTarget
             btn.classList.add('animate-pulse', 'bg-red-600')
             setTimeout(() => {
@@ -39,8 +49,56 @@ export function Header() {
             return
         }
 
-        // ✅ solo si es válido
         setShowJsonModal(true)
+    }
+
+    // 🧠 Definir visualización del canal actual
+    const renderChannelBadge = () => {
+        if (!channel) {
+            return (
+                <Badge
+                    variant="outline"
+                    className={cn(
+                        'px-2 py-1 text-xs font-medium',
+                        isDark
+                            ? 'border-gray-700 text-gray-400'
+                            : 'border-gray-300 text-gray-600'
+                    )}
+                >
+                    🌐 Sin canal
+                </Badge>
+            )
+        }
+
+        if (channel === FlowChannelEnum.WHATSAPP) {
+            return (
+                <Badge
+                    variant="outline"
+                    className={cn(
+                        'flex items-center gap-1 border-green-400 bg-green-50 px-2 py-1 text-xs font-medium text-green-600 dark:border-green-700 dark:bg-green-900/20 dark:text-green-300'
+                    )}
+                >
+                    <Smartphone className="h-3.5 w-3.5" />
+                    WhatsApp
+                </Badge>
+            )
+        }
+
+        if (channel === FlowChannelEnum.CHATWEB) {
+            return (
+                <Badge
+                    variant="outline"
+                    className={cn(
+                        'flex items-center gap-1 border-sky-400 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-600 dark:border-sky-700 dark:bg-sky-900/20 dark:text-sky-300'
+                    )}
+                >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Chat Web
+                </Badge>
+            )
+        }
+
+        return null
     }
 
     return (
@@ -86,7 +144,10 @@ export function Header() {
                 </div>
 
                 {/* 🔹 Lado derecho */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                    {/* 🪄 Canal actual */}
+                    {renderChannelBadge()}
+
                     {/* 📤 Exportar */}
                     <Button
                         onClick={exportFlow}
@@ -115,7 +176,7 @@ export function Header() {
                         Importar
                     </Button>
 
-                    {/* 🧠 Generar JSON (validado) */}
+                    {/* 🧠 Generar JSON */}
                     <Button
                         onClick={handleOpenGenerateJson}
                         className={cn(
