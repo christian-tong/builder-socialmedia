@@ -41,6 +41,18 @@ export function convertWiContactToFlow(json: any): {
 
     const edgeGlobalUID = () => crypto.randomUUID()
 
+    function safeDecode(value?: string): string {
+        if (!value) return ''
+        try {
+            if (/%[0-9A-Fa-f]{2}/.test(value)) {
+                return decodeURIComponent(value)
+            }
+            return value
+        } catch {
+            return value
+        }
+    }
+
     /** 🔗 Helper seguro para edges */
     const addEdge = (
         source: string,
@@ -130,41 +142,86 @@ export function convertWiContactToFlow(json: any): {
 
             case 'switchcondition': {
                 nodeType = 'switchConditionNode'
+
                 const variable: string = object.variable || ''
                 const alias: string = object.alias || ''
-                const setvariables: Record<string, string> =
-                    (object.setvariables as Record<string, string>) || {}
                 const conditions: Record<string, string> =
                     (object.conditions as Record<string, string>) || {}
                 const mode: 'strict' | 'flex' =
                     (object.body as 'strict' | 'flex') || 'strict'
 
-                const switchStore =
+                // 🧠 Cargar el store
+                const { byId, initNode } =
                     require('@/store/useSwitchConditionStore').useSwitchConditionStore.getState()
-                switchStore.initNode(id)
-                switchStore.setVariable(id, variable)
-                switchStore.setAlias(id, alias)
-                switchStore.setMode(id, mode)
 
-                const values = Object.values(setvariables) as string[]
-                values.forEach((val) => {
-                    if (typeof val === 'string' && val.length > 0)
-                        switchStore.addValue(id, val)
-                })
-                Object.entries(conditions).forEach(([val, target]) => {
-                    if (typeof target === 'string' && target)
-                        switchStore.setConnection(id, val, target)
+                const storeModule =
+                    require('@/store/useSwitchConditionStore').useSwitchConditionStore
+
+                // 🧩 Inicializar base si no existe
+                initNode(id)
+
+                // 🚿 Reemplazo completo del nodo (sin SI)
+                storeModule.setState((s: any) => ({
+                    byId: {
+                        ...s.byId,
+                        [id]: {
+                            variable,
+                            alias,
+                            mode,
+                            // 👇 Sin valor por defecto
+                            values: [],
+                            connections: {},
+                            setvariables: [],
+                        },
+                    },
+                }))
+
+                // ✅ Agregar condiciones desde el JSON
+                Object.entries(conditions).forEach(([val, target], index) => {
+                    const safeVal = val.trim()
+                    if (!safeVal) return
+
+                    storeModule.setState((s: any) => {
+                        const cur = s.byId[id]
+                        const newValues = [...cur.values, safeVal]
+                        const newConnections = {
+                            ...cur.connections,
+                            [safeVal]: target,
+                        }
+                        const newSetVars = newValues.map((v, i) => ({
+                            key: String(i + 1),
+                            value: v,
+                        }))
+                        return {
+                            byId: {
+                                ...s.byId,
+                                [id]: {
+                                    ...cur,
+                                    values: newValues,
+                                    connections: newConnections,
+                                    setvariables: newSetVars,
+                                },
+                            },
+                        }
+                    })
                 })
 
                 nodeData = {
                     label: id,
                     variable,
                     alias,
-                    setvariables,
                     conditions,
                     body: mode,
                 }
-                console.log(`🪄 [Importer] SwitchCondition inicializado: ${id}`)
+
+                console.log(
+                    `🪄 [Importer] SwitchCondition limpio y sincronizado: ${id}`,
+                    {
+                        variable,
+                        alias,
+                        conditions,
+                    }
+                )
                 break
             }
 
@@ -204,7 +261,6 @@ export function convertWiContactToFlow(json: any): {
             }
 
             /** 🧩 GETDATA COMPLETE / MENU / SIMPLETEXT VARIANTS */
-            /** 🧩 GETDATA COMPLETE / MENU / SIMPLETEXT VARIANTS (v5.10 — Normalize GetData) */
             case 'getdatacomplete':
             case 'getdata':
             case 'getdata_v2':
@@ -229,8 +285,8 @@ export function convertWiContactToFlow(json: any): {
                     for (const [numKey, val] of Object.entries(setvars)) {
                         const match = Object.entries(conditionsRaw).find(
                             ([condKey]) =>
-                                decodeURIComponent(condKey).trim() ===
-                                decodeURIComponent(val).trim()
+                                safeDecode(condKey).trim() ===
+                                safeDecode(val).trim()
                         )
                         if (match) normalizedConditions[numKey] = match[1]
                     }
@@ -271,12 +327,12 @@ export function convertWiContactToFlow(json: any): {
                 const options = (rawOptions || []).map(
                     (opt: any, i: number) => ({
                         postbackText: String(opt?.postbackText ?? i + 1),
-                        title: decodeURIComponent(String(opt?.title ?? '')),
+                        title: safeDecode(String(opt?.title ?? '')),
                         type: 'text' as const,
                     })
                 )
 
-                const prompt = decodeURIComponent(
+                const prompt = safeDecode(
                     interactiveIn.body ||
                         interactiveIn.content?.text ||
                         object.prompt ||
@@ -691,12 +747,22 @@ export function convertWiContactToFlow(json: any): {
             conditions &&
             Object.keys(conditions).length
         ) {
-            for (const [key, targetId] of Object.entries(conditions)) {
-                addEdge(id, targetId as string, `option_${key}`)
+            const entries = Object.entries(conditions)
+            entries.forEach(([key, targetId], index) => {
+                if (!targetId) return
+
+                // 🔎 Si la clave es numérica (1, 2, 3...), úsala directamente
+                const isNumeric = /^[0-9]+$/.test(key.trim())
+
+                // 🧠 Si no es numérica (ej. "Callao", "Lince"), usa el índice (empezando desde 1)
+                const handleIndex = isNumeric ? key.trim() : String(index + 1)
+
+                // 🏗️ Crear edge con enumeración segura
+                addEdge(id, targetId as string, `option_${handleIndex}`)
                 console.log(
-                    `💬 [Importer] Edge ${interactiveType} ${id} → ${targetId} (${key})`
+                    `💬 [Importer] Edge ${interactiveType} ${id} → ${targetId} (handle: option_${handleIndex}, original key: ${key})`
                 )
-            }
+            })
         }
     }
 

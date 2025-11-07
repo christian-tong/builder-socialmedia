@@ -1,7 +1,8 @@
 // src/components/forms/FormSwitchConditionNode.tsx
+
 'use client'
 
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -29,11 +30,12 @@ import { useSwitchConditionStore } from '@/store/useSwitchConditionStore'
 import { DynamicNodeConnectionsAccordionSwitch } from '@/components/shared/DynamicNodeConnectionsAccordionSwitch'
 
 /**
- * 🧩 FormSwitchConditionNode (v4.3 — Visual refinado + Colores de nodo Switch)
+ * 🧩 FormSwitchConditionNode (v5.5 — Deferred Sync + Edge Integration)
  * -------------------------------------------------------------------
- * ✅ Botón “Añadir condición”
- * ✅ Colores violetas coherentes con SwitchConditionNode
- * ✅ Valores condicionales pintados
+ * ✅ Escritura fluida sin re-renders
+ * ✅ Sincronización solo al guardar
+ * ✅ Crea edges dinámicos como el original (sin alterar v1.5)
+ * ✅ Añade nuevas condiciones automáticamente con nombre incremental
  */
 export default function FormSwitchConditionNode({
     id,
@@ -59,41 +61,71 @@ export default function FormSwitchConditionNode({
         useNodeConnections(id)
 
     const [accordionValue, setAccordionValue] = useState<string[]>(['edit'])
-    const FIXED_OPTIONS = ['SI', 'NO', 'TAL VEZ']
-    const MAX_CONDITIONS = 3
+    const [hasSaved, setHasSaved] = useState(false)
+    const [refreshKey, setRefreshKey] = useState(0)
 
-    // 🧠 Inicialización
+    // 🧠 Buffer local sin renders
+    const localValuesRef = useRef<string[]>([])
+    const forceRefresh = () => setRefreshKey((k) => k + 1)
+
+    // 🧩 Inicializa nodo y copia datos iniciales
     useEffect(() => {
         initNode(id)
     }, [id, initNode])
 
     const cfg = byId[id]
+    useEffect(() => {
+        if (cfg?.values && cfg.values.length > 0) {
+            localValuesRef.current = [...cfg.values]
+            forceRefresh()
+        }
+    }, [cfg?.values])
+
     if (!cfg) return null
 
-    // Inicializa valores base
-    useEffect(() => {
-        if (!cfg.values || cfg.values.length === 0) {
-            addValue(id, 'SI')
-            addValue(id, 'NO')
-        }
-    }, [cfg.values, addValue, id])
-
-    const canAddMore = (cfg.values?.length ?? 0) < MAX_CONDITIONS
-    const availableFixedOptions = useMemo(
-        () => FIXED_OPTIONS.filter((opt) => !cfg.values.includes(opt)),
-        [cfg.values]
-    )
-
-    // 🔍 Conexiones onTrue (igual que FormSimpleTextNode)
+    // 🔍 Conexión de tipo onTrue (igual que original)
     const trueConnections = availableNodes
         .filter((n) => hasConnection(n.id, 'onTrue'))
         .map((n) => n.id)
 
     /* -------------------------------------------------------------------------- */
-    /* 🧱 Render principal                                                        */
+    /* ✏️ Edición local de condiciones                                           */
+    /* -------------------------------------------------------------------------- */
+    const handleChangeValue = (index: number, value: string) => {
+        localValuesRef.current[index] = value
+    }
+
+    const handleAddCondition = () => {
+        const newLabel = `Condición ${localValuesRef.current.length + 1}`
+        localValuesRef.current.push(newLabel)
+        forceRefresh()
+    }
+
+    const handleRemoveCondition = (index: number) => {
+        localValuesRef.current.splice(index, 1)
+        forceRefresh()
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* 💾 Guardar cambios y mostrar conexiones                                   */
+    /* -------------------------------------------------------------------------- */
+    const handleSaveAndViewConnections = () => {
+        // Eliminar valores previos y reescribirlos
+        cfg.values.forEach((_, i) => removeValue(id, i))
+        localValuesRef.current.forEach((val, i) => {
+            if (cfg.values[i]) updateValue(id, i, val)
+            else addValue(id, val)
+        })
+
+        setHasSaved(true)
+        setAccordionValue(['connections'])
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* 🧱 Render                                                                 */
     /* -------------------------------------------------------------------------- */
     return (
-        <div className="flex flex-col gap-5">
+        <div key={refreshKey} className="flex flex-col gap-5">
             {/* 🔹 Encabezado */}
             <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
                 <Label className="text-sm font-semibold text-violet-700 dark:text-violet-300">
@@ -134,7 +166,7 @@ export default function FormSwitchConditionNode({
                 />
             </div>
 
-            {/* ⚙️ CONFIGURACIÓN BASE */}
+            {/* ⚙️ Configuración base */}
             <section className="space-y-3 border-t pt-3 dark:border-gray-800">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <div>
@@ -175,7 +207,7 @@ export default function FormSwitchConditionNode({
                 </div>
             </section>
 
-            {/* 🧩 OPCIONES Y CONEXIONES */}
+            {/* 🧩 Condiciones */}
             <section className="rounded-lg border border-violet-300 bg-violet-50/40 p-3 dark:border-violet-700 dark:bg-violet-900/10">
                 <Label className="text-xs font-semibold text-violet-700 dark:text-violet-300">
                     🧩 Condiciones del Switch
@@ -187,44 +219,28 @@ export default function FormSwitchConditionNode({
                     onValueChange={(val) => setAccordionValue(val as string[])}
                     className="mt-2"
                 >
-                    {/* ✏️ Edición de condiciones */}
+                    {/* ✏️ Edición */}
                     <AccordionItem value="edit">
                         <AccordionTrigger className="rounded-md bg-violet-100/70 px-3 py-2 text-xs text-violet-800 dark:bg-violet-900/30 dark:text-violet-200">
-                            ✏️ Editar condiciones ({cfg.values.length})
+                            ✏️ Editar condiciones (
+                            {localValuesRef.current.length})
                         </AccordionTrigger>
                         <AccordionContent className="mt-2 space-y-3">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[11px] text-gray-500">
-                                    Máximo permitido: {MAX_CONDITIONS}
-                                </span>
+                            <div className="flex justify-end">
                                 <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                        if (availableFixedOptions.length > 0)
-                                            addValue(
-                                                id,
-                                                availableFixedOptions[0]
-                                            )
-                                    }}
-                                    disabled={
-                                        !canAddMore ||
-                                        availableFixedOptions.length === 0
-                                    }
-                                    className={`${
-                                        canAddMore
-                                            ? 'border-violet-600 bg-violet-600 text-white hover:bg-violet-500'
-                                            : 'cursor-not-allowed opacity-60'
-                                    }`}
+                                    variant="default"
+                                    onClick={handleAddCondition}
+                                    className="bg-violet-600 text-white hover:bg-violet-700"
                                 >
                                     <Plus className="mr-1 h-4 w-4" /> Añadir
                                     condición
                                 </Button>
                             </div>
 
-                            {cfg.values.map((val, idx) => (
+                            {/* Lista editable sin re-render */}
+                            {localValuesRef.current.map((val, idx) => (
                                 <div
-                                    key={`${val}-${idx}`}
+                                    key={idx}
                                     className="rounded-md border border-violet-200 bg-violet-50/60 p-3 text-xs shadow-sm dark:border-violet-700 dark:bg-violet-900/20"
                                 >
                                     <div className="flex items-center justify-between">
@@ -234,52 +250,31 @@ export default function FormSwitchConditionNode({
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() => removeValue(id, idx)}
+                                            onClick={() =>
+                                                handleRemoveCondition(idx)
+                                            }
                                             className="h-5 w-5 text-red-500 hover:text-red-700"
-                                            title="Eliminar condición"
                                         >
                                             <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                     </div>
-
-                                    <div className="mt-2">
-                                        <Label className="text-[10px] text-gray-500">
-                                            Valor condicional
-                                        </Label>
-                                        <Select
-                                            value={val}
-                                            onValueChange={(newVal) =>
-                                                updateValue(id, idx, newVal)
-                                            }
-                                        >
-                                            <SelectTrigger className="h-8 border-violet-400 text-xs text-violet-700 dark:text-violet-200">
-                                                <SelectValue placeholder="Selecciona condición..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {FIXED_OPTIONS.map((opt) => (
-                                                    <SelectItem
-                                                        key={opt}
-                                                        value={opt}
-                                                        disabled={
-                                                            cfg.values.includes(
-                                                                opt
-                                                            ) && val !== opt
-                                                        }
-                                                    >
-                                                        {opt}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                    <Input
+                                        defaultValue={val}
+                                        onChange={(e) =>
+                                            handleChangeValue(
+                                                idx,
+                                                e.target.value
+                                            )
+                                        }
+                                        placeholder={`Valor ${idx + 1}`}
+                                        className="mt-2 border-violet-400 text-xs dark:text-violet-100"
+                                    />
                                 </div>
                             ))}
 
                             <div className="flex justify-end pt-2">
                                 <Button
-                                    onClick={() =>
-                                        setAccordionValue(['connections'])
-                                    }
+                                    onClick={handleSaveAndViewConnections}
                                     className="bg-violet-600 text-white hover:bg-violet-700"
                                 >
                                     💾 Guardar y ver conexiones
@@ -288,7 +283,7 @@ export default function FormSwitchConditionNode({
                         </AccordionContent>
                     </AccordionItem>
 
-                    {/* 🔗 Conexiones dinámicas */}
+                    {/* 🔗 Conexiones dinámicas (idéntico al original) */}
                     <AccordionItem value="connections">
                         <AccordionTrigger className="rounded-md bg-violet-100/60 px-3 py-2 text-xs text-violet-800 dark:bg-violet-900/30 dark:text-violet-200">
                             🔗 Conexiones condicionales
@@ -296,6 +291,7 @@ export default function FormSwitchConditionNode({
                         <AccordionContent className="mt-2">
                             <DynamicNodeConnectionsAccordionSwitch
                                 nodeId={id}
+                                key={hasSaved ? 'saved' : 'unsaved'}
                                 options={cfg.values.map((v) => ({
                                     id: v,
                                     label: v,

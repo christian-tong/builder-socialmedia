@@ -1,4 +1,4 @@
-// src\services\botService.ts
+// src\services\postBotService.ts
 
 'use client'
 
@@ -43,7 +43,7 @@ function resolveBotType(channel?: string): string {
 export async function postBotFlow(
     payload: BotPayload,
     apiUrl = process.env.NEXT_PUBLIC_API_URL ??
-        'https://demo.wimprove.com/workflow/addBot'
+        'https://localhost:44385/workflow/addBot'
 ): Promise<BotResponse> {
     try {
         const botType = resolveBotType(payload.channel)
@@ -71,7 +71,19 @@ export async function postBotFlow(
             throw new Error(`Error ${response.status}: ${errorText}`)
         }
 
-        const data = await response.json()
+        // ✅ Manejar casos donde la respuesta está vacía (204 o sin body)
+        let data: any = null
+        const contentLength = response.headers.get('content-length')
+
+        if (response.status !== 204 && contentLength !== '0') {
+            try {
+                data = await response.json()
+            } catch {
+                // Si no hay JSON válido, se ignora el error silenciosamente
+                data = null
+            }
+        }
+
         return { success: true, data }
     } catch (error: any) {
         console.error('❌ Error en postBotFlow:', error)

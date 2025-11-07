@@ -21,6 +21,7 @@ D:.
 ¦   ¦   ¦   FormMySQLQueryNode.tsx
 ¦   ¦   ¦   FormNoOpNode.tsx
 ¦   ¦   ¦   FormSaveRecordNode.tsx
+¦   ¦   ¦   FormSetCustomerIDNode.tsx
 ¦   ¦   ¦   FormSimpleTextNode.tsx
 ¦   ¦   ¦   FormStartNode.tsx
 ¦   ¦   ¦   FormSwitchConditionNode.tsx
@@ -28,18 +29,12 @@ D:.
 ¦   ¦   ¦   FormVariablesNode.tsx
 ¦   ¦   ¦   
 ¦   ¦   +---Menu
-¦   ¦   ¦       FormGetDataCompleteBase.tsx
-¦   ¦   ¦       FormGetDataCompleteGetData.tsx
-¦   ¦   ¦       FormGetDataCompleteList.tsx
-¦   ¦   ¦       FormGetDataCompleteQR.tsx
-¦   ¦   ¦       FormGetDataCompleteSimpleText.tsx
-¦   ¦   ¦       
-¦   ¦   +---Variants
-¦   ¦       +---Menu
-¦   ¦               index.ts
-¦   ¦               VariantListForm.tsx
-¦   ¦               VariantQuickReplyForm.tsx
-¦   ¦               
+¦   ¦           FormGetDataCompleteBase.tsx
+¦   ¦           FormGetDataCompleteGetData.tsx
+¦   ¦           FormGetDataCompleteList.tsx
+¦   ¦           FormGetDataCompleteQR.tsx
+¦   ¦           FormGetDataCompleteSimpleText.tsx
+¦   ¦           
 ¦   +---layout
 ¦   ¦       Footer.tsx
 ¦   ¦       Header.tsx
@@ -57,6 +52,7 @@ D:.
 ¦   ¦       MySQLQueryNode.tsx
 ¦   ¦       NoOpNode.tsx
 ¦   ¦       SaveRecordNode.tsx
+¦   ¦       SetCustomerIDNode.tsx
 ¦   ¦       SimpleTextNode.tsx
 ¦   ¦       StartNode.tsx
 ¦   ¦       SwitchConditionNode.tsx
@@ -67,6 +63,8 @@ D:.
 ¦   ¦       BeforeUnloadModal.tsx
 ¦   ¦       ColorPicker.tsx
 ¦   ¦       DraggableWrapper.tsx
+¦   ¦       DynamicNodeConnectionsAccordion.tsx
+¦   ¦       DynamicNodeConnectionsAccordionSwitch.tsx
 ¦   ¦       GenerateJsonModal.tsx
 ¦   ¦       Icon.tsx
 ¦   ¦       ImportJsonModal.tsx
@@ -76,6 +74,7 @@ D:.
 ¦   ¦       NodeFlowConnectionsManager.tsx
 ¦   ¦       NodeSelectAccordion.tsx
 ¦   ¦       OptionFlowManager.tsx
+¦   ¦       SettingsModal.tsx
 ¦   ¦       VariableMentionsText.tsx
 ¦   ¦       VariantBaseConfigFields.tsx
 ¦   ¦       VariantOptionAccordion.tsx
@@ -96,6 +95,7 @@ D:.
 ¦           sonner.tsx
 ¦           switch.tsx
 ¦           textarea.tsx
+¦           tooltip.tsx
 ¦           
 +---config
 ¦       baseVariantFields.ts
@@ -159,6 +159,8 @@ D:.
 ¦   ¦   useNodeConfigStore.ts
 ¦   ¦   usePendingConnectionsStore.ts
 ¦   ¦   useSaveRecordStore.ts
+¦   ¦   useSetCustomerIDStore.ts
+¦   ¦   useSettngsStore.ts
 ¦   ¦   useSidebarStore.ts
 ¦   ¦   useSwitchConditionStore.ts
 ¦   ¦   useThemeStore.ts

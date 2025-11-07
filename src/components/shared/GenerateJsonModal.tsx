@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 import { useFlowStore } from '@/store/useFlowStore'
 import { generateValidatedJson } from '@/lib/flowValidations'
 import { useFlowChannelStore } from '@/store/useFlowChannelStore'
-import { postBotFlow } from '@/services/botService'
+import { postBotFlow } from '@/services/postBotService'
 
 export function GenerateJsonModal({
     open,
