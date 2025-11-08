@@ -1,5 +1,4 @@
 // src\hooks\useNodeConnections.ts
-
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -13,13 +12,13 @@ import {
 } from '@/store/useVariantTypeStore'
 
 /**
- * 🧠 useNodeConnections (v6.5 — integración total con FlowAutoEdgeSync)
+ * 🧠 useNodeConnections (v6.6 — TypeSafe Sync + AutoEdge Reflow)
  * ------------------------------------------------------------------------
- * ✅ Modo local → manejar conexiones específicas de un nodo
- * ✅ Modo global → permite crear edges dinámicamente sin nodeId
- * ✅ Integrado con FlowAutoEdgeSync (QR, List, GetData, SimpleText, SaveRecord)
- * ✅ Previene duplicados, valida conexión y aplica color por tipo
- * ✅ Exporte extendido: createConnectionIfMissingGlobal
+ * ✅ Compatible con FlowAutoEdgeSync, DynamicNodeConnectionsAccordion
+ * ✅ Corrige tipado (Connection.sourceHandle: string | null)
+ * ✅ Previene duplicados y valida conexión
+ * ✅ Crea edges con color dinámico según tipo / handle
+ * ✅ Sincroniza automáticamente los stores cuando cambian edges
  */
 
 export function useNodeConnections(nodeId?: string, debug = false) {
@@ -36,7 +35,7 @@ export function useNodeConnections(nodeId?: string, debug = false) {
             : nodes.filter((n) => n.type !== 'startNode')
     }, [nodes, nodeId])
 
-    // 🔁 Sincroniza nodos previos y siguientes solo si hay nodeId
+    // 🔁 Sincroniza nodos previos y siguientes
     useEffect(() => {
         if (!nodeId) return
         const { prev, next } = getConnectedNodes(nodeId)
@@ -57,13 +56,7 @@ export function useNodeConnections(nodeId?: string, debug = false) {
 
     /** ⚙️ Crea una conexión con detección automática del tipo de handle */
     const createConnection = (targetId: string, handleId?: string) => {
-        if (!nodeId) {
-            if (debug)
-                console.warn(
-                    '⚠️ createConnection llamado sin nodeId (modo global ignorado)'
-                )
-            return
-        }
+        if (!nodeId) return
 
         const sourceNode = nodes.find((n) => n.id === nodeId)
         const targetNode = nodes.find((n) => n.id === targetId)
@@ -118,7 +111,7 @@ export function useNodeConnections(nodeId?: string, debug = false) {
             source: nodeId,
             target: targetId,
             type: 'smoothstep',
-            sourceHandle: globalHandleId ?? undefined,
+            sourceHandle: globalHandleId ?? null,
             animated: true,
             style: { strokeWidth: 2, stroke: color },
         }
@@ -177,12 +170,25 @@ export function useNodeConnections(nodeId?: string, debug = false) {
         else removeConnection(targetId, handleId)
     }
 
-    /** 🧩 Crea una conexión solo si no existe (modo seguro para saveCallback) */
+    /** 🧩 Crea una conexión solo si no existe */
     const createConnectionIfMissing = (targetId: string, handleId?: string) => {
         if (!nodeId) return
         const exists = hasConnection(targetId, handleId)
         if (!exists) createConnection(targetId, handleId)
     }
+
+    /* ---------------------------------------------------------------------- */
+    /* 🔄 Extra opcional: sincronización automática con cambios de edges       */
+    /* ---------------------------------------------------------------------- */
+    useEffect(() => {
+        if (!nodeId) return
+        const { next } = getConnectedNodes(nodeId)
+        setNextNodes(next.map((n) => n.data?.label || n.id))
+        if (debug)
+            console.log(
+                `🧭 Sync automático de conexiones → ${nodeId}: ${next.length} edges`
+            )
+    }, [edges, nodeId, getConnectedNodes, debug])
 
     return {
         prevNodes,
@@ -199,29 +205,20 @@ export function useNodeConnections(nodeId?: string, debug = false) {
 /* -------------------------------------------------------------------------- */
 /* 🌐 Export global para integraciones externas (FlowAutoEdgeSync, etc.)      */
 /* -------------------------------------------------------------------------- */
-
 import { useFlowStore as globalFlowStore } from '@/store/useFlowStore'
 
-/**
- * 🔗 createConnectionIfMissingGlobal
- * ----------------------------------------------------------------
- * Permite crear edges automáticamente desde sincronizadores globales
- * sin usar un hook local.
- * Ejemplo: usado en FlowAutoEdgeSync para GETDATA y SIMPLETEXT.
- */
 export function createConnectionIfMissingGlobal(
     sourceId: string,
     targetId: string,
     handleId?: string
 ) {
-    const { edges, setEdges, nodes } = globalFlowStore.getState()
+    const { edges, setEdges } = globalFlowStore.getState()
     const exists = edges.some(
         (e) =>
             e.source === sourceId &&
             e.target === targetId &&
             (handleId ? e.sourceHandle === handleId : true)
     )
-
     if (exists) return
 
     const newEdge: Edge = {
@@ -229,7 +226,7 @@ export function createConnectionIfMissingGlobal(
         source: sourceId,
         target: targetId,
         type: 'smoothstep',
-        sourceHandle: handleId,
+        sourceHandle: handleId ?? null,
         animated: true,
         style: { strokeWidth: 2, stroke: '#fbbf24' },
     }

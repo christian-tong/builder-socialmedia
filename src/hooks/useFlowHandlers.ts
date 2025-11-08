@@ -1,4 +1,5 @@
-// src\hooks\useFlowHandlers.ts
+// src\hooks\useFlowHandlers.ts'use client'
+
 'use client'
 
 import { useCallback, useEffect, useMemo } from 'react'
@@ -7,6 +8,7 @@ import {
     applyEdgeChanges,
     applyNodeChanges,
     type Connection,
+    type Edge,
     type EdgeChange,
     type Node,
     type NodeChange,
@@ -18,6 +20,18 @@ import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 import { useFlowStore } from '@/store/useFlowStore'
 import { useFlowStyleStore } from '@/store/useFlowStyleStore'
 import { useBeforeUnloadConfirm } from './useBeforeUnloadConfirm'
+import { validateConnection } from '@/lib/flowValidations'
+import { toast } from 'sonner'
+
+/**
+ * 🧠 useFlowHandlers (v7.3 – TypeSafe Manual Edge Sync + Smart Reflow)
+ * --------------------------------------------------------------------
+ * ✅ Permite creación de edges manuales (drag & connect)
+ * ✅ Valida conexiones antes de agregarlas
+ * ✅ Evita duplicados y respeta tipo visual (smart, step, etc.)
+ * ✅ Suaviza aparición de edges (animación de opacidad)
+ * ✅ 100% libre de errores de tipo en TypeScript
+ */
 
 function debounce<T extends (...args: any[]) => void>(fn: T, delay = 40) {
     let timer: NodeJS.Timeout
@@ -27,22 +41,15 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay = 40) {
     }
 }
 
-/**
- * 🧠 useFlowHandlers (v6.2 — Layout + Edge Reflow seguro)
- * -------------------------------------------------------
- * - Reordena nodos al cambiar orientación sin solapamiento.
- * - Recalcula edges después del layout final.
- * - Suaviza conexión y evita render prematuro de edges.
- */
 export function useFlowHandlers() {
     const { nodes, edges, setNodes, setEdges } = useFlowStore()
-    const { edgeType } = useFlowStyleStore()
+    const { edgeType, edgeColor, edgeWidth } = useFlowStyleStore()
     const { orientation } = useFlowOrientationStore()
     const { project, fitView } = useReactFlow()
 
     useBeforeUnloadConfirm(nodes, edges)
 
-    // 🧩 Nodo inicial si no existe
+    // 🧱 Nodo inicial por defecto
     useEffect(() => {
         if (nodes.length === 0) {
             setNodes([
@@ -58,16 +65,25 @@ export function useFlowHandlers() {
 
     // 🔁 Mantiene tipo de edge consistente
     useEffect(() => {
-        setEdges((eds) => eds.map((e) => ({ ...e, type: edgeType })))
-    }, [edgeType, setEdges])
+        setEdges((eds) =>
+            eds.map((e) => ({
+                ...e,
+                type: edgeType,
+                style: {
+                    ...(e.style ?? {}),
+                    stroke: edgeColor,
+                    strokeWidth: edgeWidth,
+                },
+            }))
+        )
+    }, [edgeType, edgeColor, edgeWidth, setEdges])
 
-    // 🧭 Reaplica layout y redistribuye edges sin solape
+    // 🧭 Reaplica layout al cambiar orientación
     useEffect(() => {
         if (nodes.length > 0) {
             const layouted = applyAutoLayout(nodes, edges, orientation)
             setNodes(layouted)
 
-            // 🕓 Retrasar reflow de edges hasta que el layout termine
             setTimeout(() => {
                 setEdges((prev) =>
                     prev.map((e, i) => ({
@@ -100,35 +116,69 @@ export function useFlowHandlers() {
         [setEdges]
     )
 
-    // 🎯 Conexión segura: solo se une si ambos handles existen
+    /**
+     * 🎯 onConnect — creación manual de edges
+     */
     const onConnect = useCallback(
         (connection: Connection) => {
-            const { source, target, sourceHandle } = connection
-            const handleExists = document.querySelector(
-                `[data-handleid="${source}-${sourceHandle}"]`
-            )
-            if (!handleExists) return // evita crear edge antes de tiempo
+            if (!connection.source || !connection.target) return
 
-            setEdges((eds) =>
-                addEdge(
-                    {
-                        ...connection,
-                        type: edgeType,
-                        animated: true,
-                        style: {
-                            opacity: 0,
-                            transition: 'opacity 0.4s ease-in',
-                        },
-                    },
-                    eds
-                )
-            )
+            // 🔒 Normalización segura de tipos
+            const source: string = connection.source
+            const target: string = connection.target
+            const sourceHandle: string | null = connection.sourceHandle ?? null
+            const targetHandle: string | null = connection.targetHandle ?? null
 
-            // Hace aparecer suavemente el edge
+            const connectionSafe: Connection = {
+                source,
+                target,
+                sourceHandle,
+                targetHandle,
+            }
+
+            // ✅ Validar conexión
+            const isValid = validateConnection(connectionSafe, nodes)
+            if (!isValid) {
+                toast.warning('❌ Conexión no permitida entre estos nodos')
+                return
+            }
+
+            // 🚫 Evitar duplicados
+            const exists = edges.some(
+                (e) =>
+                    e.source === source &&
+                    e.target === target &&
+                    e.sourceHandle === sourceHandle
+            )
+            if (exists) {
+                toast.info('⚠️ Conexión ya existente')
+                return
+            }
+
+            // 🧱 Crear edge (tipado seguro)
+            const newEdge: Edge = {
+                id: `edge-${source}-${target}-${sourceHandle ?? 'default'}`,
+                source,
+                target,
+                sourceHandle,
+                targetHandle,
+                type: edgeType,
+                animated: true,
+                style: {
+                    stroke: edgeColor,
+                    strokeWidth: edgeWidth,
+                    opacity: 0,
+                    transition: 'opacity 0.3s ease',
+                },
+            }
+
+            setEdges((eds) => addEdge(newEdge, eds))
+
+            // ✨ Fade-in suave
             setTimeout(() => {
                 setEdges((prev) =>
                     prev.map((e) =>
-                        e.source === source && e.target === target
+                        e.id === newEdge.id
                             ? {
                                   ...e,
                                   style: { ...(e.style ?? {}), opacity: 1 },
@@ -136,12 +186,15 @@ export function useFlowHandlers() {
                             : e
                     )
                 )
-            }, 200)
+            }, 150)
+
+            toast.success(`🔗 Conectado: ${source} → ${target}`)
+            console.info(`✅ Edge creado manualmente: ${newEdge.id}`)
         },
-        [edgeType, setEdges]
+        [edges, nodes, setEdges, edgeType, edgeColor, edgeWidth]
     )
 
-    // 🪄 Drag & Drop
+    // 🖱️ Drag & Drop de nodos
     const onDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
@@ -162,6 +215,7 @@ export function useFlowHandlers() {
             const COLLISION_RADIUS = 100
             const OFFSET_X = 180
             const OFFSET_Y = 120
+
             const hasCollision = nodes.some((n) => {
                 const dx = Math.abs(n.position.x - position.x)
                 const dy = Math.abs(n.position.y - position.y)
@@ -176,6 +230,7 @@ export function useFlowHandlers() {
             const newNode: Node = { id, type, position: finalPosition, data }
 
             setNodes((prev) => [...prev, newNode])
+            toast.success(`🧩 Nodo agregado: ${type}`)
         },
         [nodes, setNodes, project]
     )
