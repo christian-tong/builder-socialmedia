@@ -42,8 +42,7 @@ function resolveBotType(channel?: string): string {
  */
 export async function postBotFlow(
     payload: BotPayload,
-    apiUrl = process.env.NEXT_PUBLIC_API_URL ??
-        'https://localhost:44385/workflow/addBot'
+    apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'https://localhost:44385'
 ): Promise<BotResponse> {
     try {
         const botType = resolveBotType(payload.channel)
@@ -60,7 +59,7 @@ export async function postBotFlow(
             metodo: -1,
         }
 
-        const response = await fetch(apiUrl, {
+        const response = await fetch(`${apiUrl}/workflow/addBot`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(finalPayload),

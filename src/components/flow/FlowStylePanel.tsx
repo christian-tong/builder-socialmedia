@@ -32,6 +32,7 @@ export function FlowStylePanel() {
         { key: 'straight', label: 'Recto' },
         { key: 'step', label: 'Escalonado' },
         { key: 'smoothstep', label: 'Suave' },
+        { key: 'smart', label: 'Smart' }, // 🧠 nuevo
     ] as const
 
     const aspects = [

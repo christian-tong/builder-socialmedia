@@ -1,19 +1,14 @@
 // src\store\useFlowStyleStore.ts
-
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 type BackgroundType = 'dots' | 'lines'
-type EdgeType = 'default' | 'straight' | 'step' | 'smoothstep'
+type EdgeType = 'default' | 'straight' | 'step' | 'smoothstep' | 'smart'
 type EdgeAspect = 'solid' | 'dashed' | 'dotted'
 
 interface FlowStyleState {
     backgroundType: BackgroundType
-
-    // Forma geométrica del edge (React Flow types)
     edgeType: EdgeType
-
-    // Apariencia visual extra
     edgeAspect: EdgeAspect
     edgeAnimated: boolean
     edgeColor: string
@@ -29,14 +24,15 @@ interface FlowStyleState {
 
 /**
  * 🎨 Store global de personalización del canvas de flujo
+ * ------------------------------------------------------
  * - Persistente con localStorage
+ * - Compatible con el tipo de edge "smart"
  */
 export const useFlowStyleStore = create<FlowStyleState>()(
     persist(
         (set) => ({
             backgroundType: 'dots',
-
-            edgeType: 'default',
+            edgeType: 'smart', // 🔹 valor por defecto
             edgeAspect: 'solid',
             edgeAnimated: false,
             edgeColor: '#0f0f0f',

@@ -30,8 +30,7 @@ export interface BotListResponse {
  */
 export async function getListBots(
     type: string = 'WSP',
-    apiUrl = process.env.NEXT_PUBLIC_API_URL ??
-        'https://localhost:44385/workflow/listBot'
+    apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'https://localhost:44385'
 ): Promise<BotListResponse> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 15000)
@@ -39,7 +38,7 @@ export async function getListBots(
     try {
         toast.loading('Cargando lista de bots...', { id: 'bots-list' })
 
-        const url = `${apiUrl}?type=${encodeURIComponent(type)}`
+        const url = `${apiUrl}/workflow/listBot?type=${encodeURIComponent(type)}`
         const response = await fetch(url, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },

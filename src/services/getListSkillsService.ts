@@ -32,8 +32,7 @@ export interface SkillListResponse {
  * - Retorna solo los campos relevantes del endpoint obtenerSkills
  */
 export async function getListSkills(
-    apiUrl = process.env.NEXT_PUBLIC_API_URL_AGENTE ??
-        'https://localhost:44385/api/agente/obtenerSkills'
+    apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'https://localhost:44385'
 ): Promise<SkillListResponse> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 15000)
@@ -41,7 +40,7 @@ export async function getListSkills(
     try {
         toast.loading('Cargando lista de skills...', { id: 'skills-list' })
 
-        const response = await fetch(apiUrl, {
+        const response = await fetch(`${apiUrl}/api/agente/obtenerSkills`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
             cache: 'no-store',

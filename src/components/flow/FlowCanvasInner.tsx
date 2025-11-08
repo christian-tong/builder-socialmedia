@@ -23,12 +23,15 @@ import { useFlowStore } from '@/store/useFlowStore'
 import { useShallow } from 'zustand/react/shallow'
 import { convertWiContactToFlow } from '@/lib/jsonImporterWiContact'
 
+// 🧩 Tipo de edge personalizado
+import SmartEdge from '@/components/edges/SmartEdge'
+
 /**
- * 🧩 FlowCanvasInner (v6.7 – Safe Async Integration)
+ * 🧠 FlowCanvasInner (v7.1 – SmartEdge + Dynamic EdgeType)
  * ------------------------------------------------------------
- * ✅ Usa await convertWiContactToFlow (async)
- * ✅ Previene crash si nodes/edges son undefined
- * ✅ Asegura arrays vacíos antes de pasar a ReactFlow
+ * ✅ Alterna entre tipos de edge (default, straight, step, smoothstep, smart)
+ * ✅ Integra SmartEdge con offsets dinámicos
+ * ✅ Evita solapamiento visual sin romper compatibilidad
  */
 export default function FlowCanvasInner() {
     const { theme } = useThemeStore()
@@ -70,12 +73,10 @@ export default function FlowCanvasInner() {
                     ? result.edges
                     : []
 
-                // 🧱 Paso 1 — render inicial sin edges
                 setNodes(builtNodes)
                 setEdges([])
                 setPhase('nodes')
 
-                // 🧩 Paso 2 — agregar edges luego de un delay corto
                 const timer = setTimeout(() => {
                     const validIds = new Set(builtNodes.map((n) => n.id))
                     const safeEdges = builtEdges.filter(
@@ -128,41 +129,33 @@ export default function FlowCanvasInner() {
         onTimeOutError: '💥 timeOutError',
     } as const
 
-    /** 🪄 Offsets curvos para separar edges */
-    const baseOffsets =
-        orientation === 'horizontal'
-            ? {
-                  onTrue: 0.25,
-                  onFalse: -0.25,
-                  onError: 0.4,
-                  onTimeOut: 0.15,
-                  onTimeOutError: -0.15,
-              }
-            : {
-                  onTrue: 0.35,
-                  onFalse: -0.35,
-                  onError: 0.6,
-                  onTimeOut: 0.2,
-                  onTimeOutError: -0.2,
-              }
-
-    /** ✨ Edge Styling Dinámico */
+    /** 🧮 Estilizado dinámico de edges */
     const styledEdges: Edge[] = useMemo(() => {
         if (!Array.isArray(edges)) return []
-        return edges.map((e, i) => {
+
+        // Agrupar edges por (source + handle)
+        const grouped: Record<string, Edge[]> = {}
+        for (const e of edges) {
+            const key = `${e.source}-${e.sourceHandle || 'default'}`
+            if (!grouped[key]) grouped[key] = []
+            grouped[key].push(e)
+        }
+
+        return edges.map((e) => {
+            const key = `${e.source}-${e.sourceHandle || 'default'}`
+            const group = grouped[key]
+            const index = group.indexOf(e)
+            const offsetIndex = index - (group.length - 1) / 2
             const handle = e.sourceHandle as keyof typeof handleLabels
-            const offset = handle
-                ? (baseOffsets[handle] ?? 0)
-                : i % 2
-                  ? 0.25
-                  : -0.25
-            const curvature =
-                orientation === 'horizontal' ? 0.35 + offset : 0.45 + offset
             const label = handle ? handleLabels[handle] : ''
+
+            // 🧩 Determina tipo dinámico de edge
+            const resolvedType =
+                edgeType === 'smart' ? 'smart' : (edgeType as Edge['type'])
 
             return {
                 ...e,
-                type: edgeType,
+                type: resolvedType,
                 animated: edgeAnimated,
                 label,
                 labelBgPadding: [6, 3],
@@ -175,13 +168,24 @@ export default function FlowCanvasInner() {
                     strokeWidth: 0.5,
                 },
                 markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
-                curvature,
                 style: {
                     ...(e.style ?? {}),
                     stroke: edgeColor,
                     strokeWidth: edgeWidth,
                     strokeDasharray: dash,
+                    transition: 'all 0.3s ease', // animación suave al cambiar tipo/color
                 },
+                data:
+                    edgeType === 'smart'
+                        ? {
+                              offsetIndex,
+                              offsetStrength: 40,
+                              curvature:
+                                  orientation === 'horizontal'
+                                      ? 0.35 + Math.abs(offsetIndex) * 0.05
+                                      : 0.45 + Math.abs(offsetIndex) * 0.05,
+                          }
+                        : undefined,
             }
         })
     }, [
@@ -192,9 +196,11 @@ export default function FlowCanvasInner() {
         edgeWidth,
         dash,
         theme,
-        baseOffsets,
         orientation,
     ])
+
+    /** 🔌 Registro de tipos de edge personalizados */
+    const edgeTypes = useMemo(() => ({ smart: SmartEdge }), [])
 
     return (
         <>
@@ -203,13 +209,14 @@ export default function FlowCanvasInner() {
                 nodes={Array.isArray(nodes) ? nodes : []}
                 edges={Array.isArray(styledEdges) ? styledEdges : []}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 onNodesChange={handlers.onNodesChange}
                 onEdgesChange={handlers.onEdgesChange}
                 onConnect={handlers.onConnect}
                 onDrop={handlers.onDrop}
                 onDragOver={handlers.onDragOver}
                 fitView
-                className="h-full w-full"
+                className="h-full w-full transition-all"
             >
                 <Background
                     variant={bgVariant}

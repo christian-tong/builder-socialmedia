@@ -13,6 +13,8 @@ import type {
 } from '@/types/getDataComplete'
 import { nodeTypes } from '@/config/nodesConfig'
 import { getListSkills } from '@/services/getListSkillsService'
+import { applyAutoLayout } from '@/lib/autoLayout'
+import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 
 /**
  * 🔁 convertWiContactToFlow (v5.6 – VariablesStore Sync)
@@ -788,11 +790,93 @@ export async function convertWiContactToFlow(json: any): Promise<{
         }
     }
 
-    // 📍 Layout básico
-    nodes.forEach(
-        (n, i) =>
-            (n.position = { x: (i % 5) * 320, y: Math.floor(i / 5) * 220 })
-    )
+    /**
+     * 📊 buildActionHierarchy (v2.1)
+     * ---------------------------------------
+     * Analiza las relaciones de onTrue / onFalse / onError
+     * y genera un mapa de jerarquías dinámico.
+     */
+    function buildActionHierarchy(steps: any[]): Record<number, string[]> {
+        const hierarchy: Record<number, string[]> = {}
+        const visited = new Set<string>()
+        const adjacency: Record<string, string[]> = {}
+
+        // 🧱 Construir mapa de adyacencia
+        for (const step of steps) {
+            const outputs = [step.onTrue, step.onFalse, step.onError].filter(
+                Boolean
+            )
+            adjacency[step.id] = outputs
+        }
+
+        // 🚀 Iniciar BFS desde el StartStep
+        const startNode = steps.find((s) =>
+            String(s.action).toLowerCase().includes('start')
+        )
+        if (!startNode) return hierarchy
+
+        const queue: { id: string; level: number }[] = [
+            { id: startNode.id, level: 0 },
+        ]
+
+        while (queue.length) {
+            const { id, level } = queue.shift()!
+            if (visited.has(id)) continue
+            visited.add(id)
+
+            const step = steps.find((s) => s.id === id)
+            const action = String(step?.action || 'other').toLowerCase()
+
+            if (!hierarchy[level]) hierarchy[level] = []
+            if (!hierarchy[level].includes(action))
+                hierarchy[level].push(action)
+
+            const neighbors = adjacency[id] || []
+            for (const n of neighbors) queue.push({ id: n, level: level + 1 })
+        }
+
+        // 🧠 Log visual en tabla
+        console.groupCollapsed('🧭 Jerarquía detectada (buildActionHierarchy)')
+        const table = Object.entries(hierarchy).map(([level, actions]) => ({
+            nivel: level,
+            tipos: actions.join(', '),
+        }))
+        console.table(table)
+        console.groupEnd()
+
+        return hierarchy
+    }
+
+    // ==========================
+    // 📍 AUTO-LAYOUT COMPACTO DAGRE (v5.8 – Reactivo con orientación)
+    // ==========================
+
+    // 🔧 Detectar orientación global (vertical / horizontal)
+    const { orientation } = useFlowOrientationStore.getState()
+
+    // 🪄 Aplicar auto-layout inteligente
+    try {
+        const arrangedNodes = applyAutoLayout(nodes, edges, orientation)
+
+        // 💡 Compactar un poco más reduciendo el ranksep y nodesep en el gráfico
+        // (esto se maneja dentro de applyAutoLayout, pero puedes ajustar aquí si lo deseas)
+        arrangedNodes.forEach((n) => {
+            n.position.x = n.position.x * 0.9 // 10% más juntos horizontalmente
+            n.position.y = n.position.y * 0.8 // 20% más juntos verticalmente
+        })
+
+        nodes.splice(0, nodes.length, ...arrangedNodes)
+        console.log(`📐 AutoLayout aplicado (${orientation})`)
+    } catch (err) {
+        console.warn('⚠️ AutoLayout falló, usando posiciones por defecto:', err)
+        nodes.forEach(
+            (n, i) =>
+                (n.position = {
+                    x: (i % 6) * 240 + 100,
+                    y: Math.floor(i / 6) * 160 + 120,
+                })
+        )
+    }
 
     console.log(
         '✅ Nodos renderizados:',
