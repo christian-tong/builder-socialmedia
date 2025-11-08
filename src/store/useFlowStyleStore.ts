@@ -35,8 +35,8 @@ export const useFlowStyleStore = create<FlowStyleState>()(
             edgeType: 'smart', // 🔹 valor por defecto
             edgeAspect: 'solid',
             edgeAnimated: false,
-            edgeColor: '#0f0f0f',
-            edgeWidth: 2,
+            edgeColor: '#7A7D7D',
+            edgeWidth: 1,
 
             setBackgroundType: (type) => set({ backgroundType: type }),
             setEdgeType: (type) => set({ edgeType: type }),
