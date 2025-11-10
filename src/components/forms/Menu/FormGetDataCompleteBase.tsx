@@ -236,7 +236,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
             {/* 🏷️ Encabezado */}
             <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
                 <Label className="text-sm font-semibold text-purple-600 dark:text-purple-300">
-                    Configuración GetDataComplete
+                    Configuración Captura de Datos
                 </Label>
                 <Badge
                     variant="outline"
