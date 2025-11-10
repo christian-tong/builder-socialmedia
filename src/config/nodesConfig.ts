@@ -51,7 +51,7 @@ export const nodeRegistry = [
     },
     {
         type: 'menuNode',
-        label: 'Menú',
+        label: 'Captura de Datos',
         icon: ListTree,
         component: MenuNode,
     },
