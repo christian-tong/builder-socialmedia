@@ -11,12 +11,13 @@ import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { NodeConnectionsAccordion } from '@/components/shared/NodeConnectionsAccordion'
 
 /**
- * 🟥 FormEndNode (v2.1 – Estandarizado)
- * --------------------------------------------------
- * - Aplica estructura visual del Prompt Base v1.1
- * - Solo incluye conexión entrante (prev)
- * - Colores rojos coherentes con su tipo de nodo (fin de flujo)
- * - Conserva campo editable `hangupCause`
+ * 🟥 FormEndNode (v3.0 – Descripción estandarizada + coherencia visual)
+ * ---------------------------------------------------------------------
+ * ✅ Aplica estructura del Prompt Base v1.1
+ * ✅ Campo “Descripción” agregado al final (border-t pt-3)
+ * ✅ Colores rojos consistentes
+ * ✅ Mantiene campo `hangupCause`
+ * ✅ Solo incluye conexión entrante
  */
 export default function FormEndNode({
     id,
@@ -35,6 +36,13 @@ export default function FormEndNode({
         const { prev } = getConnectedNodes(id)
         setPrevNodes(prev.map((n) => n.data?.label || n.id))
     }, [edges, nodes, id, getConnectedNodes])
+
+    // ✏️ Actualizar descripción
+    const handleDescriptionChange = (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        updateNodeData(id, { description: e.target.value })
+    }
 
     return (
         <div className="flex flex-col gap-5">
@@ -57,6 +65,23 @@ export default function FormEndNode({
                 nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
+
+            {/* 📝 Descripción estandarizada */}
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
+                </Label>
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del paso..."
+                    value={data.description || ''}
+                    onChange={handleDescriptionChange}
+                    className="text-sm"
+                />
+            </div>
 
             {/* ☎️ Causa del colgado */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">

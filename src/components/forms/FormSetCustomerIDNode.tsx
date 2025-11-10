@@ -1,4 +1,5 @@
 // src\components\forms\FormSetCustomerIDNode.tsx
+
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -25,11 +26,13 @@ interface KeyValue {
 }
 
 /**
- * 🧠 FormSetCustomerIDNode (v1.7 — integrado con Zustand)
- * ------------------------------------------------------------
- * ✅ Sin loops de render
- * ✅ Guarda opciones en store + nodeData
- * ✅ Sincroniza automáticamente con el nodo visual
+ * 🧠 FormSetCustomerIDNode (v3.0 – Descripción después de onTrue)
+ * -----------------------------------------------------------------
+ * ✅ Mismo layout y estilo institucional que FormMySQLQueryNode
+ * ✅ Campo de descripción colocado debajo de la conexión onTrue
+ * ✅ Integrado con useSetCustomerIDStore
+ * ✅ Colores azul acero (#2C5282)
+ * ✅ Guardado sincronizado con ReactFlow y Zustand
  */
 export default function FormSetCustomerIDNode({
     id,
@@ -40,20 +43,16 @@ export default function FormSetCustomerIDNode({
 }) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
-
     const { prevNodes, availableNodes, hasConnection, toggleConnection } =
         useNodeConnections(id)
-
     const { initNode, getNodeData, setNodeData } = useSetCustomerIDStore()
 
-    const [localData, setLocalData] = useState<Partial<SetCustomerIDObject>>({})
     const [pairs, setPairs] = useState<KeyValue[]>([])
 
-    /* 🧩 Inicialización */
+    // 🧩 Inicialización
     useEffect(() => {
         initNode(id)
         const current = getNodeData(id)
-        setLocalData(current)
         const existing = current.options || {}
         const formatted = Object.entries(existing).map(([key, value]) => ({
             id: crypto.randomUUID(),
@@ -65,10 +64,9 @@ export default function FormSetCustomerIDNode({
                 ? formatted
                 : [{ id: crypto.randomUUID(), key: '', value: '' }]
         )
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id])
 
-    /* 💾 Guardado al presionar guardar global */
+    // 💾 Guardado global
     useEffect(() => {
         registerSaveCallback(id, () => {
             const optionsObject = Object.fromEntries(
@@ -76,16 +74,10 @@ export default function FormSetCustomerIDNode({
                     .filter((p) => p.key.trim() !== '')
                     .map((p) => [p.key.trim(), p.value.trim()])
             )
-
-            const merged: SetCustomerIDObject = {
-                options: optionsObject,
-            }
-
-            // Guardar en Zustand y en el nodo ReactFlow
+            const merged: SetCustomerIDObject = { options: optionsObject }
             setNodeData(id, merged)
             updateNodeData(id, { ...data, object: merged })
         })
-
         return () => unregisterSaveCallback(id)
     }, [
         id,
@@ -100,10 +92,8 @@ export default function FormSetCustomerIDNode({
     /* ✏️ Helpers */
     const addPair = () =>
         setPairs((p) => [...p, { id: crypto.randomUUID(), key: '', value: '' }])
-
     const removePair = (uid: string) =>
         setPairs((p) => p.filter((x) => x.id !== uid))
-
     const updatePair = (uid: string, field: keyof KeyValue, val: string) =>
         setPairs((p) =>
             p.map((x) => (x.id === uid ? { ...x, [field]: val } : x))
@@ -116,36 +106,28 @@ export default function FormSetCustomerIDNode({
 
     /* 🧱 Render principal */
     return (
-        <div className="flex flex-col gap-5">
-            {/* 🔹 Encabezado */}
+        <div className="flex flex-col gap-6">
+            {/* 🏷️ Encabezado */}
             <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
-                <Label
-                    className="text-sm font-semibold"
-                    style={{ color: '#2C5282' }}
-                >
-                    Nodo SetCustomerID
+                <Label className="text-sm font-semibold text-[#2C5282] dark:text-slate-300">
+                    ⚙️ Configuración SetCustomerID
                 </Label>
                 <Badge
                     variant="outline"
-                    className="px-2 py-0.5 text-[10px]"
-                    style={{
-                        color: '#2C5282',
-                        borderColor: '#2C5282',
-                        backgroundColor: 'rgba(44,82,130,0.08)',
-                    }}
+                    className="border-[#2C5282] px-2 py-0.5 text-[10px] text-[#2C5282]"
                 >
                     {id}
                 </Badge>
             </div>
 
-            {/* 🔗 Conexiones entrantes */}
+            {/* 🔗 Nodo anterior */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* ⚡ Sección OnTrue */}
+            {/* 🟢 Conexión onTrue */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium text-green-600 dark:text-green-400">
                     Conexión trueStep
@@ -165,9 +147,28 @@ export default function FormSetCustomerIDNode({
                 />
             </div>
 
-            {/* 🧩 Opciones Key–Value */}
+            {/* 🧾 Descripción debajo de onTrue */}
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
+                </Label>
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del paso..."
+                    value={data.description || ''}
+                    onChange={(e) =>
+                        updateNodeData(id, { description: e.target.value })
+                    }
+                    className="text-sm"
+                />
+            </div>
+
+            {/* ⚙️ Configuración de opciones */}
             <div className="flex flex-col gap-3 border-t pt-3 dark:border-gray-800">
-                <Label className="text-sm font-medium text-[#2C5282]">
+                <Label className="text-sm font-semibold text-[#2C5282] dark:text-slate-300">
                     📦 Opciones (objeto)
                 </Label>
 

@@ -1,5 +1,4 @@
-// src\components\shared\SettingsModal.tsx
-'use client'
+// src\components\shared\SettingsModal.tsx'use client'
 
 import React from 'react'
 import {
@@ -26,12 +25,15 @@ export function SettingsModal({
     onOpenChange: (open: boolean) => void
 }) {
     const { isDark, setTheme } = useTheme()
-    const { darkMode, setDarkMode } = useSettingsStore()
+    const { darkMode, simplifiedView, setDarkMode, setSimplifiedView } =
+        useSettingsStore()
 
     const handleSave = () => {
         setTheme(darkMode ? 'dark' : 'light')
         toast.success('✅ Configuración guardada', {
-            description: `Modo ${darkMode ? 'oscuro' : 'claro'} activado`,
+            description: `Modo ${darkMode ? 'oscuro' : 'claro'} activado${
+                simplifiedView ? ' | Vista simplificada activa' : ''
+            }`,
         })
         onOpenChange(false)
     }
@@ -71,7 +73,22 @@ export function SettingsModal({
                         />
                     </div>
 
-                    {/* Aquí se pueden agregar más opciones en el futuro */}
+                    {/* Vista simplificada */}
+                    <div className="flex items-center justify-between">
+                        <Label
+                            htmlFor="simplified-view"
+                            className={cn(
+                                isDark ? 'text-gray-300' : 'text-gray-700'
+                            )}
+                        >
+                            Vista simplificada
+                        </Label>
+                        <Switch
+                            id="simplified-view"
+                            checked={simplifiedView}
+                            onCheckedChange={setSimplifiedView}
+                        />
+                    </div>
                 </div>
 
                 <DialogFooter className="mt-2 flex justify-end gap-2">

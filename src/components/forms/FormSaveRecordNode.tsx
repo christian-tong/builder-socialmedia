@@ -1,5 +1,4 @@
 // src/components/forms/FormSaveRecordNode.tsx
-
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -27,12 +26,11 @@ interface KeyValue {
 }
 
 /**
- * 🧾 FormSaveRecordNode (v1.7 – Extensión visual “data”)
- * ------------------------------------------------------
- * ✅ Tipado seguro
- * ✅ Conserva el comportamiento funcional
- * ✅ [object Object] en modo visual si existe objeto anidado
- * ✅ JSON completo en modo JSON
+ * 🧾 FormSaveRecordNode (v1.8 – Descripción después de onTrue)
+ * ------------------------------------------------------------
+ * ✅ Campo "Descripción" debajo del bloque onTrue
+ * ✅ Mantiene toda la lógica funcional y visual previa
+ * ✅ Estilo unificado ámbar (institucional)
  */
 export default function FormSaveRecordNode({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
@@ -54,13 +52,12 @@ export default function FormSaveRecordNode({ id, data }: any) {
     const [jsonMode, setJsonMode] = useState(false)
     const [authJsonMode, setAuthJsonMode] = useState(false)
 
-    // 🧩 Inicializa datos locales desde el store especializado
+    // 🧩 Inicialización
     useEffect(() => {
         initNode(id)
         const current = getNodeData(id)
         setLocalData(current)
 
-        // Parse principal
         try {
             const parsed = JSON.parse(current.body || '{}')
             if (typeof parsed === 'object')
@@ -78,7 +75,6 @@ export default function FormSaveRecordNode({ id, data }: any) {
             setPairs([])
         }
 
-        // Parse auth.body
         try {
             const parsedAuth = JSON.parse(current.auth?.body || '{}')
             if (typeof parsedAuth === 'object')
@@ -94,17 +90,14 @@ export default function FormSaveRecordNode({ id, data }: any) {
         }
     }, [id])
 
-    // 🔧 Helper: reconstruye body manteniendo objetos anidados
+    // 🔧 Reconstruye el body JSON
     const reconstructBody = (pairs: KeyValue[], originalBody?: string) => {
         try {
             const base = JSON.parse(originalBody || '{}')
             const result: Record<string, any> = { ...base }
 
             pairs.forEach((p) => {
-                // Si el campo ya es un objeto (como data), se conserva
-                if (p.key in result && typeof result[p.key] === 'object') {
-                    return
-                }
+                if (p.key in result && typeof result[p.key] === 'object') return
                 result[p.key] = p.value
             })
 
@@ -118,7 +111,7 @@ export default function FormSaveRecordNode({ id, data }: any) {
         }
     }
 
-    // 💾 Guardado diferido (solo ejecuta al confirmar cambios globales)
+    // 💾 Guardado global
     useEffect(() => {
         registerSaveCallback(id, () => {
             const current = getNodeData(id)
@@ -177,7 +170,7 @@ export default function FormSaveRecordNode({ id, data }: any) {
         unregisterSaveCallback,
     ])
 
-    /** ✏️ Manejadores seguros */
+    /** ✏️ Handlers */
     const handleChange = (field: keyof SaveRecordObject, value: string) =>
         setLocalData((prev) => ({ ...prev, [field]: value }))
 
@@ -198,7 +191,8 @@ export default function FormSaveRecordNode({ id, data }: any) {
         })
     }
 
-    /** 🔄 Sincroniza JSON <-> Visual */
+    /** 🔄 Sincronización JSON/Visual */
+    /** 🔄 Sincronización JSON/Visual */
     useEffect(() => {
         if (jsonMode) {
             const jsonStr = JSON.stringify(
@@ -215,20 +209,24 @@ export default function FormSaveRecordNode({ id, data }: any) {
                 null,
                 2
             )
+
+            // 🔐 Actualiza el store global
             safeUpdateAuth(id, { body: jsonStr })
-            setLocalData((prev) => {
-                const safeAuth: SaveRecordObject['auth'] = {
+
+            // ✅ Reconstrucción tipada de auth garantizando headers
+            setLocalData((prev) => ({
+                ...prev,
+                auth: {
                     headers: prev.auth?.headers ?? {},
                     vartoken: prev.auth?.vartoken ?? '',
-                    body: jsonStr,
                     url: prev.auth?.url ?? '',
-                }
-                return { ...prev, auth: safeAuth }
-            })
+                    body: jsonStr,
+                },
+            }))
         }
     }, [jsonMode, authJsonMode, pairs, authPairs, id, safeUpdateAuth])
 
-    /** 🔹 Helpers visuales */
+    /** Helpers visuales */
     const addPair = () =>
         setPairs((p) => [...p, { id: crypto.randomUUID(), key: '', value: '' }])
     const removePair = (uid: string) =>
@@ -250,6 +248,7 @@ export default function FormSaveRecordNode({ id, data }: any) {
             p.map((x) => (x.id === uid ? { ...x, [field]: val } : x))
         )
 
+    /** Render */
     return (
         <div className="flex flex-col gap-6">
             {/* 🏷️ Encabezado */}
@@ -265,14 +264,14 @@ export default function FormSaveRecordNode({ id, data }: any) {
                 </Badge>
             </div>
 
-            {/* 🔗 Conexión entrante */}
+            {/* 🔗 Nodo anterior */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* ⚡ Sección OnTrue */}
+            {/* ⚡ Conexión onTrue */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium text-green-600 dark:text-green-400">
                     Conexión trueStep
@@ -293,8 +292,28 @@ export default function FormSaveRecordNode({ id, data }: any) {
                     accentColor="text-green-700 dark:text-green-300"
                 />
             </div>
+
+            {/* 🧾 Descripción debajo de onTrue */}
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
+                </Label>
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del paso..."
+                    value={data.description || ''}
+                    onChange={(e) =>
+                        updateNodeData(id, { description: e.target.value })
+                    }
+                    className="text-sm"
+                />
+            </div>
+
             {/* 🔐 Autenticación */}
-            <div className="space-y-3">
+            <div className="space-y-3 border-t pt-3 dark:border-gray-800">
                 <Label className="text-xs font-medium text-amber-600">
                     🔗 URL de autenticación
                 </Label>
@@ -401,7 +420,7 @@ export default function FormSaveRecordNode({ id, data }: any) {
             </div>
 
             {/* 🧠 Cuerpo principal */}
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex items-center justify-between border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Cuerpo principal</Label>
                 <Button
                     size="sm"

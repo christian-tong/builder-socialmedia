@@ -1,5 +1,4 @@
 // src\components\nodes\SetCustomerIDNode.tsx
-
 'use client'
 
 import React from 'react'
@@ -14,14 +13,22 @@ import {
     useSetCustomerIDStore,
     type SetCustomerIDObject,
 } from '@/store/useSetCustomerIDStore'
+import { useSettingsStore } from '@/store/useSettngsStore'
+import {
+    Tooltip,
+    TooltipProvider,
+    TooltipTrigger,
+    TooltipContent,
+} from '@/components/ui/tooltip'
 
 /**
- * 🧠 SetCustomerIDNode (v2.0 — formato JSON estilo GenerateTokenNode)
+ * 🧠 SetCustomerIDNode (v2.5 — SimplifiedView + Tooltip + Description)
  * -------------------------------------------------------------------
- * - Renderiza object.options como bloque JSON “pretty”
- * - Estilo visual coherente con GenerateTokenNode
- * - Sin dependencias del formulario (usa Zustand)
- * - Color base: #2C5282 (azul acero)
+ * ✅ Añade vista simplificada (ícono centrado, tooltip dinámico)
+ * ✅ Compatible con orientación vertical/horizontal
+ * ✅ Colores azul acero (#2C5282)
+ * ✅ Integrado con Zustand (useSetCustomerIDStore)
+ * ✅ Muestra JSON truncado del objeto “options”
  */
 export default function SetCustomerIDNode({
     id,
@@ -33,6 +40,7 @@ export default function SetCustomerIDNode({
     const { setSelectedNode } = useNodeConfigStore()
     const { orientation } = useFlowOrientationStore()
     const { getNodeData } = useSetCustomerIDStore()
+    const { simplifiedView } = useSettingsStore()
 
     const nodeData: SetCustomerIDObject = getNodeData(id)
     const options = nodeData?.options ?? {}
@@ -65,60 +73,106 @@ export default function SetCustomerIDNode({
         formattedJSON = String(options)
     }
 
+    // 💬 Tooltip dinámico
+    const tooltipDescription =
+        data.description?.trim() ||
+        data.label?.trim() ||
+        'Establece el ID del cliente dentro del flujo actual'
+
     return (
         <motion.div
             layout
+            className="relative"
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 80, damping: 12 }}
+            transition={{ type: 'spring', stiffness: 85, damping: 14 }}
         >
-            <Card
-                onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedNode({ id, type: 'setCustomerIDNode', data })
-                }}
-                data-id={id}
-                className="relative w-[240px] cursor-pointer overflow-hidden rounded-xl border border-[#1E3A5F] bg-[#2C5282] p-3 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
-            >
-                {/* 🔹 Header */}
-                <div className="flex items-center justify-between border-b border-white/20 pb-1">
-                    <div className="flex items-center gap-2">
-                        <IdCard className="h-4 w-4 text-white" />
-                        <span className="text-sm font-semibold">
-                            {data?.label || 'Set Customer ID'}
-                        </span>
-                    </div>
-                </div>
+            <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Card
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedNode({
+                                    id,
+                                    type: 'setCustomerIDNode',
+                                    data,
+                                })
+                            }}
+                            data-id={id}
+                            className={`relative cursor-pointer overflow-visible border border-[#1E3A5F] bg-[#2C5282] text-white shadow-md transition-all select-none ${
+                                simplifiedView
+                                    ? 'flex size-12 items-center justify-center rounded-2xl'
+                                    : 'w-[240px] rounded-xl px-3 py-2'
+                            }`}
+                        >
+                            {simplifiedView ? (
+                                // 🟦 Vista simplificada (ícono centrado)
+                                <div className="flex h-full w-full items-center justify-center">
+                                    <IdCard className="size-7 text-sky-200" />
+                                </div>
+                            ) : (
+                                <>
+                                    {/* 🔹 Header */}
+                                    <div className="flex items-center justify-between border-b border-white/20 pb-1">
+                                        <div className="flex items-center gap-2">
+                                            <IdCard className="h-4 w-4 text-white" />
+                                            <span className="text-sm font-semibold">
+                                                {data?.label ||
+                                                    'Set Customer ID'}
+                                            </span>
+                                        </div>
+                                    </div>
 
-                {/* 🧾 Contenido estilo JSON */}
-                <div className="space-y-1 pt-2 text-[11px] leading-tight text-gray-200">
-                    <div>
-                        <span className="font-semibold text-white">
-                            Opciones:
-                        </span>
-                    </div>
+                                    {/* 🧾 Contenido estilo JSON */}
+                                    <div className="space-y-1 pt-2 text-[11px] leading-tight text-gray-200">
+                                        <div>
+                                            <span className="font-semibold text-white">
+                                                Opciones:
+                                            </span>
+                                        </div>
 
-                    <div className="rounded-md border border-white/20 bg-white/10 px-2 py-1 font-mono text-[10px] whitespace-pre-wrap text-white">
-                        <pre className="max-h-[80px] overflow-hidden whitespace-pre-wrap">
-                            {formattedJSON}
-                        </pre>
-                    </div>
-                </div>
+                                        <div className="rounded-md border border-white/20 bg-white/10 px-2 py-1 font-mono text-[10px] whitespace-pre-wrap text-white">
+                                            <pre className="max-h-[80px] overflow-hidden whitespace-pre-wrap">
+                                                {formattedJSON}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
-                {/* 🟦 Handles */}
-                <Handle
-                    type="target"
-                    position={handleTarget}
-                    className="!bg-[#4A6FA5]"
-                    isValidConnection={isValidConnection}
-                />
-                <Handle
-                    type="source"
-                    position={handleSource}
-                    id="onTrue"
-                    className="!bg-[#2C5282]"
-                />
-            </Card>
+                            {/* 🟦 Handles */}
+                            <Handle
+                                type="target"
+                                position={handleTarget}
+                                className="!z-[5] !bg-[#4A6FA5]"
+                                isValidConnection={isValidConnection}
+                            />
+                            <Handle
+                                type="source"
+                                position={handleSource}
+                                id="onTrue"
+                                className="!z-[5] !bg-[#2C5282]"
+                            />
+                        </Card>
+                    </TooltipTrigger>
+
+                    {/* 💬 Tooltip solo en vista simplificada */}
+                    {simplifiedView && (
+                        <TooltipContent
+                            side="top"
+                            className="max-w-[220px] text-center text-xs font-medium"
+                        >
+                            <div className="flex flex-col">
+                                <span className="text-[10px] opacity-70">
+                                    ID: {id}
+                                </span>
+                                <span>{tooltipDescription}</span>
+                            </div>
+                        </TooltipContent>
+                    )}
+                </Tooltip>
+            </TooltipProvider>
         </motion.div>
     )
 }

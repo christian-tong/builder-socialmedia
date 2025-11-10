@@ -1,59 +1,170 @@
 Listado de rutas de carpetas
 El n�mero de serie del volumen es 0A55-6B00
 D:.
+�   .env.local
 �   .gitignore
+�   .hintrc
+�   biome.json
 �   bun.lock
 �   components.json
+�   Dockerfile
 �   eslint.config.mjs
 �   next-env.d.ts
 �   next.config.ts
 �   package.json
 �   postcss.config.mjs
+�   prettier.config.js
 �   README.md
 �   structure.txt
 �   tsconfig.json
-�               
 +---public
 �       favicon.ico
 �       file.svg
 �       globe.svg
+�       logo-interno.png
 �       next.svg
 �       vercel.svg
+�       wiback.png
 �       window.svg
 �       
 +---src
+    �   structure.txt
+    �   
     +---components
-    �   +---flow
-    �   �       FlowCanvas.tsx
-    �   �       FlowSidebar.tsx
-    �   �       FlowToolbar.tsx
+    �   +---edges
+    �   �       SmartEdge.tsx
     �   �       
+    �   +---flow
+    �   �       FlowAutoEdgeSync.tsx
+    �   �       FlowCanvas.tsx
+    �   �       FlowCanvasInner.tsx
+    �   �       FlowSidebar.tsx
+    �   �       FlowStylePanel.tsx
+    �   �       NodeConfigSidebar.tsx
+    �   �       
+    �   +---forms
+    �   �   �   FormChatBotIARequestNode.tsx
+    �   �   �   FormDerivateNode.tsx
+    �   �   �   FormEndNode.tsx
+    �   �   �   FormGenerateTokenNode.tsx
+    �   �   �   FormMenuNode.tsx
+    �   �   �   FormMySQLQueryNode.tsx
+    �   �   �   FormNoOpNode.tsx
+    �   �   �   FormSaveRecordNode.tsx
+    �   �   �   FormSetCustomerIDNode.tsx
+    �   �   �   FormSimpleTextNode.tsx
+    �   �   �   FormStartNode.tsx
+    �   �   �   FormSwitchConditionNode.tsx
+    �   �   �   FormTimeConditionNode.tsx
+    �   �   �   FormVariablesNode.tsx
+    �   �   �   
+    �   �   +---Menu
+    �   �           FormGetDataCompleteBase.tsx
+    �   �           FormGetDataCompleteGetData.tsx
+    �   �           FormGetDataCompleteList.tsx
+    �   �           FormGetDataCompleteQR.tsx
+    �   �           FormGetDataCompleteSimpleText.tsx
+    �   �           
     �   +---layout
+    �   �       Footer.tsx
     �   �       Header.tsx
     �   �       MainLayout.tsx
     �   �       Sidebar.tsx
+    �   �       SidebarRight.tsx
     �   �       
     �   +---nodes
-    �   �       BaseNode.tsx
-    �   �       DecisionNode.tsx
-    �   �       TextNode.tsx
+    �   �       ChatBotIARequestNode.tsx
+    �   �       DerivateNode.tsx
+    �   �       EndNode.tsx
+    �   �       GenerateTokenNode.tsx
+    �   �       GetDataCompleteNode.tsx
+    �   �       MenuNode.tsx
+    �   �       MySQLQueryNode.tsx
+    �   �       NoOpNode.tsx
+    �   �       SaveRecordNode.tsx
+    �   �       SetCustomerIDNode.tsx
+    �   �       SimpleTextNode.tsx
+    �   �       StartNode.tsx
+    �   �       SwitchConditionNode.tsx
+    �   �       TimeConditionNode.tsx
+    �   �       VariablesNode.tsx
     �   �       
     �   +---shared
+    �   �       BeforeUnloadModal.tsx
     �   �       ColorPicker.tsx
     �   �       DraggableWrapper.tsx
+    �   �       DynamicNodeConnectionsAccordion.tsx
+    �   �       DynamicNodeConnectionsAccordionSwitch.tsx
+    �   �       GenerateJsonModal.tsx
     �   �       Icon.tsx
+    �   �       ImportJsonModal.tsx
+    �   �       LogoWimprove.tsx
+    �   �       MenuNodeFormLayout.tsx
+    �   �       NodeConnectionsAccordion.tsx
+    �   �       NodeFlowConnectionsManager.tsx
+    �   �       NodeSelectAccordion.tsx
+    �   �       OptionFlowManager.tsx
+    �   �       SelectChannelModal.tsx
+    �   �       SettingsModal.tsx
+    �   �       VariableMentionsText.tsx
+    �   �       VariantBaseConfigFields.tsx
+    �   �       VariantOptionAccordion.tsx
     �   �       
     �   +---ui
+    �           accordion.tsx
+    �           badge.tsx
     �           button.tsx
     �           card.tsx
+    �           checkbox.tsx
+    �           dialog.tsx
+    �           index.ts
+    �           input.tsx
+    �           label.tsx
+    �           scroll-area.tsx
+    �           select.tsx
+    �           sheet.tsx
+    �           sonner.tsx
+    �           switch.tsx
+    �           tabs.tsx
+    �           textarea.tsx
+    �           tooltip.tsx
     �           
-    +---hooks
-    �       useFlow.ts
-    �       useKeyboard.ts
-    �       useNodeValidation.ts
-    �       useTheme.ts
+    +---config
+    �       baseVariantFields.ts
+    �       flowChannelCapabilities.ts
+    �       flowChannelsConfig.ts
+    �       getDataVariantsConfig.ts
+    �       nodesConfig.ts
+    �       nodesForms.ts
+    �       nodeTemplates.ts
     �       
+    +---hooks
+    �   �   useBeforeUnloadConfirm.ts
+    �   �   useBeforeUnloadWarning.ts
+    �   �   useFlowAutoEdgeSync.ts
+    �   �   useFlowConnections.ts
+    �   �   useFlowHandlers.ts
+    �   �   useFlowTwoPhaseBuilder.ts
+    �   �   useKeyboardShortcut.ts
+    �   �   useMenuNodeForm.ts
+    �   �   useMenuNodeOptions.ts
+    �   �   useMenuNodeSync.ts
+    �   �   useNodeConnections.ts
+    �   �   useTheme.ts
+    �   �   useVariableMentions.ts
+    �   �   useVariantOptions.ts
+    �   �   useVariantOptionsManager.ts
+    �   �   
+    �   +---service
+    �           useBotsService.ts
+    �           
     +---lib
+    �       autoLayout.ts
+    �       edgeUtils.ts
+    �       flowValidations.ts
+    �       jsonExportImport.ts
+    �       jsonFlowGenerator.ts
+    �       jsonImporterWiContact.ts
     �       utils.ts
     �       
     +---pages
@@ -64,9 +175,58 @@ D:.
     �   +---api
     �           hello.ts
     �           
+    +---services
+    �   �   apiBase.ts
+    �   �   getListBotsService.ts
+    �   �   getListSkillsService.ts
+    �   �   postBotService.ts
+    �   �   skillService.ts
+    �   �   
+    �   +---mocks
+    �   �       skillsData.ts
+    �   �       
+    �   +---utils
+    �           alertHandler.ts
+    �           errorHandler.ts
+    �           
+    +---store
+    �   �   useChatBotIAStore.ts
+    �   �   useFlowChannelStore.ts
+    �   �   useFlowOrientationStore.ts
+    �   �   useFlowStore.ts
+    �   �   useFlowStyleStore.ts
+    �   �   useGenerateTokenStore.ts
+    �   �   useMySQLQueryStore.ts
+    �   �   useNodeConfigStore.ts
+    �   �   usePendingConnectionsStore.ts
+    �   �   useSaveRecordStore.ts
+    �   �   useSetCustomerIDStore.ts
+    �   �   useSettngsStore.ts
+    �   �   useSidebarStore.ts
+    �   �   useSwitchConditionStore.ts
+    �   �   useThemeStore.ts
+    �   �   useVariablesStore.ts
+    �   �   useVariantFlowSync.ts
+    �   �   useVariantTypeStore.ts
+    �   �   
+    �   +---GetDataComplete
+    �           useGetDataCompleteBaseStore.ts
+    �           useGetDataCompleteGetDataStore.ts
+    �           useGetDataCompleteListStore.ts
+    �           useGetDataCompleteQRStore.ts
+    �           useGetDataCompleteSimpleTextStore.ts
+    �           
     +---styles
     �       globals.css
     �       
     +---types
-            flow.ts
+    �       dagre.d.ts
+    �       flow.ts
+    �       getDataComplete.ts
+    �       sj.ts
+    �       
+    +---utils
+            generateNodeId.ts
+            getNestedValue.ts
+            processVariablesInText.ts
             

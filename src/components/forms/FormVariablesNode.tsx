@@ -1,6 +1,4 @@
 // src\components\forms\FormVariablesNode.tsx
-
-// src/components/forms/FormVariablesNode.tsx
 'use client'
 
 import React, { useState, useEffect } from 'react'
@@ -21,11 +19,12 @@ import {
 } from '@/store/useVariablesStore'
 
 /**
- * 🧩 FormVariablesNode (v2.0 – Estándar SaveRecord visual)
+ * 🧩 FormVariablesNode (v3.0 – Descripción después de onTrue)
  * ------------------------------------------------------------
- * ✅ Encabezado institucional violeta oscuro (#44344F)
- * ✅ Estructura: Nodo anterior + OnTrue + Variables dinámicas
- * ✅ Consistente con el ecosistema Importador v5.3
+ * ✅ Mismo layout institucional que FormMySQLQueryNode
+ * ✅ Campo de descripción debajo de la conexión onTrue
+ * ✅ Encabezado violeta oscuro (#44344F)
+ * ✅ Estructura modular, consistente con Importador v5.3
  */
 export default function FormVariablesNode({
     id,
@@ -46,6 +45,27 @@ export default function FormVariablesNode({
     useEffect(() => {
         setLocalVars(getNodeVariables(id))
     }, [id, getNodeVariables])
+
+    // 💾 Guardado sincronizado
+    useEffect(() => {
+        registerSaveCallback(id, () => {
+            setNodeVariables(id, localVars)
+            const obj = Object.fromEntries(
+                localVars.map((v) => [v.key, v.value.toUpperCase()])
+            )
+            updateNodeData(id, {
+                object: { setvars: JSON.stringify(obj) },
+            })
+        })
+        return () => unregisterSaveCallback(id)
+    }, [
+        id,
+        localVars,
+        registerSaveCallback,
+        unregisterSaveCallback,
+        setNodeVariables,
+        updateNodeData,
+    ])
 
     // ➕ Agregar variable
     const addVariable = () => {
@@ -69,27 +89,6 @@ export default function FormVariablesNode({
             return updated
         })
     }
-
-    // 💾 Guardado sincronizado
-    useEffect(() => {
-        registerSaveCallback(id, () => {
-            setNodeVariables(id, localVars)
-            const obj = Object.fromEntries(
-                localVars.map((v) => [v.key, v.value.toUpperCase()])
-            )
-            updateNodeData(id, {
-                object: { setvars: JSON.stringify(obj) },
-            })
-        })
-        return () => unregisterSaveCallback(id)
-    }, [
-        id,
-        localVars,
-        registerSaveCallback,
-        unregisterSaveCallback,
-        setNodeVariables,
-        updateNodeData,
-    ])
 
     /** 🧠 Conexiones onTrue */
     const { hasConnection: check, availableNodes: nodes } =
@@ -137,6 +136,25 @@ export default function FormVariablesNode({
                     toggleConnection={toggleConnection}
                     handleId="onTrue"
                     accentColor="text-green-700 dark:text-green-300"
+                />
+            </div>
+
+            {/* 🧾 Descripción debajo de onTrue */}
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
+                </Label>
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del paso..."
+                    value={data.description || ''}
+                    onChange={(e) =>
+                        updateNodeData(id, { description: e.target.value })
+                    }
+                    className="text-sm"
                 />
             </div>
 

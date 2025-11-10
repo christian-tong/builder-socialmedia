@@ -32,7 +32,7 @@ export const useFlowStyleStore = create<FlowStyleState>()(
     persist(
         (set) => ({
             backgroundType: 'dots',
-            edgeType: 'smart', // 🔹 valor por defecto
+            edgeType: 'step', // 🔹 valor por defecto
             edgeAspect: 'solid',
             edgeAnimated: false,
             edgeColor: '#7A7D7D',

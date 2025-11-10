@@ -18,7 +18,7 @@ import { useNodeConfigStore } from '@/store/useNodeConfigStore'
  * --------------------------------------------------
  * - Usa lógica modular de conexiones (useNodeConnections)
  * - Reutiliza acordeones visuales y funcionales
- * - Código más limpio, mantenible y reutilizable
+ * - Incluye campo de descripción al final del formulario
  */
 export default function FormStartNode({
     id,
@@ -30,13 +30,14 @@ export default function FormStartNode({
     const { updateNodeData } = useNodeConfigStore()
 
     // 🧠 Hook centralizado de conexiones
-    const {
-        prevNodes,
-        nextNodes,
-        availableNodes,
-        hasConnection,
-        toggleConnection,
-    } = useNodeConnections(id)
+    const { nextNodes, availableNodes, hasConnection, toggleConnection } =
+        useNodeConnections(id)
+
+    const handleDescriptionChange = (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        updateNodeData(id, { description: e.target.value })
+    }
 
     return (
         <div className="flex flex-col gap-5">
@@ -68,6 +69,23 @@ export default function FormStartNode({
                 toggleConnection={toggleConnection}
                 accentColor="text-green-700 dark:text-green-300"
             />
+
+            {/* 📝 Campo de descripción (ubicado al final) */}
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
+                </Label>
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del paso..."
+                    value={data.description || ''}
+                    onChange={handleDescriptionChange}
+                    className="text-sm"
+                />
+            </div>
         </div>
     )
 }

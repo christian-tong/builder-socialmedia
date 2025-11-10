@@ -1,11 +1,9 @@
 // src/components/forms/FormMySQLQueryNode.tsx
-
 'use client'
 
 import React, { useEffect, useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -20,12 +18,12 @@ import {
 } from '@/store/useMySQLQueryStore'
 
 /**
- * 🧠 FormMySQLQueryNode (v2.0 – Estándar SaveRecord visual)
- * -----------------------------------------------------------
- * ✅ Unifica estilo con SaveRecord
- * ✅ Mantiene color institucional gris-azulado
- * ✅ Añade conexión OnTrue
- * ✅ Estructura modular con encabezado, conexión y cuerpo
+ * 🧠 FormMySQLQueryNode (v3.0 – Descripción después de onTrue)
+ * -------------------------------------------------------------
+ * ✅ Reubicación de la descripción debajo de la conexión onTrue
+ * ✅ Estilo unificado gris-azulado (institucional)
+ * ✅ Integrado con useMySQLQueryStore
+ * ✅ Mismo layout estructurado del estándar Prompt Base v1.1
  */
 export default function FormMySQLQueryNode({
     id,
@@ -47,34 +45,27 @@ export default function FormMySQLQueryNode({
         script: '',
     })
 
-    // 🧩 Inicialización del nodo
+    // 🧩 Inicialización
     useEffect(() => {
         initNode(id)
         const current = getNodeData(id)
         setLocalData(current)
     }, [id])
 
-    // 💾 Guardado sincronizado
+    // 💾 Guardado
     useEffect(() => {
         registerSaveCallback(id, () => {
             const current = getNodeData(id)
-            const finalData: MySQLQueryObject = {
-                ...current,
-                ...localData,
-            }
-
+            const finalData: MySQLQueryObject = { ...current, ...localData }
             setNodeData(id, finalData)
             updateNodeData(id, { object: { ...finalData } })
         })
-
         return () => unregisterSaveCallback(id)
     }, [id, localData])
 
-    // ✏️ Actualización local
     const handleChange = (field: keyof MySQLQueryObject, value: string) =>
         setLocalData((prev) => ({ ...prev, [field]: value }))
 
-    /** 🔍 Conexiones onTrue */
     const trueConnections = availableNodes
         .filter((n) => hasConnection(n.id, 'onTrue'))
         .map((n) => n.id)
@@ -94,14 +85,14 @@ export default function FormMySQLQueryNode({
                 </Badge>
             </div>
 
-            {/* 🔗 Conexión entrante */}
+            {/* 🔗 Nodo anterior */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* 🟢 Sección OnTrue */}
+            {/* 🟢 Conexión onTrue */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium text-green-600 dark:text-green-400">
                     Conexión trueStep
@@ -121,6 +112,25 @@ export default function FormMySQLQueryNode({
                 />
             </div>
 
+            {/* 🧾 Descripción debajo de onTrue */}
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
+                </Label>
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del paso..."
+                    value={data.description || ''}
+                    onChange={(e) =>
+                        updateNodeData(id, { description: e.target.value })
+                    }
+                    className="text-sm"
+                />
+            </div>
+
             {/* ⚙️ Configuración principal */}
             <div className="flex flex-col gap-3 border-t pt-3 dark:border-gray-800">
                 <div>
@@ -131,7 +141,7 @@ export default function FormMySQLQueryNode({
                         value={localData.setvar || ''}
                         onChange={(e) => handleChange('setvar', e.target.value)}
                         placeholder="ELECTRICIDAD_CONCESIONARIO_DEUDA"
-                        className="border-[#2D3E50] text-xs "
+                        className="border-[#2D3E50] text-xs"
                     />
                 </div>
 
@@ -144,7 +154,7 @@ export default function FormMySQLQueryNode({
                         value={localData.query || ''}
                         onChange={(e) => handleChange('query', e.target.value)}
                         placeholder="SELECT ... FROM ..."
-                        className="font-mono text-xs "
+                        className="font-mono text-xs"
                     />
                 </div>
 
@@ -156,7 +166,7 @@ export default function FormMySQLQueryNode({
                         value={localData.alias || ''}
                         onChange={(e) => handleChange('alias', e.target.value)}
                         placeholder="Alias descriptivo"
-                        className="border-[#2D3E50] text-xs "
+                        className="border-[#2D3E50] text-xs"
                     />
                 </div>
 
@@ -168,7 +178,7 @@ export default function FormMySQLQueryNode({
                         value={localData.script || ''}
                         onChange={(e) => handleChange('script', e.target.value)}
                         placeholder="${datos}"
-                        className="border-[#2D3E50] text-xs "
+                        className="border-[#2D3E50] text-xs"
                     />
                 </div>
             </div>

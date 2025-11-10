@@ -2,14 +2,14 @@
 
 'use client'
 
-import type React from 'react'
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
     NodeConnectionsAccordion,
     NodeSelectionAccordion,
 } from '@/components/shared/NodeConnectionsAccordion'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import {
     Select,
     SelectContent,
@@ -23,11 +23,10 @@ import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { getListSkills, type SkillItem } from '@/services/getListSkillsService'
 
 /**
- * 🟨 FormDerivateNode (v2.4 – SkillName como label, SkillNumber como value)
- * ------------------------------------------------------------------------
- * - Usa getListSkillsService real
- * - Muestra el skillName en el select
- * - Guarda skillNumber como value en el nodo
+ * 🟨 FormDerivateNode (v3.0 – Descripción + Estandarización Completa)
+ * ------------------------------------------------------------------
+ * - Campo descripción estándar (último bloque)
+ * - Alineado con Prompt Base v1.1
  */
 export default function FormDerivateNode({
     id,
@@ -39,18 +38,15 @@ export default function FormDerivateNode({
     const { updateNodeData } = useNodeConfigStore()
     const [skills, setSkills] = useState<SkillItem[]>([])
 
-    // 🧠 Hook de conexiones
     const { prevNodes, availableNodes, hasConnection, toggleConnection } =
         useNodeConnections(id)
 
-    // ⚙️ Cargar lista de skills reales
     useEffect(() => {
         getListSkills().then((res) => {
             if (res.success && res.data) setSkills(res.data)
         })
     }, [])
 
-    // 🪶 Auto-ajuste de altura dinámica
     const autoResize = (ref: React.RefObject<HTMLTextAreaElement | null>) => {
         const el = ref.current
         if (!el) return
@@ -58,7 +54,6 @@ export default function FormDerivateNode({
         el.style.height = Math.min(el.scrollHeight, 400) + 'px'
     }
 
-    // Refs para textareas
     const timeoutRef = useRef<HTMLTextAreaElement | null>(null)
     const queueRef = useRef<HTMLTextAreaElement | null>(null)
     const inboundRef = useRef<HTMLTextAreaElement | null>(null)
@@ -69,9 +64,14 @@ export default function FormDerivateNode({
         autoResize(inboundRef)
     }, [data])
 
+    const handleDescriptionChange = (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        updateNodeData(id, { description: e.target.value })
+    }
+
     return (
         <div className="flex flex-col gap-5">
-            {/* 🏷️ Encabezado */}
             <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
                 <Label className="text-sm font-semibold text-amber-600 dark:text-amber-300">
                     Configuración de Derivación
@@ -84,36 +84,41 @@ export default function FormDerivateNode({
                 </Badge>
             </div>
 
-            {/* 🔗 Conexión entrante */}
+            {/* 🔗 Conexión Entrante */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* 🟢 Sección OnTrue */}
-            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
-                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
-                    Conexión trueStep
+            {/* ⚡ TrueStep */}
+            <NodeSelectionAccordion
+                title="Seleccionar nodo trueStep"
+                availableNodes={availableNodes}
+                hasConnection={hasConnection}
+                toggleConnection={toggleConnection}
+                handleId="onTrue"
+                accentColor="text-green-700 dark:text-green-300"
+            />
+
+            {/* 📝 Descripción */}
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
                 </Label>
-                <NodeConnectionsAccordion
-                    title="Nodos conectados (trueStep)"
-                    nodesList={availableNodes
-                        .filter((n) => hasConnection(n.id, 'onTrue'))
-                        .map((n) => n.id)}
-                    accentColor="text-green-700 dark:text-green-300"
-                />
-                <NodeSelectionAccordion
-                    title="Seleccionar nodo trueStep"
-                    availableNodes={availableNodes}
-                    hasConnection={hasConnection}
-                    toggleConnection={toggleConnection}
-                    handleId="onTrue"
-                    accentColor="text-green-700 dark:text-green-300"
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del paso..."
+                    value={data.description || ''}
+                    onChange={handleDescriptionChange}
+                    className="text-sm"
                 />
             </div>
 
-            {/* 🎯 Skill destino */}
+            {/* 🎯 Skill */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Skill destino</Label>
                 <Select
@@ -144,7 +149,7 @@ export default function FormDerivateNode({
                 </Select>
             </div>
 
-            {/* 🕓 Timeout Message */}
+            {/* 🕓 Timeout */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Timeout Message</Label>
                 <Textarea
@@ -159,7 +164,7 @@ export default function FormDerivateNode({
                 />
             </div>
 
-            {/* 🕓 Queue Message */}
+            {/* ⏳ Queue */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Queue Message</Label>
                 <Textarea
@@ -174,7 +179,7 @@ export default function FormDerivateNode({
                 />
             </div>
 
-            {/* 🕓 Inbound Message */}
+            {/* 📩 Inbound */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium">Inbound Message</Label>
                 <Textarea

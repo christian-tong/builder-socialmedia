@@ -28,14 +28,16 @@ import {
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import { useSwitchConditionStore } from '@/store/useSwitchConditionStore'
 import { DynamicNodeConnectionsAccordionSwitch } from '@/components/shared/DynamicNodeConnectionsAccordionSwitch'
+import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 
 /**
- * 🧩 FormSwitchConditionNode (v5.5 — Deferred Sync + Edge Integration)
+ * 🧩 FormSwitchConditionNode (v5.6 — Descripción estandarizada)
  * -------------------------------------------------------------------
+ * ✅ Estructura Prompt Base v1.1
+ * ✅ Campo “Descripción” agregado al final
  * ✅ Escritura fluida sin re-renders
- * ✅ Sincronización solo al guardar
- * ✅ Crea edges dinámicos como el original (sin alterar v1.5)
- * ✅ Añade nuevas condiciones automáticamente con nombre incremental
+ * ✅ Crea edges dinámicos como v1.5 (DynamicNodeConnectionsAccordionSwitch)
+ * ✅ Colores violetas consistentes con familia de nodos condicionales
  */
 export default function FormSwitchConditionNode({
     id,
@@ -59,6 +61,8 @@ export default function FormSwitchConditionNode({
 
     const { prevNodes, availableNodes, hasConnection, toggleConnection } =
         useNodeConnections(id)
+
+    const { updateNodeData } = useNodeConfigStore()
 
     const [accordionValue, setAccordionValue] = useState<string[]>(['edit'])
     const [hasSaved, setHasSaved] = useState(false)
@@ -110,7 +114,7 @@ export default function FormSwitchConditionNode({
     /* 💾 Guardar cambios y mostrar conexiones                                   */
     /* -------------------------------------------------------------------------- */
     const handleSaveAndViewConnections = () => {
-        // Eliminar valores previos y reescribirlos
+        // Reescribir valores actualizados
         cfg.values.forEach((_, i) => removeValue(id, i))
         localValuesRef.current.forEach((val, i) => {
             if (cfg.values[i]) updateValue(id, i, val)
@@ -163,6 +167,25 @@ export default function FormSwitchConditionNode({
                     toggleConnection={toggleConnection}
                     handleId="onTrue"
                     accentColor="text-green-700 dark:text-green-300"
+                />
+            </div>
+
+            {/* 📝 Descripción estandarizada */}
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
+                </Label>
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del paso..."
+                    value={data.description || ''}
+                    onChange={(e) =>
+                        updateNodeData(id, { description: e.target.value })
+                    }
+                    className="text-sm"
                 />
             </div>
 
@@ -237,7 +260,6 @@ export default function FormSwitchConditionNode({
                                 </Button>
                             </div>
 
-                            {/* Lista editable sin re-render */}
                             {localValuesRef.current.map((val, idx) => (
                                 <div
                                     key={idx}
@@ -283,7 +305,7 @@ export default function FormSwitchConditionNode({
                         </AccordionContent>
                     </AccordionItem>
 
-                    {/* 🔗 Conexiones dinámicas (idéntico al original) */}
+                    {/* 🔗 Conexiones dinámicas */}
                     <AccordionItem value="connections">
                         <AccordionTrigger className="rounded-md bg-violet-100/60 px-3 py-2 text-xs text-violet-800 dark:bg-violet-900/30 dark:text-violet-200">
                             🔗 Conexiones condicionales

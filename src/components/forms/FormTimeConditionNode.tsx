@@ -1,5 +1,4 @@
 // src\components\forms\FormTimeConditionNode.tsx
-
 'use client'
 
 import React, { useEffect } from 'react'
@@ -20,9 +19,6 @@ import {
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 
-/**
- * 🕓 Días válidos ISO cortos
- */
 const DAYS = [
     { value: 'mon', label: 'Lunes' },
     { value: 'tue', label: 'Martes' },
@@ -34,11 +30,10 @@ const DAYS = [
 ]
 
 /**
- * 🕓 FormTimeConditionNode (v2.1 – ordenado onTrue/onFalse)
- * --------------------------------------------------
- * - Separa las conexiones en onTrue / onFalse
- * - Muestra acordeones independientes para cada handle
- * - Mantiene sincronización con useNodeConnections
+ * 🕒 FormTimeConditionNode (v3.0 – con descripción estandarizada)
+ * ---------------------------------------------------------------
+ * - Añade campo descripción reutilizable
+ * - Usa colores y acordeones consistentes
  */
 export default function FormTimeConditionNode({
     id,
@@ -48,12 +43,9 @@ export default function FormTimeConditionNode({
     data: Record<string, any>
 }) {
     const { updateNodeData } = useNodeConfigStore()
-
-    // 🧠 Hook centralizado de conexiones
     const { prevNodes, availableNodes, hasConnection, toggleConnection } =
         useNodeConnections(id)
 
-    // 🔍 Filtra conexiones salientes específicas
     const trueConnections = availableNodes
         .filter((n) => hasConnection(n.id, 'onTrue'))
         .map((n) => n.id)
@@ -61,17 +53,6 @@ export default function FormTimeConditionNode({
         .filter((n) => hasConnection(n.id, 'onFalse'))
         .map((n) => n.id)
 
-    // 🧩 Parse automático (desde importador)
-    useEffect(() => {
-        if (data.condition && !data.dayStart) {
-            const [days, hours] = data.condition.split(',')
-            const [dayStart, dayEnd] = days.split('-')
-            const [startTime, endTime] = hours.split('-')
-            updateNodeData(id, { dayStart, dayEnd, startTime, endTime })
-        }
-    }, [data.condition, data.dayStart, id, updateNodeData])
-
-    // 🧩 Genera condición combinada
     useEffect(() => {
         if (data.dayStart && data.dayEnd && data.startTime && data.endTime) {
             const condition = `${data.dayStart}-${data.dayEnd},${data.startTime}-${data.endTime}`
@@ -85,6 +66,12 @@ export default function FormTimeConditionNode({
         id,
         updateNodeData,
     ])
+
+    const handleDescriptionChange = (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        updateNodeData(id, { description: e.target.value })
+    }
 
     return (
         <div className="flex flex-col gap-5">
@@ -101,55 +88,51 @@ export default function FormTimeConditionNode({
                 </Badge>
             </div>
 
-            {/* 🔗 Conexiones entrantes */}
+            {/* 🔗 Conexiones */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* ⚡ Sección onTrue */}
-            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
-                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
-                    Conexión trueStep
-                </Label>
-                <NodeConnectionsAccordion
-                    title="Nodos conectados (trueStep)"
-                    nodesList={trueConnections}
-                    accentColor="text-green-700 dark:text-green-300"
-                />
-                <NodeSelectionAccordion
-                    title="Seleccionar nodo trueStep"
-                    availableNodes={availableNodes}
-                    hasConnection={hasConnection}
-                    toggleConnection={toggleConnection}
-                    handleId="onTrue"
-                    accentColor="text-green-700 dark:text-green-300"
-                />
-            </div>
+            {/* ⚡ trueStep */}
+            <NodeSelectionAccordion
+                title="Seleccionar nodo trueStep"
+                availableNodes={availableNodes}
+                hasConnection={hasConnection}
+                toggleConnection={toggleConnection}
+                handleId="onTrue"
+                accentColor="text-green-700 dark:text-green-300"
+            />
 
-            {/* ⚡ Sección onFalse */}
-            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
-                <Label className="text-sm font-medium text-rose-600 dark:text-rose-400">
-                    Conexión falseStep
-                </Label>
-                <NodeConnectionsAccordion
-                    title="Nodos conectados (falseStep)"
-                    nodesList={falseConnections}
-                    accentColor="text-rose-700 dark:text-rose-300"
-                />
-                <NodeSelectionAccordion
-                    title="Seleccionar nodo falseStep"
-                    availableNodes={availableNodes}
-                    hasConnection={hasConnection}
-                    toggleConnection={toggleConnection}
-                    handleId="onFalse"
-                    accentColor="text-rose-700 dark:text-rose-300"
-                />
-            </div>
+            {/* ⚡ falseStep */}
+            <NodeSelectionAccordion
+                title="Seleccionar nodo falseStep"
+                availableNodes={availableNodes}
+                hasConnection={hasConnection}
+                toggleConnection={toggleConnection}
+                handleId="onFalse"
+                accentColor="text-rose-700 dark:text-rose-300"
+            />
 
             {/* ⚙️ Rango de días */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                {/* 📝 Descripción (al final) */}
+                <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                    <Label
+                        htmlFor={`description-${id}`}
+                        className="text-muted-foreground text-xs"
+                    >
+                        Descripción
+                    </Label>
+                    <Input
+                        id={`description-${id}`}
+                        placeholder="Breve descripción del paso..."
+                        value={data.description || ''}
+                        onChange={handleDescriptionChange}
+                        className="text-sm"
+                    />
+                </div>
                 <Label className="text-sm font-medium">Rango de días</Label>
                 <div className="flex items-center gap-2">
                     <Select
@@ -194,38 +177,24 @@ export default function FormTimeConditionNode({
 
             {/* 🕓 Horario */}
             <div className="flex flex-col gap-2">
-                <Label className="text-sm font-medium">
-                    Horario (formato 24 h)
-                </Label>
+                <Label className="text-sm font-medium">Horario (24h)</Label>
                 <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1">
-                        <Label className="text-xs text-gray-500 dark:text-gray-400">
-                            Desde
-                        </Label>
-                        <Input
-                            type="time"
-                            value={data.startTime || ''}
-                            onChange={(e) =>
-                                updateNodeData(id, {
-                                    startTime: e.target.value,
-                                })
-                            }
-                            className="mt-1 text-sm dark:bg-gray-900/50"
-                        />
-                    </div>
-                    <div className="flex-1">
-                        <Label className="text-xs text-gray-500 dark:text-gray-400">
-                            Hasta
-                        </Label>
-                        <Input
-                            type="time"
-                            value={data.endTime || ''}
-                            onChange={(e) =>
-                                updateNodeData(id, { endTime: e.target.value })
-                            }
-                            className="mt-1 text-sm dark:bg-gray-900/50"
-                        />
-                    </div>
+                    <Input
+                        type="time"
+                        value={data.startTime || ''}
+                        onChange={(e) =>
+                            updateNodeData(id, { startTime: e.target.value })
+                        }
+                        className="mt-1 text-sm dark:bg-gray-900/50"
+                    />
+                    <Input
+                        type="time"
+                        value={data.endTime || ''}
+                        onChange={(e) =>
+                            updateNodeData(id, { endTime: e.target.value })
+                        }
+                        className="mt-1 text-sm dark:bg-gray-900/50"
+                    />
                 </div>
             </div>
         </div>

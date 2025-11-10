@@ -1,5 +1,4 @@
 // src\components\forms\FormGenerateTokenNode.tsx
-
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -34,11 +33,13 @@ interface KeyValue {
 }
 
 /**
- * 🪄 FormGenerateTokenNode (v2.1 – Dual Mode simpletext/button)
- * ------------------------------------------------------------
- * ✅ Modo selector: simpletext / button
- * ✅ Refleja valores: mode, text, body, script
- * ✅ Integrado con conexiones onTrue
+ * 🪄 FormGenerateTokenNode (v3.0 — Estandarizado + Descripción Final)
+ * ------------------------------------------------------------------
+ * ✅ Compatible con Prompt Base v1.1 (estructura visual unificada)
+ * ✅ Campo "Descripción" al final con estilo estándar
+ * ✅ Modo selector (simpletext/button)
+ * ✅ Cuerpo editable en modo Visual o JSON
+ * ✅ Integración total con useGenerateTokenStore
  */
 export default function FormGenerateTokenNode({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
@@ -101,6 +102,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
         return () => unregisterSaveCallback(id)
     }, [id, pairs, localData, jsonMode])
 
+    // ✏️ Handlers
     const handleChange = (field: keyof GenerateTokenObject, value: any) =>
         setLocalData((prev) => ({ ...prev, [field]: value }))
 
@@ -159,8 +161,28 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                 />
             </div>
 
+            {/* 🧾 Descripción Final */}
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
+                </Label>
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del paso..."
+                    value={data.description || ''}
+                    onChange={(e) =>
+                        updateNodeData(id, { description: e.target.value })
+                    }
+                    className="text-sm"
+                />
+            </div>
+
             {/* ⚙️ Configuración principal */}
             <div className="flex flex-col gap-3 border-t pt-3 dark:border-gray-800">
+                {/* 🔸 Modo */}
                 <Label className="text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
                     ⚙️ Modo de operación
                 </Label>
@@ -181,7 +203,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                     </SelectContent>
                 </Select>
 
-                {/* Texto */}
+                {/* 🔹 Texto */}
                 <Label className="mt-3 text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
                     🧩 Texto del botón / mensaje
                 </Label>
@@ -192,7 +214,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                     className="w-full border-[#AA3E98] text-xs focus-visible:ring-[#AA3E98]"
                 />
 
-                {/* Body */}
+                {/* 📦 Body */}
                 <div className="mt-3 flex items-center justify-between">
                     <Label className="text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
                         📦 Parámetros (body)
@@ -208,6 +230,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                     </Button>
                 </div>
 
+                {/* 🔤 Visual o JSON */}
                 {!jsonMode ? (
                     <div className="flex w-full flex-col gap-2 overflow-x-auto">
                         {pairs.map((p) => (
@@ -245,7 +268,6 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                                 </Button>
                             </div>
                         ))}
-
                         <Button
                             size="sm"
                             variant="outline"
@@ -270,7 +292,7 @@ export default function FormGenerateTokenNode({ id, data }: any) {
                     />
                 )}
 
-                {/* Script */}
+                {/* 📝 Script */}
                 <Label className="mt-3 text-sm font-semibold text-[#AA3E98] dark:text-[#C969B9]">
                     📝 Script (HTML)
                 </Label>

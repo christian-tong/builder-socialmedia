@@ -1,5 +1,4 @@
 // src\components\nodes\TimeConditionNode.tsx
-
 'use client'
 
 import React, { useMemo } from 'react'
@@ -9,17 +8,25 @@ import { Handle, Position } from 'reactflow'
 import { Card } from '@/components/ui/card'
 import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
+import { useSettingsStore } from '@/store/useSettngsStore'
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 /**
- * 🕒 TimeConditionNode (v2.4)
- * ----------------------------------------------------
- * - Muestra rango de días y horario con salto de línea
- * - Animación suave, bordes redondeados y colores adaptados
- * - Compatible con modo oscuro y orientación dinámica
+ * 🕒 TimeConditionNode (v2.7 – Handles separados por orientación)
+ * --------------------------------------------------------------
+ * - Lógica de días y horarios intacta
+ * - Tooltip + SimplifiedView estándar
+ * - Alinea onTrue / onFalse en bordes inferiores o laterales
  */
 export default function TimeConditionNode({ id, data }: any) {
     const { setSelectedNode } = useNodeConfigStore()
     const { orientation } = useFlowOrientationStore()
+    const { simplifiedView } = useSettingsStore()
 
     const targetPosition =
         orientation === 'vertical' ? Position.Top : Position.Left
@@ -37,11 +44,6 @@ export default function TimeConditionNode({ id, data }: any) {
         sun: 'Dom',
     }
 
-    /** 🧩 Construye un texto legible con salto de línea:
-     * Ejemplo:
-     * Lun–Vie
-     * 09:00 – 19:00
-     */
     const displayText = useMemo(() => {
         let line1 = 'Sin días definidos'
         let line2 = 'Sin horario'
@@ -75,6 +77,9 @@ export default function TimeConditionNode({ id, data }: any) {
         return { line1, line2 }
     }, [data])
 
+    const tooltipDescription =
+        data.description?.trim() || data.label?.trim() || 'Condición horaria'
+
     return (
         <motion.div
             layout
@@ -87,51 +92,121 @@ export default function TimeConditionNode({ id, data }: any) {
                 mass: 0.8,
             }}
         >
-            <Card
-                onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedNode({ id, type: 'timeConditionNode', data })
-                }}
-                data-id={id}
-                className="relative cursor-pointer rounded-xl border border-sky-600 bg-sky-500/95 px-3 py-2 text-white shadow-md transition-all duration-300 ease-out hover:scale-[1.03] hover:shadow-lg dark:border-sky-700 dark:bg-sky-700/90"
-            >
-                <div className="flex flex-col items-center text-center">
-                    {/* 🕓 Header */}
-                    <div className="mb-1 flex items-center justify-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        <span className="text-sm font-semibold">
-                            {data.label || 'Condición Horaria'}
-                        </span>
-                    </div>
+            <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Card
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedNode({
+                                    id,
+                                    type: 'timeConditionNode',
+                                    data,
+                                })
+                            }}
+                            data-id={id}
+                            className={`relative cursor-pointer border border-sky-600 bg-sky-500/95 text-white shadow-md transition-all duration-300 ease-out hover:scale-[1.03] hover:shadow-lg dark:border-sky-700 dark:bg-sky-700/90 ${
+                                simplifiedView
+                                    ? 'flex h-12 w-12 items-center justify-center rounded-2xl'
+                                    : 'rounded-xl px-3 py-2'
+                            }`}
+                        >
+                            {simplifiedView ? (
+                                <div className="flex h-full w-full items-center justify-center">
+                                    <Clock className="size-7 text-white" />
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center text-center">
+                                    {/* 🕓 Header */}
+                                    <div className="mb-1 flex items-center justify-center gap-2">
+                                        <Clock className="h-4 w-4" />
+                                        <span className="text-sm font-semibold">
+                                            {data.label || 'Condición Horaria'}
+                                        </span>
+                                    </div>
 
-                    {/* 📅 Rango de días y horario */}
-                    <div className="flex flex-col items-center text-[11px] leading-tight opacity-90">
-                        <span className="font-medium">{displayText.line1}</span>
-                        <span className="font-mono text-[10px] opacity-90">
-                            {displayText.line2}
-                        </span>
-                    </div>
-                </div>
+                                    {/* 📅 Rango de días y horario */}
+                                    <div className="flex flex-col items-center text-[11px] leading-tight opacity-90">
+                                        <span className="font-medium">
+                                            {displayText.line1}
+                                        </span>
+                                        <span className="font-mono text-[10px] opacity-90">
+                                            {displayText.line2}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
 
-                {/* 🔹 Handles */}
-                <Handle
-                    type="target"
-                    position={targetPosition}
-                    className="!bg-sky-300"
-                />
-                <Handle
-                    type="source"
-                    id="onTrue"
-                    position={Position.Bottom}
-                    className="!bg-green-400"
-                />
-                <Handle
-                    type="source"
-                    id="onFalse"
-                    position={Position.Bottom}
-                    className="ml-4 !bg-rose-400"
-                />
-            </Card>
+                            {/* 🎯 Handle Target */}
+                            <Handle
+                                type="target"
+                                position={targetPosition}
+                                className="!bg-sky-300"
+                            />
+
+                            {/* 🔹 Handles onTrue / onFalse con separación perfecta */}
+                            {orientation === 'vertical' ? (
+                                <>
+                                    <Handle
+                                        type="source"
+                                        id="onTrue"
+                                        position={Position.Bottom}
+                                        style={{
+                                            left: '30%',
+                                        }}
+                                        className="!bg-green-400"
+                                    />
+                                    <Handle
+                                        type="source"
+                                        id="onFalse"
+                                        position={Position.Bottom}
+                                        style={{
+                                            left: '70%',
+                                        }}
+                                        className="!bg-rose-400"
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <Handle
+                                        type="source"
+                                        id="onTrue"
+                                        position={Position.Right}
+                                        style={{
+                                            top: '30%',
+                                        }}
+                                        className="!bg-green-400"
+                                    />
+                                    <Handle
+                                        type="source"
+                                        id="onFalse"
+                                        position={Position.Right}
+                                        style={{
+                                            top: '70%',
+                                        }}
+                                        className="!bg-rose-400"
+                                    />
+                                </>
+                            )}
+                        </Card>
+                    </TooltipTrigger>
+
+                    {/* 💬 Tooltip Simplificado */}
+                    {simplifiedView && (
+                        <TooltipContent
+                            side="top"
+                            className="max-w-[220px] text-center text-xs font-medium"
+                        >
+                            <div className="flex flex-col">
+                                <span className="text-[10px] opacity-70">
+                                    ID: {id}
+                                </span>
+                                <span>{tooltipDescription}</span>
+                            </div>
+                        </TooltipContent>
+                    )}
+                </Tooltip>
+            </TooltipProvider>
         </motion.div>
     )
 }

@@ -238,58 +238,65 @@ export function NodeSelectionAccordion({
                         <ChevronDown className="h-3 w-3 opacity-70" />
                     </AccordionTrigger>
                     <AccordionContent className="mt-1 rounded-md bg-white px-3 py-2 text-xs dark:bg-gray-950">
-                        {availableNodes.length === 0 ? (
-                            <p className="text-xs text-gray-500 italic">
-                                No hay otros nodos
-                            </p>
-                        ) : (
-                            <div className="max-h-[220px] space-y-1 overflow-y-auto">
-                                {availableNodes.map((node) => {
-                                    const connected = hasConnection(
-                                        node.id,
-                                        handleId
-                                    )
-                                    return (
-                                        <div
-                                            key={node.id}
-                                            className={`flex items-center justify-between rounded px-2 py-1 transition ${
-                                                connected
-                                                    ? 'bg-green-50 dark:bg-green-900/20'
-                                                    : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <Checkbox
-                                                    id={`check-${node.id}-${handleId}`}
-                                                    checked={connected}
-                                                    onCheckedChange={(
-                                                        checked
-                                                    ) =>
-                                                        handleSelectSingle(
-                                                            node.id,
-                                                            Boolean(checked)
-                                                        )
-                                                    }
-                                                />
-                                                <label
-                                                    htmlFor={`check-${node.id}-${handleId}`}
-                                                    className="cursor-pointer text-xs"
-                                                >
-                                                    {node.data?.label ||
-                                                        node.id}
-                                                </label>
-                                            </div>
-                                            <Badge
-                                                variant="outline"
-                                                className="px-1 py-0.5 text-[9px] text-gray-600 dark:text-gray-300"
+                        {availableNodes.map((node) => {
+                            const connected = hasConnection(node.id, handleId)
+                            const hasDescription =
+                                !!node.data?.description?.trim()
+                            const description = node.data?.description?.trim()
+                            const label = node.data?.label?.trim()
+                            const displayLabel = hasDescription
+                                ? description
+                                : label || node.id
+
+                            return (
+                                <div
+                                    key={node.id}
+                                    className={`flex items-center justify-between rounded px-2 py-1 transition ${
+                                        connected
+                                            ? 'bg-green-50 dark:bg-green-900/20'
+                                            : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                                    }`}
+                                >
+                                    <div className="flex w-full items-center gap-2">
+                                        <Checkbox
+                                            id={`check-${node.id}-${handleId}`}
+                                            checked={connected}
+                                            onCheckedChange={(checked) =>
+                                                handleSelectSingle(
+                                                    node.id,
+                                                    Boolean(checked)
+                                                )
+                                            }
+                                            className="shrink-0"
+                                        />
+
+                                        {/* 🧩 Tooltip al hover para descripciones largas */}
+                                        <div className="flex w-full flex-col items-start justify-center">
+                                            <div
+                                                title={displayLabel} // tooltip nativo
+                                                className="line-clamp-1 w-full cursor-pointer text-xs font-medium text-gray-800 dark:text-gray-100"
                                             >
-                                                {node.type}
-                                            </Badge>
+                                                {displayLabel}
+                                            </div>
+
+                                            {/* Mostrar el ID debajo solo si hay descripción */}
+                                            {hasDescription && (
+                                                <span className="w-full text-[10px] text-gray-500 dark:text-gray-400">
+                                                    {node.id}
+                                                </span>
+                                            )}
                                         </div>
-                                    )
-                                })}
-                            </div>
-                        )}
+                                    </div>
+
+                                    <Badge
+                                        variant="outline"
+                                        className="px-1 py-0.5 text-[9px] text-gray-600 dark:text-gray-300"
+                                    >
+                                        {node.type}
+                                    </Badge>
+                                </div>
+                            )
+                        })}
                     </AccordionContent>
                 </AccordionItem>
             </Accordion>

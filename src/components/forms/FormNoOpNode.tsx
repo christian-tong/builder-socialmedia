@@ -1,18 +1,22 @@
 // src\components\forms\FormNoOpNode.tsx
-
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useFlowStore } from '@/store/useFlowStore'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
+import { NodeConnectionsAccordion } from '@/components/shared/NodeConnectionsAccordion'
 
 /**
- * 🟤 FormNoOpNode
- * ----------------------------------------------------
- * - Nodo sin lógica operativa
- * - Solo muestra información descriptiva
- * - No usa store especializado
+ * 🟤 FormNoOpNode (v3.1 – Nodo anterior + Descripción estandarizada)
+ * ------------------------------------------------------------------
+ * ✅ Estructura Prompt Base v1.1
+ * ✅ Se agrega sección "Nodo anterior"
+ * ✅ Campo "Descripción" con layout uniforme
+ * ✅ Colores grises consistentes con NoOpNode
+ * ✅ Registro de callback vacío para coherencia
  */
 export default function FormNoOpNode({
     id,
@@ -21,26 +25,42 @@ export default function FormNoOpNode({
     id: string
     data: Record<string, any>
 }) {
-    const { registerSaveCallback, unregisterSaveCallback } =
+    const { updateNodeData, registerSaveCallback, unregisterSaveCallback } =
         useNodeConfigStore()
+    const { getConnectedNodes, edges, nodes } = useFlowStore()
 
-    // 💾 Se registra callback vacío para mantener consistencia del patrón
+    const [prevNodes, setPrevNodes] = useState<string[]>([])
+
+    // 🔁 Detectar nodos conectados anteriores
+    useEffect(() => {
+        const { prev } = getConnectedNodes(id)
+        setPrevNodes(prev.map((n) => n.data?.label || n.id))
+    }, [edges, nodes, id, getConnectedNodes])
+
+    // 💾 Registrar callback vacío
     useEffect(() => {
         registerSaveCallback(id, () => {
             console.log(`🟤 [NoOpNode] Guardado noop para id: ${id}`)
         })
         return () => unregisterSaveCallback(id)
-    }, [id])
+    }, [id, registerSaveCallback, unregisterSaveCallback])
+
+    // ✏️ Actualizar descripción
+    const handleDescriptionChange = (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        updateNodeData(id, { description: e.target.value })
+    }
 
     return (
         <div className="flex flex-col gap-5">
-            {/* 🔹 Encabezado */}
+            {/* 🏷️ Encabezado */}
             <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
                 <Label
                     className="text-sm font-semibold"
                     style={{ color: '#6B7280' }}
                 >
-                    Nodo NoOp (sin operación)
+                    Configuración del Nodo NoOp (sin operación)
                 </Label>
                 <Badge
                     variant="outline"
@@ -55,11 +75,29 @@ export default function FormNoOpNode({
                 </Badge>
             </div>
 
-            {/* 🔸 Descripción */}
-            <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                Este nodo no ejecuta ninguna acción. Útil para separar flujos,
-                pruebas o placeholders temporales.
-            </p>
+            {/* 🔗 Nodo anterior */}
+            <NodeConnectionsAccordion
+                title="Nodo anterior"
+                nodesList={prevNodes}
+                accentColor="text-sky-700 dark:text-sky-300"
+            />
+
+            {/* 📝 Descripción */}
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
+                </Label>
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del nodo..."
+                    value={data.description || ''}
+                    onChange={handleDescriptionChange}
+                    className="text-sm"
+                />
+            </div>
         </div>
     )
 }

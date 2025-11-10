@@ -33,11 +33,13 @@ interface KeyValue {
 }
 
 /**
- * 🤖 FormChatBotIARequestNode (v2.0 — Unified Visual Standard)
- * ------------------------------------------------------------
- * ✅ Usa text-wrap en el textarea
- * ✅ Reestructura onTrue/onFalse en acordeón unificado
- * ✅ Estandariza colores y divisores según Prompt Base de Estilos
+ * 🤖 FormChatBotIARequestNode (v3.0 — Estandarizado + Descripción final)
+ * ---------------------------------------------------------------------
+ * ✅ Integrado con store global useChatBotIAStore
+ * ✅ Conexiones onTrue / onFalse unificadas
+ * ✅ Campo “Descripción” al final (border-t pt-3)
+ * ✅ Modo visual / JSON conmutables
+ * ✅ Estilo coherente (indigo)
  */
 export default function FormChatBotIARequestNode({ id, data }: any) {
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
@@ -166,7 +168,7 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
                 accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* ⚡ Conexiones onTrue/onFalse en acordeón unificado */}
+            {/* ⚡ Conexiones onTrue/onFalse */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Accordion type="single" collapsible className="w-full">
                     <AccordionItem value="next-nodes">
@@ -179,15 +181,6 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
                                 <Label className="text-sm font-medium text-green-600 dark:text-green-400">
                                     Conexión trueStep
                                 </Label>
-                                <NodeConnectionsAccordion
-                                    title="Nodos conectados (trueStep)"
-                                    nodesList={availableNodes
-                                        .filter((n) =>
-                                            hasConnection(n.id, 'onTrue')
-                                        )
-                                        .map((n) => n.data?.label || n.id)}
-                                    accentColor="text-green-700 dark:text-green-300"
-                                />
                                 <NodeSelectionAccordion
                                     title="Seleccionar nodo trueStep"
                                     availableNodes={availableNodes}
@@ -203,15 +196,6 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
                                 <Label className="text-sm font-medium text-rose-600 dark:text-rose-400">
                                     Conexión falseStep
                                 </Label>
-                                <NodeConnectionsAccordion
-                                    title="Nodos conectados (falseStep)"
-                                    nodesList={availableNodes
-                                        .filter((n) =>
-                                            hasConnection(n.id, 'onFalse')
-                                        )
-                                        .map((n) => n.data?.label || n.id)}
-                                    accentColor="text-rose-700 dark:text-rose-300"
-                                />
                                 <NodeSelectionAccordion
                                     title="Seleccionar nodo falseStep"
                                     availableNodes={availableNodes}
@@ -224,6 +208,25 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
                         </AccordionContent>
                     </AccordionItem>
                 </Accordion>
+            </div>
+
+            {/* 📝 Descripción estandarizada */}
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
+                </Label>
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del paso..."
+                    value={data.description || ''}
+                    onChange={(e) =>
+                        updateNodeData(id, { description: e.target.value })
+                    }
+                    className="text-sm"
+                />
             </div>
 
             {/* 🧾 Campos principales */}
@@ -265,7 +268,7 @@ export default function FormChatBotIARequestNode({ id, data }: any) {
                 </Button>
             </div>
 
-            {/* 🔤 Body con text-wrap */}
+            {/* 🔤 Body editable */}
             {!jsonMode ? (
                 <div className="mt-2 flex flex-col gap-2">
                     <div className="flex justify-between text-[11px] font-semibold text-indigo-400 uppercase">

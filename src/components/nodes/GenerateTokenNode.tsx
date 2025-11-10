@@ -9,11 +9,27 @@ import { Card } from '@/components/ui/card'
 import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useGenerateTokenStore } from '@/store/useGenerateTokenStore'
+import { useSettingsStore } from '@/store/useSettngsStore'
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip'
 
-export default function GenerateTokenNode({ id, data }: any) {
+/**
+ * 💜 GenerateTokenNode (v3.3 — SimplifiedView + Tooltip)
+ * -------------------------------------------------------------
+ * 🔸 Misma estructura de datos y lógica interna
+ * 🔸 Añade vista simplificada (ícono + tooltip)
+ * 🔸 Handles adaptativos
+ * 🔸 No modifica stores ni formateo de body
+ */
+export function GenerateTokenNode({ id, data }: any) {
     const { setSelectedNode } = useNodeConfigStore()
     const { orientation } = useFlowOrientationStore()
     const { getNodeData } = useGenerateTokenStore()
+    const { simplifiedView } = useSettingsStore()
 
     const nodeData = getNodeData(id)
     const handleTarget =
@@ -51,6 +67,12 @@ export default function GenerateTokenNode({ id, data }: any) {
             ? 'bg-blue-500 text-white'
             : 'bg-pink-200 text-[#AA3E98] dark:bg-[#AA3E98]/30 dark:text-pink-200'
 
+    // 💬 Tooltip dinámico
+    const tooltipDescription =
+        data.description?.trim() ||
+        data.label?.trim() ||
+        'Genera un token dinámico o acción segura'
+
     return (
         <motion.div
             layout
@@ -58,61 +80,107 @@ export default function GenerateTokenNode({ id, data }: any) {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 70, damping: 12 }}
         >
-            <Card
-                onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedNode({ id, type: 'generateTokenNode', data })
-                }}
-                className="relative w-[280px] cursor-pointer overflow-hidden rounded-xl border border-[#AA3E98] bg-[#C969B9] p-3 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
-            >
-                {/* 🔹 Encabezado */}
-                <div className="flex items-center justify-between border-b border-white/20 pb-1">
-                    <div className="flex items-center gap-2">
-                        <KeyRound className="h-4 w-4 text-white" />
-                        <span className="text-sm font-semibold">
-                            {data?.label || 'Generate Token'}
-                        </span>
-                    </div>
+            <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Card
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedNode({
+                                    id,
+                                    type: 'generateTokenNode',
+                                    data,
+                                })
+                            }}
+                            data-id={id}
+                            className={`cursor-pointer border border-[#AA3E98] bg-[#C969B9] text-white shadow-md transition-all select-none hover:scale-[1.02] hover:shadow-lg ${
+                                simplifiedView
+                                    ? 'flex size-12 items-center justify-center rounded-2xl'
+                                    : 'w-[280px] overflow-hidden rounded-xl p-3'
+                            }`}
+                        >
+                            {simplifiedView ? (
+                                // 💜 Ícono centrado como SimpleTextNode
+                                <div className="flex h-full w-full items-center justify-center">
+                                    <KeyRound
+                                        className={`${
+                                            simplifiedView ? 'size-7' : 'size-4'
+                                        }`}
+                                    />
+                                </div>
+                            ) : (
+                                <>
+                                    {/* 🔹 Encabezado */}
+                                    <div className="flex items-center justify-between border-b border-white/20 pb-1">
+                                        <div className="flex items-center gap-2">
+                                            <KeyRound className="h-4 w-4 text-white" />
+                                            <span className="text-sm font-semibold">
+                                                {data?.label ||
+                                                    'Generate Token'}
+                                            </span>
+                                        </div>
 
-                    {/* 🎯 Badge del modo */}
-                    <span
-                        className={`rounded-full px-2 py-[1px] text-[10px] font-semibold capitalize ${badgeColor}`}
-                    >
-                        {mode}
-                    </span>
-                </div>
+                                        {/* 🎯 Badge del modo */}
+                                        <span
+                                            className={`rounded-full px-2 py-[1px] text-[10px] font-semibold capitalize ${badgeColor}`}
+                                        >
+                                            {mode}
+                                        </span>
+                                    </div>
 
-                {/* 🔸 Contenido */}
-                <div className="space-y-1 pt-2 text-[11px] leading-tight text-gray-100">
-                    <div>
-                        <span className="font-semibold text-white">Texto:</span>{' '}
-                        {nodeData.text || '(sin texto)'}
-                    </div>
+                                    {/* 🔸 Contenido */}
+                                    <div className="space-y-1 pt-2 text-[11px] leading-tight text-gray-100">
+                                        <div>
+                                            <span className="font-semibold text-white">
+                                                Texto:
+                                            </span>{' '}
+                                            {nodeData.text || '(sin texto)'}
+                                        </div>
 
-                    {/* 🧾 Body con {} y saltos */}
-                    <div className="rounded-md border border-white/20 bg-white/10 px-2 py-1 font-mono text-[10px] whitespace-pre-wrap text-white">
-                        <span className="font-semibold text-[#FFE6F8]">
-                            Body:
-                        </span>
-                        <pre className="mt-0.5 max-h-[80px] overflow-hidden whitespace-pre-wrap">
-                            {formattedBody}
-                        </pre>
-                    </div>
-                </div>
+                                        {/* 🧾 Body con {} y saltos */}
+                                        <div className="rounded-md border border-white/20 bg-white/10 px-2 py-1 font-mono text-[10px] whitespace-pre-wrap text-white">
+                                            <span className="font-semibold text-[#FFE6F8]">
+                                                Body:
+                                            </span>
+                                            <pre className="mt-0.5 max-h-[80px] overflow-hidden whitespace-pre-wrap">
+                                                {formattedBody}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
-                {/* 🟣 Handles */}
-                <Handle
-                    type="target"
-                    position={handleTarget}
-                    className="!bg-[#AA3E98]"
-                />
-                <Handle
-                    type="source"
-                    position={handleSource}
-                    id="onTrue"
-                    className="!bg-[#C65DB2]"
-                />
-            </Card>
+                            {/* 🟣 Handles */}
+                            <Handle
+                                type="target"
+                                position={handleTarget}
+                                className="!bg-[#AA3E98]"
+                            />
+                            <Handle
+                                type="source"
+                                position={handleSource}
+                                id="onTrue"
+                                className="!bg-[#C65DB2]"
+                            />
+                        </Card>
+                    </TooltipTrigger>
+
+                    {/* 💬 Tooltip sólo en vista simplificada */}
+                    {simplifiedView && (
+                        <TooltipContent
+                            side="top"
+                            className="max-w-[220px] text-center text-xs font-medium"
+                        >
+                            <div className="flex flex-col">
+                                <span className="text-[10px] opacity-70">
+                                    ID: {id}
+                                </span>
+                                <span>{tooltipDescription}</span>
+                            </div>
+                        </TooltipContent>
+                    )}
+                </Tooltip>
+            </TooltipProvider>
         </motion.div>
     )
 }

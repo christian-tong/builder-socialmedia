@@ -10,16 +10,15 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { useNodeConnections } from '@/hooks/useNodeConnections'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 
 /**
- * 📝 FormSimpleTextNode (v2.1 – estructura estandarizada)
+ * 📝 FormSimpleTextNode (v2.2 – con descripción estándar)
  * --------------------------------------------------
- * - Misma jerarquía visual que FormTimeConditionNode
- * - Mantiene consistencia cromática y separadores
- * - Usa solo una conexión condicional (onTrue)
- * - Textarea con autoajuste dinámico
+ * - Añade campo descripción reutilizable
+ * - Mantiene estructura y colores consistentes
  */
 export default function FormSimpleTextNode({
     id,
@@ -34,11 +33,6 @@ export default function FormSimpleTextNode({
     const { prevNodes, availableNodes, hasConnection, toggleConnection } =
         useNodeConnections(id)
 
-    // 🔍 Filtra conexiones salientes específicas
-    const trueConnections = availableNodes
-        .filter((n) => hasConnection(n.id, 'onTrue'))
-        .map((n) => n.id)
-
     // 🪶 Autoajuste del textarea
     const textareaRef = useRef<HTMLTextAreaElement | null>(null)
     useEffect(() => {
@@ -49,6 +43,12 @@ export default function FormSimpleTextNode({
         el.style.height = `${newHeight}px`
         el.style.overflowY = el.scrollHeight > 600 ? 'auto' : 'hidden'
     }, [data.message])
+
+    const handleDescriptionChange = (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        updateNodeData(id, { description: e.target.value })
+    }
 
     return (
         <div className="flex flex-col gap-5">
@@ -72,16 +72,11 @@ export default function FormSimpleTextNode({
                 accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* ⚡ Sección onTrue */}
+            {/* ⚡ Conexión trueStep */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Label className="text-sm font-medium text-green-600 dark:text-green-400">
                     Conexión trueStep
                 </Label>
-                <NodeConnectionsAccordion
-                    title="Nodos conectados (trueStep)"
-                    nodesList={trueConnections}
-                    accentColor="text-green-700 dark:text-green-300"
-                />
                 <NodeSelectionAccordion
                     title="Seleccionar nodo trueStep"
                     availableNodes={availableNodes}
@@ -94,6 +89,22 @@ export default function FormSimpleTextNode({
 
             {/* 💬 Contenido del mensaje */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
+                {/* 📝 Descripción (al final) */}
+                <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                    <Label
+                        htmlFor={`description-${id}`}
+                        className="text-muted-foreground text-xs"
+                    >
+                        Descripción
+                    </Label>
+                    <Input
+                        id={`description-${id}`}
+                        placeholder="Breve descripción del paso..."
+                        value={data.description || ''}
+                        onChange={handleDescriptionChange}
+                        className="text-sm"
+                    />
+                </div>
                 <Label className="text-sm font-medium">Mensaje</Label>
                 <Textarea
                     ref={textareaRef}

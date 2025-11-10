@@ -16,20 +16,20 @@ import {
     KeyRound,
 } from 'lucide-react'
 
-import DerivateNode from '@/components/nodes/DerivateNode'
 import EndNode from '@/components/nodes/EndNode'
 import { SimpleTextNode } from '@/components/nodes/SimpleTextNode'
 import { StartNode } from '@/components/nodes/StartNode'
 import TimeConditionNode from '@/components/nodes/TimeConditionNode'
 import { VariablesNode } from '@/components/nodes/VariablesNode' // 🧩 nuevo nodo
 import SwitchConditionNode from '@/components/nodes/SwitchConditionNode'
-import MySQLQueryNode from '@/components/nodes/MySQLQueryNode'
 import NoOpNode from '@/components/nodes/NoOpNode'
 import ChatBotIARequestNode from '@/components/nodes/ChatBotIARequestNode'
 import SaveRecordNode from '@/components/nodes/SaveRecordNode'
-import GenerateTokenNode from '@/components/nodes/GenerateTokenNode'
 import { MenuNode } from '@/components/nodes/MenuNode'
 import SetCustomerIDNode from '@/components/nodes/SetCustomerIDNode'
+import { DerivateNode } from '@/components/nodes/DerivateNode'
+import { MySQLQueryNode } from '@/components/nodes/MySQLQueryNode'
+import { GenerateTokenNode } from '@/components/nodes/GenerateTokenNode'
 
 // =============================================================
 // 🔒 Extiende el namespace global (para cachear nodeTypes)

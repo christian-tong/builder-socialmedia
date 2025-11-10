@@ -10,22 +10,29 @@ import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
 import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
+import { useSettingsStore } from '@/store/useSettngsStore'
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 /**
  * 🟢 StartNode
  * ----------------------------------------------------
  * - Nodo inicial del flujo
- * - Animación más enérgica y destacada
- * - Solo permite conexiones salientes
+ * - Compatible con vista simplificada (solo ícono)
+ * - Tooltip con ID + descripción (o label si descripción vacía)
  */
 export function StartNode({ id, data }: any) {
     const { setSelectedNode } = useNodeConfigStore()
     const { orientation } = useFlowOrientationStore()
+    const { simplifiedView } = useSettingsStore()
 
     const handlePosition =
         orientation === 'vertical' ? Position.Bottom : Position.Right
 
-    // 🚫 Evita conexiones entrantes
     const isValidConnection = (connection: Connection) => {
         if (connection.target === id) {
             toast.warning('Conexión no permitida', {
@@ -36,6 +43,10 @@ export function StartNode({ id, data }: any) {
         }
         return true
     }
+
+    // 🧠 Tooltip dinámico — usa descripción o fallback
+    const tooltipDescription =
+        data.description?.trim() || data.label?.trim() || 'Inicio del flujo'
 
     return (
         <motion.div
@@ -49,29 +60,69 @@ export function StartNode({ id, data }: any) {
                 mass: 0.6,
             }}
         >
-            <Card
-                onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedNode({ id, type: 'startNode', data }) // ✅ mantiene coherencia
-                }}
-                data-id={id}
-                className="cursor-pointer rounded-lg border border-emerald-700 bg-emerald-600 px-3 py-2 text-white shadow-md transition-all duration-300 ease-out hover:scale-[1.05] hover:shadow-lg"
-            >
-                <div className="flex items-center justify-center gap-2">
-                    <PlayCircle className="h-4 w-4" />
-                    <span className="text-sm font-medium">
-                        {data.label || 'Inicio'}
-                    </span>
-                </div>
+            <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Card
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedNode({
+                                    id,
+                                    type: 'startNode',
+                                    data,
+                                })
+                            }}
+                            data-id={id}
+                            className={`flex cursor-pointer items-center justify-center border border-emerald-700 bg-emerald-600 text-white shadow-md transition-all duration-300 ease-out hover:scale-[1.05] hover:shadow-lg ${
+                                simplifiedView
+                                    ? 'size-12 rounded-2xl'
+                                    : 'rounded-lg px-3 py-2'
+                            }`}
+                        >
+                            <div
+                                className={`flex items-center justify-center ${
+                                    simplifiedView ? '' : 'gap-2'
+                                }`}
+                            >
+                                <PlayCircle
+                                    className={`${
+                                        simplifiedView ? 'size-7' : 'size-4'
+                                    }`}
+                                />
+                                {!simplifiedView && (
+                                    <span className="text-sm font-medium">
+                                        {data.label || 'Inicio'}
+                                    </span>
+                                )}
+                            </div>
 
-                {/* 🟢 Handle de salida */}
-                <Handle
-                    type="source"
-                    position={handlePosition}
-                    className="!bg-emerald-400"
-                    isValidConnection={isValidConnection}
-                />
-            </Card>
+                            {/* 🟢 Handle de salida */}
+                            <Handle
+                                type="source"
+                                position={handlePosition}
+                                className="!bg-emerald-400"
+                                id="onTrue"
+                                isValidConnection={isValidConnection}
+                            />
+                        </Card>
+                    </TooltipTrigger>
+
+                    {/* 💬 Tooltip al pasar el mouse */}
+                    {simplifiedView && (
+                        <TooltipContent
+                            side="top"
+                            className="max-w-[200px] text-center text-xs font-medium"
+                        >
+                            <div className="flex flex-col">
+                                <span className="text-[10px] opacity-70">
+                                    ID: {id}
+                                </span>
+                                <span>{tooltipDescription}</span>
+                            </div>
+                        </TooltipContent>
+                    )}
+                </Tooltip>
+            </TooltipProvider>
         </motion.div>
     )
 }

@@ -10,17 +10,27 @@ import { Card } from '@/components/ui/card'
 import { useFlowOrientationStore } from '@/store/useFlowOrientationStore'
 import { useNodeConfigStore } from '@/store/useNodeConfigStore'
 import { useMySQLQueryStore } from '@/store/useMySQLQueryStore'
+import { useSettingsStore } from '@/store/useSettngsStore'
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 /**
- * 🧠 MySQLQueryNode
- * ----------------------------------------------------
- * - Nodo que ejecuta una consulta SQL y guarda resultados
- * - Color base: azul oscuro (#2D3E50)
- * - Anima su entrada con spring
+ * 🧠 MySQLQueryNode (v3.1 — Estilo SimpleTextNode)
+ * ---------------------------------------------------------
+ * ✅ Ícono dinámico centrado (size-7 / size-4)
+ * ✅ Tooltip con ID + descripción
+ * ✅ Handles adaptativos (vertical / horizontal)
+ * ✅ Colores coherentes #2D3E50 / #4C6FA3
+ * ✅ Estructura y animación unificada con SimpleTextNode
  */
-export default function MySQLQueryNode({ id, data }: any) {
+export function MySQLQueryNode({ id, data }: any) {
     const { setSelectedNode } = useNodeConfigStore()
     const { orientation } = useFlowOrientationStore()
+    const { simplifiedView } = useSettingsStore()
     const { byId } = useMySQLQueryStore()
 
     const queryData = byId[id] || data.object || {}
@@ -30,6 +40,22 @@ export default function MySQLQueryNode({ id, data }: any) {
     const sourcePosition =
         orientation === 'vertical' ? Position.Bottom : Position.Right
 
+    // 🧠 Tooltip dinámico (prioridad: descripción → label → fallback)
+    const tooltipDescription =
+        data.description?.trim() ||
+        data.label?.trim() ||
+        'Ejecuta una consulta MySQL y guarda los resultados'
+
+    const variable = queryData?.setvar || '(sin variable)'
+    const script =
+        queryData?.script?.trim() || queryData?.query?.trim() || '(sin query)'
+
+    // 🧩 Limitar líneas visibles
+    const limitedScript =
+        script.split('\n').length > 4
+            ? script.split('\n').slice(0, 4).join('\n') + '\n...'
+            : script
+
     return (
         <motion.div
             layout
@@ -37,68 +63,96 @@ export default function MySQLQueryNode({ id, data }: any) {
             animate={{ scale: 1, opacity: 1 }}
             transition={{
                 type: 'spring',
-                stiffness: 85,
+                stiffness: 80,
                 damping: 14,
-                mass: 0.7,
+                mass: 0.6,
             }}
         >
-            <Card
-                onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedNode({ id, type: 'mysqlQueryNode', data })
-                }}
-                data-id={id}
-                className="relative w-full max-w-[240px] cursor-pointer rounded-lg border px-3 py-2 text-center text-white shadow-md transition-all duration-300 ease-out hover:scale-[1.03] hover:shadow-lg"
-                style={{
-                    backgroundColor: '#2D3E50',
-                    borderColor: '#2D3E50',
-                }}
-            >
-                <div className="flex flex-col items-center justify-center gap-1 overflow-hidden">
-                    {/* 🔹 Título */}
-                    <div className="flex items-center justify-center gap-2">
-                        <Database className="h-4 w-4" />
-                        <span className="text-sm font-medium break-words">
-                            {data.label || 'MySQL Query'}
-                        </span>
-                    </div>
-
-                    {/* 🔹 Variable destino */}
-                    {queryData.setvar && (
-                        <p className="mt-1 text-[10px] opacity-90">
-                            ⇢ {queryData.setvar}
-                        </p>
-                    )}
-
-                    {/* 🔹 Resumen de query */}
-                    {queryData.script && (
-                        <p
-                            className="mt-1 text-[10px] leading-snug text-gray-200 opacity-85"
-                            style={{
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                maxWidth: 200,
+            <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Card
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedNode({
+                                    id,
+                                    type: 'mysqlQueryNode',
+                                    data,
+                                })
                             }}
+                            data-id={id}
+                            className={`cursor-pointer border border-[#4C6FA3] bg-[#2D3E50] text-white shadow-md transition-all duration-300 ease-out select-none hover:scale-[1.03] hover:shadow-lg ${
+                                simplifiedView
+                                    ? 'flex size-12 items-center justify-center rounded-2xl'
+                                    : 'relative w-full max-w-[240px] rounded-lg px-3 py-2 text-center'
+                            }`}
                         >
-                            {queryData.script}
-                        </p>
-                    )}
-                </div>
+                            {simplifiedView ? (
+                                // ✅ Ícono centrado dinámico (como SimpleTextNode)
+                                <div className="flex h-full w-full items-center justify-center">
+                                    <Database
+                                        className={`${
+                                            simplifiedView ? 'size-7' : 'size-4'
+                                        }`}
+                                    />
+                                </div>
+                            ) : (
+                                // 🧩 Vista completa
+                                <div className="flex flex-col items-center justify-center gap-1 overflow-hidden">
+                                    {/* 🔹 Título */}
+                                    <div className="flex items-center justify-center gap-2">
+                                        <Database className="h-4 w-4 flex-shrink-0" />
+                                        <span className="text-sm font-medium break-words">
+                                            {data.label || 'MySQL Query'}
+                                        </span>
+                                    </div>
 
-                {/* Handles */}
-                <Handle
-                    type="target"
-                    position={targetPosition}
-                    className="!bg-[#4C6FA3]"
-                />
-                <Handle
-                    type="source"
-                    position={sourcePosition}
-                    id="onTrue"
-                    className="!bg-[#4C6FA3]"
-                />
-            </Card>
+                                    {/* 🔹 Variable */}
+                                    <p className="font-mono text-[11px] text-sky-200 opacity-90">
+                                        ⇢ {variable}
+                                    </p>
+
+                                    {/* 🔹 Script truncado */}
+                                    <pre
+                                        className="mt-1 text-[10px] leading-snug break-words whitespace-pre-wrap text-gray-200 opacity-85"
+                                        style={{ whiteSpace: 'pre-wrap' }}
+                                    >
+                                        {limitedScript}
+                                    </pre>
+                                </div>
+                            )}
+
+                            {/* 🟢🟡 Handles */}
+                            <Handle
+                                type="target"
+                                position={targetPosition}
+                                className="!bg-[#4C6FA3]"
+                            />
+                            <Handle
+                                type="source"
+                                position={sourcePosition}
+                                id="onTrue"
+                                className="!bg-[#4C6FA3]"
+                            />
+                        </Card>
+                    </TooltipTrigger>
+
+                    {/* 💬 Tooltip (solo en vista simplificada) */}
+                    {simplifiedView && (
+                        <TooltipContent
+                            side="top"
+                            className="max-w-[220px] text-center text-xs font-medium"
+                        >
+                            <div className="flex flex-col">
+                                <span className="text-[10px] opacity-70">
+                                    ID: {id}
+                                </span>
+                                <span>{tooltipDescription}</span>
+                            </div>
+                        </TooltipContent>
+                    )}
+                </Tooltip>
+            </TooltipProvider>
         </motion.div>
     )
 }
