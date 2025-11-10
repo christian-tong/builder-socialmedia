@@ -92,12 +92,6 @@ export default function NoOpNode({ id, data }: any) {
                                 position={targetPosition}
                                 className="!bg-gray-400"
                             />
-                            <Handle
-                                type="source"
-                                position={sourcePosition}
-                                id="noop"
-                                className="!bg-gray-400"
-                            />
                         </Card>
                     </TooltipTrigger>
 

@@ -1,6 +1,5 @@
 // src/lib/jsonFlowGenerator.ts
 
-// src/lib/jsonFlowGenerator.ts
 import type { Edge, Node } from 'reactflow'
 import { useMySQLQueryStore } from '@/store/useMySQLQueryStore'
 import { useSaveRecordStore } from '@/store/useSaveRecordStore'
@@ -45,11 +44,11 @@ function buildConditionPattern(keys: string[]): string {
 }
 
 /**
- * 🧠 generateConversationJson (v8.3 – InteractiveConditions Strict Edition)
+ * 🧠 generateConversationJson (v8.4 – Añadido soporte NoOpNode)
  * -------------------------------------------------------------------------
- * ✅ Reconstruye correctamente los conditions de quick_reply / list
- * ✅ Usa postbackText como key y nextNodeId como valor
- * ✅ source y handles solo para GETDATA/SIMPLETEXT
+ * ✅ Reconstruye correctamente todos los tipos de nodos
+ * ✅ Incluye noopNode → exporta "action": "noop"
+ * ✅ Mantiene description y conexiones coherentes
  */
 export function generateConversationJson(
     nodes: Node<Record<string, any>>[],
@@ -111,24 +110,18 @@ export function generateConversationJson(
                 object = { setvars: JSON.stringify(merged) }
                 break
             }
-            
+
             case 'setCustomerIDNode': {
-                // 🧠 Obtener desde store persistente
                 const custStore = useSetCustomerIDStore.getState()
                 const s = custStore.getNodeData(id)
-
                 action = 'setcustomerid'
-                object = {
-                    options: s.options ?? {}, // ← los pares clave–valor
-                }
+                object = { options: s.options ?? {} }
                 break
             }
 
             case 'chatBotIARequestNode': {
-                // 🧠 Obtener desde store persistente
                 const chatStore = useChatBotIAStore.getState()
                 const s = chatStore.getNodeData(id)
-
                 action = 'chatbotiarequest'
                 object = {
                     variable: s.variable ?? data?.variable ?? '',
@@ -189,7 +182,6 @@ export function generateConversationJson(
             case 'generateTokenNode': {
                 const tokenStore = useGenerateTokenStore.getState()
                 const s = tokenStore.getNodeData(id)
-
                 action = 'generatetoken'
                 object = {
                     mode: s.mode ?? data?.mode ?? 'simpletext',
@@ -220,7 +212,6 @@ export function generateConversationJson(
                 const setvariables: Record<string, string> = { ...baseSetVars }
                 const conditions: Record<string, string> = {}
 
-                // 🧩 Reconstruir desde opciones (QuickReply/List)
                 if (isInteractive) {
                     options.forEach((opt, i) => {
                         const key = String(opt.postbackText ?? i + 1)
@@ -231,7 +222,6 @@ export function generateConversationJson(
                             conditions[key] = interactive.conditions[key]
                     })
                 } else {
-                    // 🧠 GetData / SimpleText normales
                     Object.entries(
                         base.conditions ?? base.object?.conditions ?? {}
                     ).forEach(([key, value]) => {
@@ -335,6 +325,12 @@ export function generateConversationJson(
                 break
             }
 
+            case 'noopNode': {
+                action = 'noop'
+                object = {}
+                break
+            }
+
             case 'timeConditionNode':
                 action = 'timecondition'
                 object = { condition: data?.condition ?? '' }
@@ -374,9 +370,6 @@ export function generateConversationJson(
             description,
         }
 
-        // 🧩 Añadir conexiones solo si aplica
-
-        // 🧠 Solo algunos nodos mantienen source y manejadores extendidos
         if (keepSource) {
             step.source = 'GetData'
             step.onTimeOut = onTimeOut

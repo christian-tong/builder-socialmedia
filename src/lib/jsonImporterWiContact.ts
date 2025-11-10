@@ -648,10 +648,22 @@ export async function convertWiContactToFlow(json: any): Promise<{
                 break
             }
 
-            case 'noop':
+            case 'noop': {
                 nodeType = 'noopNode'
-                nodeData = { label: id }
+
+                // 🧩 Descripción opcional
+                const description =
+                    typeof object?.description === 'string'
+                        ? object.description.trim()
+                        : step.description?.trim() || ''
+
+                nodeData = {
+                    label: id,
+                    description: description || 'Nodo sin operación (NoOp)',
+                }
+
                 break
+            }
 
             case 'hangup':
                 nodeType = 'endNode'
@@ -788,63 +800,6 @@ export async function convertWiContactToFlow(json: any): Promise<{
                 )
             })
         }
-    }
-
-    /**
-     * 📊 buildActionHierarchy (v2.1)
-     * ---------------------------------------
-     * Analiza las relaciones de onTrue / onFalse / onError
-     * y genera un mapa de jerarquías dinámico.
-     */
-    function buildActionHierarchy(steps: any[]): Record<number, string[]> {
-        const hierarchy: Record<number, string[]> = {}
-        const visited = new Set<string>()
-        const adjacency: Record<string, string[]> = {}
-
-        // 🧱 Construir mapa de adyacencia
-        for (const step of steps) {
-            const outputs = [step.onTrue, step.onFalse, step.onError].filter(
-                Boolean
-            )
-            adjacency[step.id] = outputs
-        }
-
-        // 🚀 Iniciar BFS desde el StartStep
-        const startNode = steps.find((s) =>
-            String(s.action).toLowerCase().includes('start')
-        )
-        if (!startNode) return hierarchy
-
-        const queue: { id: string; level: number }[] = [
-            { id: startNode.id, level: 0 },
-        ]
-
-        while (queue.length) {
-            const { id, level } = queue.shift()!
-            if (visited.has(id)) continue
-            visited.add(id)
-
-            const step = steps.find((s) => s.id === id)
-            const action = String(step?.action || 'other').toLowerCase()
-
-            if (!hierarchy[level]) hierarchy[level] = []
-            if (!hierarchy[level].includes(action))
-                hierarchy[level].push(action)
-
-            const neighbors = adjacency[id] || []
-            for (const n of neighbors) queue.push({ id: n, level: level + 1 })
-        }
-
-        // 🧠 Log visual en tabla
-        console.groupCollapsed('🧭 Jerarquía detectada (buildActionHierarchy)')
-        const table = Object.entries(hierarchy).map(([level, actions]) => ({
-            nivel: level,
-            tipos: actions.join(', '),
-        }))
-        console.table(table)
-        console.groupEnd()
-
-        return hierarchy
     }
 
     // ==========================

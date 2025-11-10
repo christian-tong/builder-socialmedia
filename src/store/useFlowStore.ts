@@ -53,15 +53,12 @@ export const useFlowStore = create<FlowState>((set, get) => ({
         }),
 
     createEdge: (sourceId, targetId, handleId) => {
-        if (!targetId || !sourceId) return
         const { edges } = get()
-        const exists = edges.some(
-            (e) =>
-                e.source === sourceId &&
-                e.target === targetId &&
-                e.sourceHandle === handleId
-        )
-        if (exists) return
+        const countBetween = edges.filter(
+            (e) => e.source === sourceId && e.target === targetId
+        ).length
+
+        const offset = countBetween * 8 // píxeles de separación entre edges
 
         const newEdge: Edge = {
             id: `edge-${sourceId}-${targetId}-${handleId || 'default'}`,
@@ -69,25 +66,44 @@ export const useFlowStore = create<FlowState>((set, get) => ({
             target: targetId,
             sourceHandle: handleId,
             animated: true,
-            style: { strokeWidth: 2 },
+            type: 'smoothstep',
+            style: {
+                strokeWidth: 1.8,
+                stroke: '#6b7280',
+                offset,
+            },
         }
 
         set({ edges: [...edges, newEdge] })
-        toast.success(`🔗 Conectado ${sourceId} → ${targetId}`)
     },
-
     exportFlow: () => {
         const { nodes, edges } = get()
-        exportToJsonFile(
-            {
-                nodes: Array.isArray(nodes) ? nodes : [],
-                edges: Array.isArray(edges) ? edges : [],
+
+        // 🧩 Exportar nodos y edges con forma y posición preservadas
+        const formattedNodes = nodes.map((n) => ({
+            ...n,
+            positionAbsolute: n.positionAbsolute ?? n.position,
+            dragging: false,
+            selected: false,
+        }))
+
+        const formattedEdges = edges.map((e, index) => ({
+            ...e,
+            zIndex: index, // controla orden de renderizado
+            animated: e.animated ?? true,
+            style: {
+                ...e.style,
+                strokeWidth: e.style?.strokeWidth ?? 1.8,
             },
+        }))
+
+        exportToJsonFile(
+            { nodes: formattedNodes, edges: formattedEdges },
             'builderSocialMedia'
         )
-        toast.success('✅ Flujo exportado correctamente')
-    },
 
+        toast.success('✅ Flujo exportado correctamente (con geometría)')
+    },
     importFlow: async (file: File) => {
         try {
             const parsed = await importFromJsonFile<any>(file)
@@ -95,14 +111,24 @@ export const useFlowStore = create<FlowState>((set, get) => ({
 
             // 🧩 Caso 1: ReactFlow
             if (Array.isArray(parsed.nodes)) {
-                const laidOut = applyAutoLayout(
-                    parsed.nodes,
-                    parsed.edges || [],
-                    'vertical'
-                )
-                set({ nodes: laidOut, edges: parsed.edges || [] })
-                toast.success('✅ Flujo importado (React Flow)')
-                return { nodes: laidOut, edges: parsed.edges || [] }
+                // 🧩 Preservar layout original si existe
+                const nodesWithLayout = parsed.nodes.map((n: any) => ({
+                    ...n,
+                    position: n.positionAbsolute ?? n.position,
+                }))
+
+                // 🧩 Restaurar edges tal cual (manteniendo curvatura, estilo, zIndex)
+                const edgesWithLayout =
+                    parsed.edges?.map((e: any) => ({
+                        ...e,
+                        animated: e.animated ?? true,
+                        type: e.type ?? 'smoothstep',
+                        style: e.style ?? { strokeWidth: 1.8 },
+                    })) ?? []
+
+                set({ nodes: nodesWithLayout, edges: edgesWithLayout })
+                toast.success('✅ Flujo importado (React Flow con layout)')
+                return { nodes: nodesWithLayout, edges: edgesWithLayout }
             }
 
             // 🧩 Caso 2: WiContact (async)

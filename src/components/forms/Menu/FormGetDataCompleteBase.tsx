@@ -3,7 +3,7 @@
 'use client'
 
 import React, { useEffect, useState, useMemo } from 'react'
-import { Label, Badge } from '@/components/ui'
+import { Label, Badge, Input } from '@/components/ui'
 import {
     NodeConnectionsAccordion,
     NodeSelectionAccordion,
@@ -245,14 +245,12 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                     {channel ? channel.toUpperCase() : 'SIN CANAL'}
                 </Badge>
             </div>
-
             {/* 🔗 Nodo anterior */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
-
             {/* ⚙️ Tipo interactivo */}
             <div className="space-y-3 border-t pt-3 dark:border-gray-800">
                 <Label className="mb-1 block text-sm font-medium">
@@ -293,7 +291,6 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                     </SelectContent>
                 </Select>
             </div>
-
             {/* ⚡ Nodos siguientes */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Accordion type="single" collapsible className="w-full">
@@ -416,7 +413,23 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                     </AccordionItem>
                 </Accordion>
             </div>
-
+            <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
+                <Label
+                    htmlFor={`description-${id}`}
+                    className="text-muted-foreground text-xs"
+                >
+                    Descripción
+                </Label>
+                <Input
+                    id={`description-${id}`}
+                    placeholder="Breve descripción del paso..."
+                    value={data.description || ''}
+                    onChange={(e) =>
+                        updateNodeData(id, { description: e.target.value })
+                    }
+                    className="text-sm"
+                />
+            </div>
             {/* 🧱 Formularios dinámicos */}
             {type === 'QUICK_REPLY' && channel === FlowChannelEnum.WHATSAPP && (
                 <FormGetDataCompleteQR id={id} />

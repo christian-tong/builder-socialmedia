@@ -25,11 +25,11 @@ import SwitchConditionNode from '@/components/nodes/SwitchConditionNode'
 import NoOpNode from '@/components/nodes/NoOpNode'
 import ChatBotIARequestNode from '@/components/nodes/ChatBotIARequestNode'
 import SaveRecordNode from '@/components/nodes/SaveRecordNode'
-import { MenuNode } from '@/components/nodes/MenuNode'
 import SetCustomerIDNode from '@/components/nodes/SetCustomerIDNode'
 import { DerivateNode } from '@/components/nodes/DerivateNode'
 import { MySQLQueryNode } from '@/components/nodes/MySQLQueryNode'
 import { GenerateTokenNode } from '@/components/nodes/GenerateTokenNode'
+import MenuNode from '@/components/nodes/MenuNode'
 
 // =============================================================
 // 🔒 Extiende el namespace global (para cachear nodeTypes)
