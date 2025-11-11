@@ -162,7 +162,7 @@ export function ImportJsonModal({
                     return
                 }
 
-                const parsedConfig = safeParseJSON(selectedBot.configuration)
+                const parsedConfig = safeParseJSON(selectedBot.workflow)
                 if (!parsedConfig) {
                     toast.error(
                         `El bot "${selectedBot.description}" tiene configuración inválida.`

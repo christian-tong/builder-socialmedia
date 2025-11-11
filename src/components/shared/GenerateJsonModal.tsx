@@ -29,7 +29,7 @@ export function GenerateJsonModal({
     onOpenChange: (open: boolean) => void
 }) {
     const { isDark } = useTheme()
-    const { nodes, edges } = useFlowStore()
+    const { nodes, edges, exportFlow } = useFlowStore()
     const { channel } = useFlowChannelStore()
     const [jsonText, setJsonText] = useState<string>('')
 
@@ -38,7 +38,7 @@ export function GenerateJsonModal({
     const [description, setDescription] = useState('')
     const [extensionAssign, setExtensionAssign] = useState('1')
 
-    // 🧠 Generar JSON cuando se abre
+    // 🧠 Generar JSON validado solo al abrir el modal
     useEffect(() => {
         if (open && nodes.length > 0) {
             const json = generateValidatedJson(nodes, edges)
@@ -58,11 +58,18 @@ export function GenerateJsonModal({
         }
 
         try {
-            // ✅ Conversión segura de FlowChannelType a string | undefined
+            // ✅ Generar workflow fiel desde el store (sin descarga)
+            const workflowText = exportFlow(true)
+            if (!workflowText) {
+                toast.error('❌ No se pudo generar el workflow para publicar.')
+                return
+            }
+
             const safeChannel = channel ?? undefined
 
             const response = await postBotFlow({
                 configuration: jsonText,
+                workflow: workflowText,
                 channel: safeChannel,
                 description,
                 extensionAssign,

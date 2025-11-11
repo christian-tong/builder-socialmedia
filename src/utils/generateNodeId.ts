@@ -1,4 +1,7 @@
 // src/utils/generateNodeId.ts
+// ============================================================
+// 🧱 Generador global de IDs únicos para todos los tipos de nodos
+// ============================================================
 
 let startNodeCounter = 0
 let getdatacompleteCounter = 0
@@ -113,7 +116,7 @@ export function generateGenerateTokenId(): string {
     return id
 }
 
-/** 🔁 Reset manual */
+/** 🔁 Reset manual de todos los contadores */
 export function resetNodeCounters() {
     startNodeCounter = 0
     getdatacompleteCounter = 0
@@ -129,4 +132,98 @@ export function resetNodeCounters() {
     saveRecordCounter = 0
     generateTokenCounter = 0
     setCustomerIDCounter = 0
+}
+/** 🧮 Actualizar contadores según IDs existentes (al importar JSON) */
+export function syncNodeCountersFromExisting(nodes: { id: string }[]) {
+    // 🎯 Soporta IDs tipo "GetDataComplete0003", "SimpleText0001", "SaveRecord0002"
+    const regex = /^([A-Za-z]+?)(\d+)$/
+
+    const normalize = (prefix: string) =>
+        prefix.replace(/[^A-Za-z]/g, '').toLowerCase()
+
+    for (const { id } of nodes) {
+        if (!id) continue
+        const match = id.match(regex)
+        if (!match) continue
+
+        const [, rawPrefix, numStr] = match
+        const prefix = normalize(rawPrefix)
+        const num = parseInt(numStr, 10)
+
+        switch (prefix) {
+            case 'startstep':
+                startNodeCounter = Math.max(startNodeCounter, num + 1)
+                break
+            case 'getdatacomplete':
+            case 'menu': // alias opcional
+                getdatacompleteCounter = Math.max(
+                    getdatacompleteCounter,
+                    num + 1
+                )
+                break
+            case 'simpletext':
+                simpleTextCounter = Math.max(simpleTextCounter, num + 1)
+                break
+            case 'derivate':
+                derivateCounter = Math.max(derivateCounter, num + 1)
+                break
+            case 'timecondition':
+                timeConditionCounter = Math.max(timeConditionCounter, num + 1)
+                break
+            case 'hangup':
+            case 'end':
+                endCounter = Math.max(endCounter, num + 1)
+                break
+            case 'switchcondition':
+                switchConditionCounter = Math.max(
+                    switchConditionCounter,
+                    num + 1
+                )
+                break
+            case 'setvariables':
+                setVariablesCounter = Math.max(setVariablesCounter, num + 1)
+                break
+            case 'mysqlquery':
+                mysqlQueryCounter = Math.max(mysqlQueryCounter, num + 1)
+                break
+            case 'noop':
+                noopCounter = Math.max(noopCounter, num + 1)
+                break
+            case 'chatbotiarequest':
+                chatbotIARequestCounter = Math.max(
+                    chatbotIARequestCounter,
+                    num + 1
+                )
+                break
+            case 'saverecord':
+                saveRecordCounter = Math.max(saveRecordCounter, num + 1)
+                break
+            case 'generatetoken':
+                generateTokenCounter = Math.max(generateTokenCounter, num + 1)
+                break
+            case 'setcustomerid':
+                setCustomerIDCounter = Math.max(setCustomerIDCounter, num + 1)
+                break
+            default:
+                console.warn('⚠️ Prefijo no reconocido:', prefix, id)
+                break
+        }
+    }
+
+    console.log('🔢 Contadores sincronizados:', {
+        startNodeCounter,
+        getdatacompleteCounter,
+        simpleTextCounter,
+        derivateCounter,
+        timeConditionCounter,
+        endCounter,
+        switchConditionCounter,
+        setVariablesCounter,
+        mysqlQueryCounter,
+        noopCounter,
+        chatbotIARequestCounter,
+        saveRecordCounter,
+        generateTokenCounter,
+        setCustomerIDCounter,
+    })
 }

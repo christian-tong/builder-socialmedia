@@ -1,11 +1,13 @@
 // src\store\useFlowStore.ts
 
+// src/store/useFlowStore.ts
 import type { Edge, Node } from 'reactflow'
 import { toast } from 'sonner'
 import { create } from 'zustand'
 import { applyAutoLayout } from '@/lib/autoLayout'
 import { exportToJsonFile, importFromJsonFile } from '@/lib/jsonExportImport'
 import { convertWiContactToFlow } from '@/lib/jsonImporterWiContact'
+import { syncNodeCountersFromExisting } from '@/utils/generateNodeId' // 🧮 Import agregado
 
 interface FlowState {
     nodes: Node[]
@@ -15,7 +17,7 @@ interface FlowState {
     updateNodeOptions: (id: string, options: any[]) => void
     updateNodeColor: (id: string, color: string) => void
     createEdge: (sourceId: string, targetId: string, handleId?: string) => void
-    exportFlow: () => void
+    exportFlow: (isPublicar?: boolean) => string | null
     importFlow: (file: File) => Promise<{ nodes: Node[]; edges: Edge[] } | null>
     getConnectedNodes: (id: string) => { prev: Node[]; next: Node[] }
 }
@@ -76,70 +78,111 @@ export const useFlowStore = create<FlowState>((set, get) => ({
 
         set({ edges: [...edges, newEdge] })
     },
-    exportFlow: () => {
+    exportFlow: (isPublicar = false): string | null => {
         const { nodes, edges } = get()
 
-        // 🧩 Exportar nodos y edges con forma y posición preservadas
-        const formattedNodes = nodes.map((n) => ({
-            ...n,
-            positionAbsolute: n.positionAbsolute ?? n.position,
-            dragging: false,
+        if (
+            !Array.isArray(nodes) ||
+            !Array.isArray(edges) ||
+            nodes.length === 0
+        ) {
+            toast.error('⚠️ No hay nodos para exportar.')
+            return null
+        }
+
+        const serializedNodes = nodes.map((n) => ({
+            id: n.id,
+            type: n.type,
+            position: n.position,
+            data: n.data,
+            width: n.width,
+            height: n.height,
             selected: false,
+            dragging: false,
         }))
 
-        const formattedEdges = edges.map((e, index) => ({
-            ...e,
-            zIndex: index, // controla orden de renderizado
-            animated: e.animated ?? true,
-            style: {
-                ...e.style,
-                strokeWidth: e.style?.strokeWidth ?? 1.8,
-            },
+        const serializedEdges = edges.map((e, index) => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            sourceHandle: e.sourceHandle,
+            targetHandle: e.targetHandle,
+            type: e.type,
+            animated: e.animated ?? false,
+            label: e.label ?? '',
+            style: e.style ?? {},
+            zIndex: index,
+            data: e.data ?? {},
         }))
 
-        exportToJsonFile(
-            { nodes: formattedNodes, edges: formattedEdges },
-            'builderSocialMedia'
-        )
+        const data = { nodes: serializedNodes, edges: serializedEdges }
+        const json = JSON.stringify(data, null, 2)
 
-        toast.success('✅ Flujo exportado correctamente (con geometría)')
+        if (isPublicar) {
+            // 👉 modo "publicar": no descarga archivo
+            return json
+        }
+
+        exportToJsonFile(data, 'builderSocialMedia')
+        toast.success('✅ Flujo exportado exactamente como se ve en pantalla')
+        return null
     },
+
+    /** 📥 Importador universal (React Flow + WiContact) */
     importFlow: async (file: File) => {
         try {
             const parsed = await importFromJsonFile<any>(file)
             if (!parsed) return null
 
-            // 🧩 Caso 1: ReactFlow
+            // 🧩 Caso 1: ReactFlow (fiel al layout)
             if (Array.isArray(parsed.nodes)) {
-                // 🧩 Preservar layout original si existe
-                const nodesWithLayout = parsed.nodes.map((n: any) => ({
+                const nodesWithExactPosition = parsed.nodes.map((n: any) => ({
                     ...n,
-                    position: n.positionAbsolute ?? n.position,
+                    position: n.position, // ✅ posición exacta del JSON
+                    width: n.width ?? 180,
+                    height: n.height ?? 60,
                 }))
 
-                // 🧩 Restaurar edges tal cual (manteniendo curvatura, estilo, zIndex)
-                const edgesWithLayout =
+                const edgesWithExactStyle =
                     parsed.edges?.map((e: any) => ({
                         ...e,
-                        animated: e.animated ?? true,
                         type: e.type ?? 'smoothstep',
+                        animated: e.animated ?? false,
                         style: e.style ?? { strokeWidth: 1.8 },
                     })) ?? []
 
-                set({ nodes: nodesWithLayout, edges: edgesWithLayout })
-                toast.success('✅ Flujo importado (React Flow con layout)')
-                return { nodes: nodesWithLayout, edges: edgesWithLayout }
+                // 🧮 sincroniza contadores
+                if (nodesWithExactPosition.length > 0)
+                    syncNodeCountersFromExisting(nodesWithExactPosition)
+
+                set({
+                    nodes: nodesWithExactPosition,
+                    edges: edgesWithExactStyle,
+                })
+
+                toast.success('✅ Flujo importado (layout exacto preservado)')
+                toast.message('🔢 Contadores sincronizados (ReactFlow)')
+
+                return {
+                    nodes: nodesWithExactPosition,
+                    edges: edgesWithExactStyle,
+                }
             }
 
-            // 🧩 Caso 2: WiContact (async)
+            // 🧩 Caso 2: WiContact
             if (parsed.process?.steps) {
                 const result = await convertWiContactToFlow(parsed)
                 const nodes = Array.isArray(result.nodes) ? result.nodes : []
                 const edges = Array.isArray(result.edges) ? result.edges : []
 
                 const laidOut = applyAutoLayout(nodes, edges, 'vertical')
+
+                // 🧮 Sincroniza contadores
+                if (laidOut.length > 0) syncNodeCountersFromExisting(laidOut)
+
                 set({ nodes: laidOut, edges })
                 toast.success('✅ Flujo importado (WiContact)')
+                toast.message('🔢 Contadores sincronizados (WiContact)')
                 return { nodes: laidOut, edges }
             }
 

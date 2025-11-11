@@ -22,16 +22,17 @@ import { FlowStylePanel } from './FlowStylePanel'
 import { useFlowStore } from '@/store/useFlowStore'
 import { useShallow } from 'zustand/react/shallow'
 import { convertWiContactToFlow } from '@/lib/jsonImporterWiContact'
+import { syncNodeCountersFromExisting } from '@/utils/generateNodeId' // 🧮 Import clave
 
 // 🧩 Tipo de edge personalizado
 import SmartEdge from '@/components/edges/SmartEdge'
 
 /**
- * 🧠 FlowCanvasInner (v7.1 – SmartEdge + Dynamic EdgeType)
+ * 🧠 FlowCanvasInner (v7.2 – Import Sync + SmartEdge)
  * ------------------------------------------------------------
+ * ✅ Sincroniza contadores de IDs tras importar JSON
  * ✅ Alterna entre tipos de edge (default, straight, step, smoothstep, smart)
- * ✅ Integra SmartEdge con offsets dinámicos
- * ✅ Evita solapamiento visual sin romper compatibilidad
+ * ✅ Evita solapamientos visuales y mantiene compatibilidad con SmartEdge
  */
 export default function FlowCanvasInner() {
     const { theme } = useThemeStore()
@@ -53,7 +54,7 @@ export default function FlowCanvasInner() {
     const [phase, setPhase] = useState<'idle' | 'nodes' | 'edges'>('idle')
     const [uploadedJson, setUploadedJson] = useState<any | null>(null)
 
-    /** 📥 Carga simulada de JSON externo */
+    /** 📥 Carga simulada de JSON externo (inyectado en window) */
     useEffect(() => {
         const input = (window as any).__wicontactJson
         if (input) setUploadedJson(input)
@@ -65,7 +66,16 @@ export default function FlowCanvasInner() {
 
         const loadFlow = async () => {
             try {
+                console.groupCollapsed(
+                    '📦 [Import] Iniciando conversión WiContact → Flow'
+                )
                 const result = await convertWiContactToFlow(uploadedJson)
+
+                // 🧮 Sincronizar contadores globales tras importar los nodos
+                if (Array.isArray(result.nodes) && result.nodes.length > 0) {
+                    syncNodeCountersFromExisting(result.nodes)
+                }
+
                 const builtNodes = Array.isArray(result.nodes)
                     ? result.nodes
                     : []
@@ -85,10 +95,11 @@ export default function FlowCanvasInner() {
                     setEdges(safeEdges)
                     setPhase('edges')
                     console.info(
-                        `✅ Nodos: ${builtNodes.length} | Edges: ${safeEdges.length}`
+                        `✅ Importación completada | Nodos: ${builtNodes.length} | Edges: ${safeEdges.length}`
                     )
                 }, 600)
 
+                console.groupEnd()
                 return () => clearTimeout(timer)
             } catch (err) {
                 console.error('❌ Error al convertir JSON WiContact:', err)
@@ -173,7 +184,7 @@ export default function FlowCanvasInner() {
                     stroke: edgeColor,
                     strokeWidth: edgeWidth,
                     strokeDasharray: dash,
-                    transition: 'all 0.3s ease', // animación suave al cambiar tipo/color
+                    transition: 'all 0.3s ease',
                 },
                 data:
                     edgeType === 'smart'
@@ -215,7 +226,7 @@ export default function FlowCanvasInner() {
                 onConnect={handlers.onConnect}
                 onDrop={handlers.onDrop}
                 onDragOver={handlers.onDragOver}
-                fitView
+                fitView={false}
                 className="h-full w-full transition-all"
             >
                 <Background
