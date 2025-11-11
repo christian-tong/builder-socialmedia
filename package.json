@@ -4,10 +4,10 @@
     "private": true,
     "scripts": {
         "dev": "next dev --turbopack",
-        "build": "next build --turbopack",
+        "build": "next build",
+        "start": "next start",
         "prettier": "bunx prettier . --write",
         "biome": "bunx biome check --write ./src",
-        "start": "next start",
         "lint": "eslint"
     },
     "dependencies": {
