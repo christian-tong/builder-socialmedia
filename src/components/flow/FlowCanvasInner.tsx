@@ -22,17 +22,16 @@ import { FlowStylePanel } from './FlowStylePanel'
 import { useFlowStore } from '@/store/useFlowStore'
 import { useShallow } from 'zustand/react/shallow'
 import { convertWiContactToFlow } from '@/lib/jsonImporterWiContact'
-import { syncNodeCountersFromExisting } from '@/utils/generateNodeId' // 🧮 Import clave
-
-// 🧩 Tipo de edge personalizado
+import { syncNodeCountersFromExisting } from '@/utils/generateNodeId'
 import SmartEdge from '@/components/edges/SmartEdge'
 
 /**
- * 🧠 FlowCanvasInner (v7.2 – Import Sync + SmartEdge)
- * ------------------------------------------------------------
- * ✅ Sincroniza contadores de IDs tras importar JSON
- * ✅ Alterna entre tipos de edge (default, straight, step, smoothstep, smart)
- * ✅ Evita solapamientos visuales y mantiene compatibilidad con SmartEdge
+ * 🧠 FlowCanvasInner (v7.7 — LabelSmartStack)
+ * ------------------------------------------------------------------
+ * ✅ Evita superposición de labels (onTrue, onFalse, onError, onTimeOut, onTimeOutError)
+ * ✅ Posicionamiento balanceado según orientación
+ * ✅ Mantiene animación, color y curvatura dinámica
+ * ✅ Sincroniza importación WiContact + counters
  */
 export default function FlowCanvasInner() {
     const { theme } = useThemeStore()
@@ -66,15 +65,11 @@ export default function FlowCanvasInner() {
 
         const loadFlow = async () => {
             try {
-                console.groupCollapsed(
-                    '📦 [Import] Iniciando conversión WiContact → Flow'
-                )
+                console.groupCollapsed('📦 [Import] WiContact → Flow')
                 const result = await convertWiContactToFlow(uploadedJson)
 
-                // 🧮 Sincronizar contadores globales tras importar los nodos
-                if (Array.isArray(result.nodes) && result.nodes.length > 0) {
+                if (Array.isArray(result.nodes) && result.nodes.length > 0)
                     syncNodeCountersFromExisting(result.nodes)
-                }
 
                 const builtNodes = Array.isArray(result.nodes)
                     ? result.nodes
@@ -111,7 +106,7 @@ export default function FlowCanvasInner() {
         loadFlow()
     }, [uploadedJson, setNodes, setEdges])
 
-    /** 🎨 Fondo */
+    /** 🎨 Fondo visual */
     const bgVariant =
         backgroundType === 'dots'
             ? BackgroundVariant.Dots
@@ -137,14 +132,13 @@ export default function FlowCanvasInner() {
         onFalse: '❌ falseStep',
         onError: '⚠️ errorStep',
         onTimeOut: '⏳ timeOutStep',
-        onTimeOutError: '💥 timeOutError',
+        onTimeOutError: '💥 timeOutErrorStep',
     } as const
 
-    /** 🧮 Estilizado dinámico de edges */
+    /** 🧮 Estilizado dinámico de edges con contraste y fondo transparente (v7.8) */
     const styledEdges: Edge[] = useMemo(() => {
         if (!Array.isArray(edges)) return []
 
-        // Agrupar edges por (source + handle)
         const grouped: Record<string, Edge[]> = {}
         for (const e of edges) {
             const key = `${e.source}-${e.sourceHandle || 'default'}`
@@ -153,30 +147,83 @@ export default function FlowCanvasInner() {
         }
 
         return edges.map((e) => {
-            const key = `${e.source}-${e.sourceHandle || 'default'}`
-            const group = grouped[key]
-            const index = group.indexOf(e)
-            const offsetIndex = index - (group.length - 1) / 2
             const handle = e.sourceHandle as keyof typeof handleLabels
             const label = handle ? handleLabels[handle] : ''
-
-            // 🧩 Determina tipo dinámico de edge
             const resolvedType =
                 edgeType === 'smart' ? 'smart' : (edgeType as Edge['type'])
+
+            const baseOffset = 22
+            let xOffset = 0
+            let yOffset = 0
+
+            if (orientation === 'vertical') {
+                switch (handle) {
+                    case 'onError':
+                        yOffset = -baseOffset * 1.4
+                        break
+                    case 'onTimeOutError':
+                        yOffset = baseOffset * 1.4
+                        break
+                    case 'onTrue':
+                        yOffset = -baseOffset * 0.7
+                        break
+                    case 'onFalse':
+                        yOffset = baseOffset * 0.7
+                        break
+                    case 'onTimeOut':
+                        yOffset = baseOffset * 2.2
+                        break
+                    default:
+                        yOffset = 0
+                }
+            } else {
+                switch (handle) {
+                    case 'onError':
+                        xOffset = -baseOffset * 1.4
+                        break
+                    case 'onTimeOutError':
+                        xOffset = baseOffset * 1.4
+                        break
+                    case 'onTrue':
+                        xOffset = baseOffset * 1.7
+                        break
+                    case 'onFalse':
+                        xOffset = -baseOffset * 0.7
+                        break
+                    case 'onTimeOut':
+                        xOffset = baseOffset * 2.2
+                        break
+                    default:
+                        xOffset = 0
+                }
+            }
 
             return {
                 ...e,
                 type: resolvedType,
                 animated: edgeAnimated,
                 label,
-                labelBgPadding: [6, 3],
-                labelBgBorderRadius: 4,
+                // 🧾 Fondo eliminado, solo texto visible
+                labelBgPadding: [0, 0],
+                labelBgBorderRadius: 0,
                 labelBgStyle: {
-                    fill: theme === 'dark' ? '#111' : '#fff',
-                    color: theme === 'dark' ? '#eee' : '#222',
-                    opacity: 0.85,
-                    stroke: theme === 'dark' ? '#333' : '#ddd',
-                    strokeWidth: 0.5,
+                    fill: 'transparent',
+                    opacity: 0,
+                    stroke: 'none',
+                },
+                labelStyle: {
+                    color: theme === 'dark' ? '#fff' : '#111',
+                    fontWeight: 500,
+                    fontSize: 12,
+                    background: 'transparent',
+                    padding: '2px 4px',
+                    transform: `translate(${xOffset}px, ${yOffset}px)`,
+                    transition: 'transform 0.3s ease',
+                    pointerEvents: 'none',
+                    textShadow:
+                        theme === 'dark'
+                            ? '0 0 3px rgba(0,0,0,0.5)'
+                            : '0 0 2px rgba(255,255,255,0.6)',
                 },
                 markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
                 style: {
@@ -189,12 +236,8 @@ export default function FlowCanvasInner() {
                 data:
                     edgeType === 'smart'
                         ? {
-                              offsetIndex,
-                              offsetStrength: 40,
                               curvature:
-                                  orientation === 'horizontal'
-                                      ? 0.35 + Math.abs(offsetIndex) * 0.05
-                                      : 0.45 + Math.abs(offsetIndex) * 0.05,
+                                  orientation === 'horizontal' ? 0.35 : 0.45,
                           }
                         : undefined,
             }
