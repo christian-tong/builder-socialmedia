@@ -238,8 +238,8 @@ export function FormGetDataCompleteSimpleText({ id }: { id: string }) {
                                             </Button>
                                         </div>
 
-                                        <div className="mt-2 grid grid-cols-2 gap-2">
-                                            <div>
+                                        <div className="flex mt-2 items-start gap-3">
+                                            <div className='w-fit'>
                                                 <Label className="text-[10px] text-gray-500">
                                                     Identificador
                                                 </Label>
@@ -287,7 +287,7 @@ export function FormGetDataCompleteSimpleText({ id }: { id: string }) {
                                                 </Select>
                                             </div>
 
-                                            <div>
+                                            <div className='flex-1'>
                                                 <Label className="text-[10px] text-gray-500">
                                                     Valor
                                                 </Label>

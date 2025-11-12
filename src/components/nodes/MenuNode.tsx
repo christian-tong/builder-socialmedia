@@ -1,6 +1,5 @@
 // src/components/nodes/MenuNode.tsx
 
-// src/components/nodes/MenuNode.tsx
 'use client'
 
 import React, { useMemo } from 'react'
@@ -141,18 +140,14 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
 
     /* 🧠 Determinar opciones visibles (con type guards) */
     const options = useMemo<OptionDisplay[]>(() => {
-        if (hasOptions(interactive)) {
-            return interactive.options
-        }
-        if (hasItems(interactive)) {
+        if (hasOptions(interactive)) return interactive.options
+        if (hasItems(interactive))
             return interactive.items.flatMap((g) => g.options || [])
-        }
-        if (nodeData?.setvariables) {
+        if (nodeData?.setvariables)
             return Object.entries(nodeData.setvariables).map(([k, v]) => ({
                 postbackText: k,
                 title: decodeURIComponent(v || ''),
             }))
-        }
         return []
     }, [interactive, nodeData])
 
@@ -195,7 +190,7 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
                         >
                             {simplifiedView ? (
                                 <>
-                                    {/* 🧩 Vista simplificada con soporte GETDATA y SIMPLETEXT */}
+                                    {/* 🧩 Vista simplificada */}
                                     <div className="flex flex-col items-center justify-center border-b-2 border-white/20">
                                         {config.icon}
                                     </div>
@@ -228,7 +223,7 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
                                                             position={
                                                                 Position.Right
                                                             }
-                                                            className={`absolute right-[-3px] h-[6px] w-[6px] rounded-full ${config.handleColor} transition-all hover:scale-110`}
+                                                            className={`absolute right-[-3px] h-[6px] w-[6px] rounded-full ${config.handleColor}`}
                                                             title={`Opción: ${opt.title || opt.postbackText}`}
                                                         />
                                                     </div>
@@ -252,7 +247,7 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
                                                 </span>
                                             </div>
                                             <span
-                                                className="mt-[1px] max-w-full overflow-hidden text-[11px] font-medium text-ellipsis whitespace-nowrap opacity-80"
+                                                className="mt-[1px] max-w-full overflow-hidden text-[11px] font-medium opacity-80"
                                                 title={
                                                     nodeData.alias ||
                                                     nodeData.variable ||
@@ -298,7 +293,7 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
                                 className={`!bg-${config.color}-400`}
                             />
 
-                            {/* 🔹 Handles inferiores fijos (siempre abajo en ambos modos) */}
+                            {/* 🔹 Handles inferiores visibles */}
                             {allHandles.map((h, i) => (
                                 <Handle
                                     key={h.id}
@@ -311,6 +306,22 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
                                     }}
                                 />
                             ))}
+
+                            {/* 🕒 Handles invisibles permanentes (garantizan compatibilidad ReactFlow) */}
+                            <Handle
+                                id="onTimeOut"
+                                type="source"
+                                position={Position.Bottom}
+                                className="pointer-events-none absolute opacity-0"
+                                style={{ left: '40%' }}
+                            />
+                            <Handle
+                                id="onTimeOutError"
+                                type="source"
+                                position={Position.Bottom}
+                                className="pointer-events-none absolute opacity-0"
+                                style={{ left: '60%' }}
+                            />
                         </Card>
                     </TooltipTrigger>
 
@@ -323,7 +334,6 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
                                 <span className="text-[10px] opacity-70">
                                     ID: {id}
                                 </span>
-                                {/* ✅ Wrap del texto largo */}
                                 <span className="break-words whitespace-normal">
                                     {tooltipDescription}
                                 </span>
@@ -339,18 +349,12 @@ const MenuNode: React.FC<NodeProps> = ({ id, data }) => {
     )
 }
 
-/* ---------- Subcomponentes Preview (sin cambios de color) ---------- */
-function QuickReplyPreview({
-    interactive,
-    handleColor,
-}: {
-    interactive: QuickReplyInteractive
-    handleColor: string
-}) {
+/* ---------- Subcomponentes Preview (sin cambios) ---------- */
+function QuickReplyPreview({ interactive, handleColor }: any) {
     const options = interactive.options || []
     return (
         <div className="relative mt-2 space-y-1 text-xs">
-            {options.map((opt, idx) => {
+            {options.map((opt: any, idx: number) => {
                 const handleId = `option_${opt.postbackText}`
                 return (
                     <div
@@ -385,17 +389,11 @@ function QuickReplyPreview({
     )
 }
 
-function ListPreview({
-    interactive,
-    handleColor,
-}: {
-    interactive: ListInteractive
-    handleColor: string
-}) {
+function ListPreview({ interactive, handleColor }: any) {
     const items = interactive.items || []
     return (
         <div className="relative mt-1 space-y-1 text-xs">
-            {items.map((item, iIdx) => (
+            {items.map((item: any, iIdx: number) => (
                 <div key={iIdx}>
                     <div className="mb-0.5 truncate text-[10px] font-semibold text-blue-300/80">
                         {decodeURIComponent(item.title || `Grupo ${iIdx + 1}`)}
@@ -442,7 +440,7 @@ function ListPreview({
     )
 }
 
-function GetDataPreview({ object }: { object: GetDataCompleteObject }) {
+function GetDataPreview({ object }: any) {
     const { setvariables, prompt } = object || {}
     const entries = Object.entries(setvariables || {})
     return (
@@ -480,7 +478,7 @@ function GetDataPreview({ object }: { object: GetDataCompleteObject }) {
     )
 }
 
-function SimpleTextPreview({ object }: { object: GetDataCompleteObject }) {
+function SimpleTextPreview({ object }: any) {
     const { prompt, description, setvariables } = object || {}
     const entries = Object.entries(setvariables || {})
     return (

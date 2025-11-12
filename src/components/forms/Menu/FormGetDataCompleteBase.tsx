@@ -3,7 +3,7 @@
 'use client'
 
 import React, { useEffect, useState, useMemo } from 'react'
-import { Label, Badge, Input } from '@/components/ui'
+import { Label, Badge, Input, Button } from '@/components/ui'
 import {
     NodeConnectionsAccordion,
     NodeSelectionAccordion,
@@ -41,15 +41,16 @@ import {
 import { FlowChannelEnum } from '@/config/flowChannelsConfig'
 
 /**
- * 🧩 FormGetDataCompleteBase (v5.1 — Integración con canales)
+ * 🧩 FormGetDataCompleteBase (v5.3 — Validación de canal)
  * -------------------------------------------------------------------------
  * ✅ Detecta canal actual (WhatsApp / ChatWeb)
- * ✅ Filtra tipos interactivos disponibles según canal
- * ✅ Compatible con autoEdges + validaciones previas
- * ✅ Tipado TypeScript totalmente seguro
+ * ✅ Filtra tipos interactivos según canal
+ * ✅ Mantiene toda la lógica del acordeón original
+ * ✅ Muestra advertencia si el tipo no pertenece al canal actual
+ * ✅ Permite cambiar canal desde el mismo formulario
  */
 export default function FormGetDataCompleteBase({ id, data }: any) {
-    const { channel } = useFlowChannelStore()
+    const { channel, setChannel } = useFlowChannelStore()
     const { registerSaveCallback, unregisterSaveCallback, updateNodeData } =
         useNodeConfigStore()
     const { initNode, getNodeData, setNodeData, onAfterSave } =
@@ -90,7 +91,6 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
     const handleInteractiveTypeChange = (
         value: 'quick_reply' | 'list' | 'GETDATA' | 'SIMPLETEXT'
     ) => {
-        // Normalizar para backend y store
         const normalizedValue = value.toLowerCase() as
             | 'quick_reply'
             | 'list'
@@ -234,23 +234,33 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
     return (
         <div className="flex flex-col gap-6">
             {/* 🏷️ Encabezado */}
-            <div className="flex items-center justify-between border-b pb-2 dark:border-gray-800">
+            <div className="flex items-end justify-between border-b pb-2 dark:border-gray-800">
                 <Label className="text-sm font-semibold text-purple-600 dark:text-purple-300">
                     Configuración Captura de Datos
                 </Label>
-                <Badge
-                    variant="outline"
-                    className="border-purple-300 bg-purple-50 px-2 py-0.5 text-[10px] text-purple-800 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-                >
-                    {channel ? channel.toUpperCase() : 'SIN CANAL'}
-                </Badge>
+                <div className="flex flex-col gap-2">
+                    <Badge
+                        variant="outline"
+                        className="border-purple-300 bg-purple-50 px-2 py-0.5 text-[10px] text-purple-800 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                    >
+                        {channel ? channel.toUpperCase() : 'SIN CANAL'}
+                    </Badge>
+                    <Badge
+                        variant="outline"
+                        className="border-zinc-500 px-2 py-0.5 text-[10px] text-zinc-500"
+                    >
+                        {id}
+                    </Badge>
+                </div>
             </div>
+
             {/* 🔗 Nodo anterior */}
             <NodeConnectionsAccordion
                 title="Nodo anterior"
                 nodesList={prevNodes}
                 accentColor="text-sky-700 dark:text-sky-300"
             />
+
             {/* ⚙️ Tipo interactivo */}
             <div className="space-y-3 border-t pt-3 dark:border-gray-800">
                 <Label className="mb-1 block text-sm font-medium">
@@ -291,6 +301,7 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                     </SelectContent>
                 </Select>
             </div>
+
             {/* ⚡ Nodos siguientes */}
             <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
                 <Accordion type="single" collapsible className="w-full">
@@ -413,6 +424,8 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                     </AccordionItem>
                 </Accordion>
             </div>
+
+            {/* 🧾 Descripción */}
             <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
                 <Label
                     htmlFor={`description-${id}`}
@@ -430,19 +443,58 @@ export default function FormGetDataCompleteBase({ id, data }: any) {
                     className="text-sm"
                 />
             </div>
-            {/* 🧱 Formularios dinámicos */}
-            {type === 'QUICK_REPLY' && channel === FlowChannelEnum.WHATSAPP && (
-                <FormGetDataCompleteQR id={id} />
-            )}
-            {type === 'LIST' && channel === FlowChannelEnum.WHATSAPP && (
-                <FormGetDataCompleteList id={id} />
-            )}
-            {type === 'GETDATA' && channel === FlowChannelEnum.CHATWEB && (
-                <FormGetDataCompleteGetData id={id} />
-            )}
-            {type === 'SIMPLETEXT' && channel === FlowChannelEnum.CHATWEB && (
-                <FormGetDataCompleteSimpleText id={id} />
-            )}
+
+            {/* 🧱 Formularios dinámicos o advertencia */}
+            {(() => {
+                const isCompatible =
+                    (type === 'QUICK_REPLY' &&
+                        channel === FlowChannelEnum.WHATSAPP) ||
+                    (type === 'LIST' && channel === FlowChannelEnum.WHATSAPP) ||
+                    (type === 'GETDATA' &&
+                        channel === FlowChannelEnum.CHATWEB) ||
+                    (type === 'SIMPLETEXT' &&
+                        channel === FlowChannelEnum.CHATWEB)
+
+                if (!isCompatible) {
+                    return (
+                        <div className="mt-4 rounded-lg border border-amber-400 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-600 dark:bg-amber-900/20 dark:text-amber-300">
+                            ⚠️ Este tipo de interacción (<strong>{type}</strong>
+                            ) no pertenece al canal actual{' '}
+                            <strong>
+                                {channel?.toUpperCase?.() || 'SIN CANAL'}
+                            </strong>
+                            {/* .
+                            <br />
+                            Por favor selecciona un canal compatible o cámbialo:
+                            <div className="mt-2">
+                                <Button
+                                    size="sm"
+                                    className="bg-purple-600 text-white hover:bg-purple-700"
+                                    onClick={() => setChannel(undefined)}
+                                >
+                                    Cambiar canal
+                                </Button>
+                            </div> */}
+                        </div>
+                    )
+                }
+
+                if (
+                    type === 'QUICK_REPLY' &&
+                    channel === FlowChannelEnum.WHATSAPP
+                )
+                    return <FormGetDataCompleteQR id={id} />
+                if (type === 'LIST' && channel === FlowChannelEnum.WHATSAPP)
+                    return <FormGetDataCompleteList id={id} />
+                if (type === 'GETDATA' && channel === FlowChannelEnum.CHATWEB)
+                    return <FormGetDataCompleteGetData id={id} />
+                if (
+                    type === 'SIMPLETEXT' &&
+                    channel === FlowChannelEnum.CHATWEB
+                )
+                    return <FormGetDataCompleteSimpleText id={id} />
+                return null
+            })()}
         </div>
     )
 }

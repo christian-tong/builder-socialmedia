@@ -33,6 +33,97 @@ export async function convertWiContactToFlow(json: any): Promise<{
     if (!Array.isArray(steps))
         throw new Error('JSON inválido: falta process.steps')
 
+    // ======================================================
+    // 🔍 PREVALIDACIÓN: limpiar referencias inexistentes
+    // ======================================================
+    const allIds = new Set<string>()
+    for (const s of steps) {
+        if (s.id) allIds.add(String(s.id))
+    }
+
+    interface MissingRef {
+        stepId: string
+        key: string
+        target: string
+    }
+
+    const missingRefs: MissingRef[] = []
+
+    for (const step of steps) {
+        // 🔗 Campos directos de conexión
+        const connKeys = [
+            'onTrue',
+            'onFalse',
+            'onError',
+            'onTimeOut',
+            'onTimeOutError',
+        ]
+
+        for (const key of connKeys) {
+            const target = step[key]
+            if (typeof target === 'string' && target.trim() !== '') {
+                if (!allIds.has(target.trim())) {
+                    missingRefs.push({
+                        stepId: step.id,
+                        key,
+                        target: target.trim(),
+                    })
+                    console.warn(
+                        `⚠️ [PreCheck] ${step.id} → ${key} (${target}) no existe. Limpieza aplicada.`
+                    )
+                    step[key] = ''
+                }
+            }
+        }
+
+        // 🧩 Validar condiciones dentro de object.conditions
+        if (
+            step.object &&
+            typeof step.object === 'object' &&
+            step.object.conditions &&
+            typeof step.object.conditions === 'object'
+        ) {
+            const conds = step.object.conditions
+            for (const [condKey, condTarget] of Object.entries(conds)) {
+                if (
+                    typeof condTarget === 'string' &&
+                    condTarget.trim() !== '' &&
+                    !allIds.has(condTarget.trim())
+                ) {
+                    missingRefs.push({
+                        stepId: step.id,
+                        key: `conditions[${condKey}]`,
+                        target: condTarget.trim(),
+                    })
+                    console.warn(
+                        `⚠️ [PreCheck] ${step.id} → condición "${condKey}" apunta a nodo inexistente (${condTarget}). Limpieza aplicada.`
+                    )
+                    conds[condKey] = ''
+                }
+            }
+        }
+
+        // 🧮 Validar condición directa "condition": "[1-5]" o similar
+        if (
+            step.object &&
+            typeof step.object === 'object' &&
+            typeof step.object.condition === 'string' &&
+            /\[(.*?)\]/.test(step.object.condition)
+        ) {
+            // No se limpia porque esta es una expresión numérica (no ID),
+            // pero dejamos la estructura por si el futuro incluye IDs directos
+        }
+    }
+
+    // 🪶 Resumen de referencias faltantes
+    if (missingRefs.length > 0) {
+        console.groupCollapsed(
+            `⚠️ [PreCheck Summary] ${missingRefs.length} referencias eliminadas`
+        )
+        console.table(missingRefs)
+        console.groupEnd()
+    }
+
     const nodes: Node<any>[] = []
     const edges: Edge<any>[] = []
     const unsupported = new Set<string>()
@@ -686,23 +777,35 @@ export async function convertWiContactToFlow(json: any): Promise<{
     }
 
     // ==========================
-    // 🔗 PASADA 2: CREAR EDGES (v5.10 Normalize)
+    // 🔗 PASADA 2: CREAR EDGES (v5.11 – TimeOutEdge Integration)
     // ==========================
     for (const step of steps) {
-        const { id, onTrue, onFalse, onError, object = {}, action = '' } = step
+        const {
+            id,
+            onTrue,
+            onFalse,
+            onError,
+            onTimeOut,
+            onTimeOutError,
+            object = {},
+            action = '',
+        } = step
         if (!uniqueNodeIds.has(id)) continue
 
         const lowerAction = String(action).toLowerCase()
 
-        // 🔗 Conexiones estándar
+        // 🔗 Conexiones estándar + TimeOut
         addEdge(id, onTrue, 'onTrue')
         addEdge(id, onFalse, 'onFalse')
         addEdge(id, onError, 'onError')
+        addEdge(id, onTimeOut, 'onTimeOut')
+        addEdge(id, onTimeOutError, 'onTimeOutError')
+
         if ((object as any)?.nextNodeId)
             addEdge(id, (object as any).nextNodeId, 'onSuccess')
 
         // ==================================================================
-        // 🧩 1️⃣ SWITCHCONDITION — Crear edges dinámicos por cada condición + onTrue
+        // 🧩 1️⃣ SWITCHCONDITION — Crear edges dinámicos por cada condición
         // ==================================================================
         if (lowerAction === 'switchcondition') {
             const switchModule = require('@/store/useSwitchConditionStore')
@@ -710,27 +813,18 @@ export async function convertWiContactToFlow(json: any): Promise<{
             const conditions: Record<string, string> =
                 (object as any)?.conditions || {}
 
-            // 🟢 Crear edge onTrue (manejo estándar de flujo)
-            if (step.onTrue && typeof step.onTrue === 'string') {
-                addEdge(id, step.onTrue, 'onTrue', 'trueStep')
-                console.log(
-                    `🟢 [Importer] onTrue conectado → ${id} → ${step.onTrue}`
-                )
-            }
-
-            // 🔀 Crear edges dinámicos por cada condición (SI / NO / etc.)
+            // 🔀 Crear edges por cada condición (SI / NO / etc.)
             for (const [condValue, targetId] of Object.entries(conditions)) {
                 if (targetId && condValue) {
                     const handleId = getSwitchHandleId(id, condValue)
                     addEdge(id, targetId, handleId, condValue)
                 }
             }
-
             continue
         }
 
         // ==================================================================
-        // 🧩 2️⃣ MENUS / GETDATA / SIMPLETEXT: crea edges por condiciones u opciones (v5.10 Normalize)
+        // 🧩 2️⃣ MENUS / GETDATA / SIMPLETEXT — crea edges por condiciones u opciones
         // ==================================================================
         const conditions = (object as any)?.conditions as
             | Record<string, string>
@@ -746,7 +840,7 @@ export async function convertWiContactToFlow(json: any): Promise<{
             | undefined
         const declaredTypeUp = String((object as any)?.type || '').toUpperCase()
 
-        // 🧠 Para GETDATA / SIMPLETEXT → normaliza condiciones según las claves de setvariables
+        // 🧠 Para GETDATA / SIMPLETEXT → normaliza condiciones según setvariables
         if (
             (declaredTypeUp === 'GETDATA' || declaredTypeUp === 'SIMPLETEXT') &&
             conditions &&
@@ -772,9 +866,14 @@ export async function convertWiContactToFlow(json: any): Promise<{
             for (const [key, targetId] of Object.entries(finalEdges)) {
                 addEdge(id, targetId as string, `cond_${key}`)
                 console.log(
-                    `⚡ [Importer] Edge GETDATA ${id} → ${targetId} (${key})`
+                    `⚡ [Importer] Edge ${declaredTypeUp} ${id} → ${targetId} (cond_${key})`
                 )
             }
+
+            // ⏱️ Adicional: crear edges por onTimeOut y onTimeOutError si existen
+            if (onTimeOut) addEdge(id, onTimeOut, 'onTimeOut', 'timeOut')
+            if (onTimeOutError)
+                addEdge(id, onTimeOutError, 'onTimeOutError', 'timeOutError')
         }
 
         // 🧩 QuickReply / List → comportamiento estándar
@@ -786,19 +885,27 @@ export async function convertWiContactToFlow(json: any): Promise<{
             const entries = Object.entries(conditions)
             entries.forEach(([key, targetId], index) => {
                 if (!targetId) return
-
-                // 🔎 Si la clave es numérica (1, 2, 3...), úsala directamente
                 const isNumeric = /^[0-9]+$/.test(key.trim())
-
-                // 🧠 Si no es numérica (ej. "Callao", "Lince"), usa el índice (empezando desde 1)
                 const handleIndex = isNumeric ? key.trim() : String(index + 1)
-
-                // 🏗️ Crear edge con enumeración segura
                 addEdge(id, targetId as string, `option_${handleIndex}`)
                 console.log(
-                    `💬 [Importer] Edge ${interactiveType} ${id} → ${targetId} (handle: option_${handleIndex}, original key: ${key})`
+                    `💬 [Importer] Edge ${interactiveType} ${id} → ${targetId} (option_${handleIndex})`
                 )
             })
+        }
+
+        // ==================================================================
+        // 🧩 3️⃣ NODOS ESPECIALES — DerivateNode / SaveRecord / etc.
+        // ==================================================================
+        if (lowerAction === 'derivate' && onTimeOut)
+            addEdge(id, onTimeOut, 'onTimeOut', 'timeoutSkill')
+        if (lowerAction === 'derivate' && onTimeOutError)
+            addEdge(id, onTimeOutError, 'onTimeOutError', 'timeoutError')
+
+        if (lowerAction === 'saverecord') {
+            const nextNodeId = (object as any)?.nextNodeId
+            if (nextNodeId)
+                addEdge(id, nextNodeId, 'onSuccess', 'saveRecordNext')
         }
     }
 

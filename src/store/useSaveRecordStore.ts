@@ -93,7 +93,7 @@ export const useSaveRecordStore = create<SaveRecordState>((set, get) => ({
         }
     },
 
-    /** 💾 Merge y guardado seguro */
+    /** 💾 Merge y guardado seguro (FIX doble serialización JSON) */
     setNodeData: (nodeId, data) => {
         set((state) => {
             const current = state.nodes[nodeId] || {
@@ -104,31 +104,23 @@ export const useSaveRecordStore = create<SaveRecordState>((set, get) => ({
 
             let normalizedBody = data.body ?? current.body
 
-            // 🔧 Si viene como objeto, serializarlo
-            if (typeof normalizedBody === 'object') {
+            // ✅ Si viene como string y es JSON válido, parsea a objeto real
+            if (typeof normalizedBody === 'string') {
                 try {
-                    normalizedBody = JSON.stringify(normalizedBody, null, 2)
+                    const parsed = JSON.parse(normalizedBody)
+                    normalizedBody = parsed
                 } catch {
-                    normalizedBody = '{}'
+                    // Si no es JSON válido, mantener como string simple
                 }
             }
 
-            // 🔧 Si es string pero parece JSON inválido, intentar repararlo
-            if (typeof normalizedBody === 'string') {
-                try {
-                    JSON.parse(normalizedBody)
-                } catch {
-                    normalizedBody = JSON.stringify(
-                        { value: normalizedBody },
-                        null,
-                        2
-                    )
-                }
-            }
+            // 🚫 NO lo conviertas a string aquí, deja el objeto real
+            // para que React y reconstructBody controlen el formato visual
 
             const merged: SaveRecordObject = {
                 ...current,
                 ...data,
+                // 🧠 Si es objeto, se serializa bonito al leer (getNodeData), no al guardar
                 body: normalizedBody,
                 auth: { ...current.auth, ...(data.auth || {}) },
             }

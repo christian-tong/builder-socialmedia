@@ -1,4 +1,5 @@
 // src/components/forms/FormSaveRecordNode.tsx
+// src/components/forms/FormSaveRecordNode.tsx
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -26,10 +27,12 @@ interface KeyValue {
 }
 
 /**
- * 🧾 FormSaveRecordNode (v1.8 – Descripción después de onTrue)
- * ------------------------------------------------------------
+ * 🧾 FormSaveRecordNode (v2.2 – auto-formateo JSON en body y auth)
+ * -----------------------------------------------------------------
+ * ✅ Autoformateo JSON pretty en cuerpo principal y body de autenticación
  * ✅ Campo "Descripción" debajo del bloque onTrue
- * ✅ Mantiene toda la lógica funcional y visual previa
+ * ✅ Badge “objeto” para valores con JSON anidado
+ * ✅ Editor modal para modificar objetos
  * ✅ Estilo unificado ámbar (institucional)
  */
 export default function FormSaveRecordNode({ id, data }: any) {
@@ -37,20 +40,16 @@ export default function FormSaveRecordNode({ id, data }: any) {
         useNodeConfigStore()
     const { initNode, getNodeData, setNodeData, safeUpdateAuth } =
         useSaveRecordStore()
-    const {
-        prevNodes,
-        nextNodes,
-        availableNodes,
-        hasConnection,
-        toggleConnection,
-    } = useNodeConnections(id)
+    const { prevNodes, availableNodes, hasConnection, toggleConnection } =
+        useNodeConnections(id)
 
-    /** Estado local */
     const [localData, setLocalData] = useState<Partial<SaveRecordObject>>({})
     const [pairs, setPairs] = useState<KeyValue[]>([])
     const [authPairs, setAuthPairs] = useState<KeyValue[]>([])
     const [jsonMode, setJsonMode] = useState(false)
     const [authJsonMode, setAuthJsonMode] = useState(false)
+    const [editingObject, setEditingObject] = useState<KeyValue | null>(null)
+    const [objectEditorValue, setObjectEditorValue] = useState('')
 
     // 🧩 Inicialización
     useEffect(() => {
@@ -67,7 +66,7 @@ export default function FormSaveRecordNode({ id, data }: any) {
                         key: k,
                         value:
                             typeof v === 'object'
-                                ? '[object Object]'
+                                ? JSON.stringify(v, null, 2)
                                 : String(v),
                     }))
                 )
@@ -82,7 +81,10 @@ export default function FormSaveRecordNode({ id, data }: any) {
                     Object.entries(parsedAuth).map(([k, v]) => ({
                         id: crypto.randomUUID(),
                         key: k,
-                        value: String(v),
+                        value:
+                            typeof v === 'object'
+                                ? JSON.stringify(v, null, 2)
+                                : String(v),
                     }))
                 )
         } catch {
@@ -90,21 +92,42 @@ export default function FormSaveRecordNode({ id, data }: any) {
         }
     }, [id])
 
-    // 🔧 Reconstruye el body JSON
+    // 🔧 Reconstruye el body JSON (para guardar)
     const reconstructBody = (pairs: KeyValue[], originalBody?: string) => {
         try {
             const base = JSON.parse(originalBody || '{}')
             const result: Record<string, any> = { ...base }
 
             pairs.forEach((p) => {
-                if (p.key in result && typeof result[p.key] === 'object') return
-                result[p.key] = p.value
+                const raw = p.value?.trim()
+                const looksLikeJson =
+                    (raw.startsWith('{') && raw.endsWith('}')) ||
+                    (raw.startsWith('[') && raw.endsWith(']'))
+
+                if (looksLikeJson) {
+                    try {
+                        result[p.key] = JSON.parse(raw)
+                        return
+                    } catch {
+                        result[p.key] = raw
+                        return
+                    }
+                }
+                result[p.key] = raw
             })
 
             return JSON.stringify(result, null, 2)
         } catch {
             return JSON.stringify(
-                Object.fromEntries(pairs.map((p) => [p.key, p.value])),
+                Object.fromEntries(
+                    pairs.map((p) => {
+                        try {
+                            return [p.key, JSON.parse(p.value)]
+                        } catch {
+                            return [p.key, p.value]
+                        }
+                    })
+                ),
                 null,
                 2
             )
@@ -170,7 +193,6 @@ export default function FormSaveRecordNode({ id, data }: any) {
         unregisterSaveCallback,
     ])
 
-    /** ✏️ Handlers */
     const handleChange = (field: keyof SaveRecordObject, value: string) =>
         setLocalData((prev) => ({ ...prev, [field]: value }))
 
@@ -179,74 +201,44 @@ export default function FormSaveRecordNode({ id, data }: any) {
         value: string
     ) => {
         safeUpdateAuth(id, { [field]: value })
-        setLocalData((prev) => {
-            const safeAuth: SaveRecordObject['auth'] = {
+        setLocalData((prev) => ({
+            ...prev,
+            auth: {
                 headers: prev.auth?.headers ?? {},
                 vartoken: prev.auth?.vartoken ?? '',
                 body: prev.auth?.body ?? '',
                 url: prev.auth?.url ?? '',
                 [field]: value,
-            }
-            return { ...prev, auth: safeAuth }
-        })
+            },
+        }))
     }
 
-    /** 🔄 Sincronización JSON/Visual */
-    /** 🔄 Sincronización JSON/Visual */
-    useEffect(() => {
-        if (jsonMode) {
-            const jsonStr = JSON.stringify(
-                Object.fromEntries(pairs.map((p) => [p.key, p.value])),
-                null,
-                2
-            )
-            setLocalData((prev) => ({ ...prev, body: jsonStr }))
+    // 🧩 Editor modal de objetos
+    const openObjectEditor = (pair: KeyValue) => {
+        setEditingObject(pair)
+        try {
+            const parsed = JSON.parse(pair.value)
+            setObjectEditorValue(JSON.stringify(parsed, null, 2))
+        } catch {
+            setObjectEditorValue(pair.value)
         }
+    }
 
-        if (authJsonMode) {
-            const jsonStr = JSON.stringify(
-                Object.fromEntries(authPairs.map((p) => [p.key, p.value])),
-                null,
-                2
+    const saveObjectEditor = () => {
+        if (!editingObject) return
+        let formattedValue = objectEditorValue.trim()
+        try {
+            const parsed = JSON.parse(formattedValue)
+            formattedValue = JSON.stringify(parsed, null, 2)
+        } catch {}
+        setPairs((prev) =>
+            prev.map((x) =>
+                x.id === editingObject.id ? { ...x, value: formattedValue } : x
             )
-
-            // 🔐 Actualiza el store global
-            safeUpdateAuth(id, { body: jsonStr })
-
-            // ✅ Reconstrucción tipada de auth garantizando headers
-            setLocalData((prev) => ({
-                ...prev,
-                auth: {
-                    headers: prev.auth?.headers ?? {},
-                    vartoken: prev.auth?.vartoken ?? '',
-                    url: prev.auth?.url ?? '',
-                    body: jsonStr,
-                },
-            }))
-        }
-    }, [jsonMode, authJsonMode, pairs, authPairs, id, safeUpdateAuth])
-
-    /** Helpers visuales */
-    const addPair = () =>
-        setPairs((p) => [...p, { id: crypto.randomUUID(), key: '', value: '' }])
-    const removePair = (uid: string) =>
-        setPairs((p) => p.filter((x) => x.id !== uid))
-    const updatePair = (uid: string, field: keyof KeyValue, val: string) =>
-        setPairs((p) =>
-            p.map((x) => (x.id === uid ? { ...x, [field]: val } : x))
         )
-
-    const addAuthPair = () =>
-        setAuthPairs((p) => [
-            ...p,
-            { id: crypto.randomUUID(), key: '', value: '' },
-        ])
-    const removeAuthPair = (uid: string) =>
-        setAuthPairs((p) => p.filter((x) => x.id !== uid))
-    const updateAuthPair = (uid: string, field: keyof KeyValue, val: string) =>
-        setAuthPairs((p) =>
-            p.map((x) => (x.id === uid ? { ...x, [field]: val } : x))
-        )
+        setEditingObject(null)
+        setObjectEditorValue('')
+    }
 
     /** Render */
     return (
@@ -271,43 +263,17 @@ export default function FormSaveRecordNode({ id, data }: any) {
                 accentColor="text-sky-700 dark:text-sky-300"
             />
 
-            {/* ⚡ Conexión onTrue */}
-            <div className="flex flex-col gap-2 border-t pt-3 dark:border-gray-800">
-                <Label className="text-sm font-medium text-green-600 dark:text-green-400">
-                    Conexión trueStep
-                </Label>
-                <NodeConnectionsAccordion
-                    title="Nodos conectados (trueStep)"
-                    nodesList={availableNodes
-                        .filter((n) => hasConnection(n.id, 'onTrue'))
-                        .map((n) => n.id)}
-                    accentColor="text-green-700 dark:text-green-300"
-                />
-                <NodeSelectionAccordion
-                    title="Seleccionar nodo trueStep"
-                    availableNodes={availableNodes}
-                    hasConnection={hasConnection}
-                    toggleConnection={toggleConnection}
-                    handleId="onTrue"
-                    accentColor="text-green-700 dark:text-green-300"
-                />
-            </div>
-
-            {/* 🧾 Descripción debajo de onTrue */}
+            {/* 🧾 Descripción */}
             <div className="flex flex-col gap-1 border-t pt-3 dark:border-gray-800">
-                <Label
-                    htmlFor={`description-${id}`}
-                    className="text-muted-foreground text-xs"
-                >
+                <Label className="text-muted-foreground text-xs">
                     Descripción
                 </Label>
                 <Input
-                    id={`description-${id}`}
-                    placeholder="Breve descripción del paso..."
                     value={data.description || ''}
                     onChange={(e) =>
                         updateNodeData(id, { description: e.target.value })
                     }
+                    placeholder="Breve descripción del paso..."
                     className="text-sm"
                 />
             </div>
@@ -339,7 +305,56 @@ export default function FormSaveRecordNode({ id, data }: any) {
                     </Button>
                 </div>
 
-                {!authJsonMode ? (
+                {authJsonMode ? (
+                    (() => {
+                        let formattedAuth = ''
+                        try {
+                            if (
+                                typeof localData.auth?.body === 'object' &&
+                                localData.auth?.body !== null
+                            ) {
+                                formattedAuth = JSON.stringify(
+                                    localData.auth?.body,
+                                    null,
+                                    2
+                                )
+                            } else if (
+                                typeof localData.auth?.body === 'string' &&
+                                (localData.auth?.body.trim().startsWith('{') ||
+                                    localData.auth?.body.trim().startsWith('['))
+                            ) {
+                                const parsed = JSON.parse(localData.auth?.body)
+                                formattedAuth = JSON.stringify(parsed, null, 2)
+                            } else {
+                                formattedAuth = localData.auth?.body || ''
+                            }
+                        } catch {
+                            formattedAuth = localData.auth?.body || ''
+                        }
+
+                        return (
+                            <Textarea
+                                value={formattedAuth}
+                                onChange={(e) => {
+                                    const raw = e.target.value
+                                    try {
+                                        const parsed = JSON.parse(raw)
+                                        handleAuthChange(
+                                            'body',
+                                            JSON.stringify(parsed, null, 2)
+                                        )
+                                    } catch {
+                                        handleAuthChange('body', raw)
+                                    }
+                                }}
+                                placeholder='{"username":"core@wimprove.com","password":"***"}'
+                                className="font-mono text-xs"
+                                rows={6}
+                                spellCheck={false}
+                            />
+                        )
+                    })()
+                ) : (
                     <div className="mt-1 flex flex-col gap-2">
                         <div className="flex justify-between text-[11px] font-semibold text-amber-400 uppercase">
                             <span>KEY</span>
@@ -353,10 +368,15 @@ export default function FormSaveRecordNode({ id, data }: any) {
                                 <Input
                                     value={p.key}
                                     onChange={(e) =>
-                                        updateAuthPair(
-                                            p.id,
-                                            'key',
-                                            e.target.value
+                                        setAuthPairs((prev) =>
+                                            prev.map((x) =>
+                                                x.id === p.id
+                                                    ? {
+                                                          ...x,
+                                                          key: e.target.value,
+                                                      }
+                                                    : x
+                                            )
                                         )
                                     }
                                     placeholder="clave"
@@ -365,10 +385,15 @@ export default function FormSaveRecordNode({ id, data }: any) {
                                 <Input
                                     value={p.value}
                                     onChange={(e) =>
-                                        updateAuthPair(
-                                            p.id,
-                                            'value',
-                                            e.target.value
+                                        setAuthPairs((prev) =>
+                                            prev.map((x) =>
+                                                x.id === p.id
+                                                    ? {
+                                                          ...x,
+                                                          value: e.target.value,
+                                                      }
+                                                    : x
+                                            )
                                         )
                                     }
                                     placeholder="valor"
@@ -377,7 +402,11 @@ export default function FormSaveRecordNode({ id, data }: any) {
                                 <Button
                                     size="icon"
                                     variant="ghost"
-                                    onClick={() => removeAuthPair(p.id)}
+                                    onClick={() =>
+                                        setAuthPairs((prev) =>
+                                            prev.filter((x) => x.id !== p.id)
+                                        )
+                                    }
                                     className="text-red-500 hover:text-red-600"
                                 >
                                     <Trash2 className="h-3.5 w-3.5" />
@@ -387,23 +416,22 @@ export default function FormSaveRecordNode({ id, data }: any) {
                         <Button
                             size="sm"
                             variant="outline"
-                            onClick={addAuthPair}
+                            onClick={() =>
+                                setAuthPairs((p) => [
+                                    ...p,
+                                    {
+                                        id: crypto.randomUUID(),
+                                        key: '',
+                                        value: '',
+                                    },
+                                ])
+                            }
                             className="mt-1 border-amber-600 bg-amber-500 text-white hover:bg-amber-600 hover:text-white"
                         >
                             <Plus className="mr-1 h-3.5 w-3.5" /> Agregar
                             parámetro
                         </Button>
                     </div>
-                ) : (
-                    <Textarea
-                        value={localData.auth?.body || ''}
-                        onChange={(e) =>
-                            handleAuthChange('body', e.target.value)
-                        }
-                        placeholder='{"username":"core@wimprove.com","password":"***"}'
-                        className="font-mono text-xs"
-                        rows={4}
-                    />
                 )}
 
                 <Label className="mt-2 text-xs font-medium text-amber-600">
@@ -433,60 +461,174 @@ export default function FormSaveRecordNode({ id, data }: any) {
                 </Button>
             </div>
 
-            {!jsonMode ? (
+            {jsonMode ? (
+                (() => {
+                    let formattedValue = ''
+                    try {
+                        if (
+                            typeof localData.body === 'object' &&
+                            localData.body !== null
+                        ) {
+                            formattedValue = JSON.stringify(
+                                localData.body,
+                                null,
+                                2
+                            )
+                        } else if (
+                            typeof localData.body === 'string' &&
+                            (localData.body.trim().startsWith('{') ||
+                                localData.body.trim().startsWith('['))
+                        ) {
+                            const parsed = JSON.parse(localData.body)
+                            formattedValue = JSON.stringify(parsed, null, 2)
+                        } else {
+                            formattedValue = localData.body || ''
+                        }
+                    } catch {
+                        formattedValue = localData.body || ''
+                    }
+
+                    return (
+                        <Textarea
+                            value={formattedValue}
+                            onChange={(e) => {
+                                const raw = e.target.value
+                                try {
+                                    const parsed = JSON.parse(raw)
+                                    handleChange(
+                                        'body',
+                                        JSON.stringify(parsed, null, 2)
+                                    )
+                                } catch {
+                                    handleChange('body', raw)
+                                }
+                            }}
+                            placeholder='{"field_167":"${SECTOR}","data":{"gestionId":"${TX_GESTIONID}"}}'
+                            className="font-mono text-xs"
+                            rows={12}
+                            spellCheck={false}
+                        />
+                    )
+                })()
+            ) : (
                 <div className="mt-2 flex flex-col gap-2">
                     <div className="flex justify-between text-[11px] font-semibold text-amber-400 uppercase">
                         <span>KEY</span>
                         <span>VALUE</span>
                     </div>
-                    {pairs.map((p) => (
-                        <div
-                            key={p.id}
-                            className="flex items-center gap-2 border-b pb-1 dark:border-gray-800"
-                        >
-                            <Input
-                                value={p.key}
-                                onChange={(e) =>
-                                    updatePair(p.id, 'key', e.target.value)
-                                }
-                                placeholder="clave"
-                                className="text-xs"
-                            />
-                            <Input
-                                value={p.value}
-                                onChange={(e) =>
-                                    updatePair(p.id, 'value', e.target.value)
-                                }
-                                placeholder="valor"
-                                className="text-xs"
-                            />
-                            <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => removePair(p.id)}
-                                className="text-red-500 hover:text-red-600"
+                    {pairs.map((p) => {
+                        const isObject =
+                            p.value.trim().startsWith('{') ||
+                            p.value.trim().startsWith('[')
+                        return (
+                            <div
+                                key={p.id}
+                                className="flex items-center gap-2 border-b pb-1 dark:border-gray-800"
                             >
-                                <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                        </div>
-                    ))}
+                                <Input
+                                    value={p.key}
+                                    onChange={(e) =>
+                                        setPairs((prev) =>
+                                            prev.map((x) =>
+                                                x.id === p.id
+                                                    ? {
+                                                          ...x,
+                                                          key: e.target.value,
+                                                      }
+                                                    : x
+                                            )
+                                        )
+                                    }
+                                    placeholder="clave"
+                                    className="text-xs"
+                                />
+                                <div className="relative w-full">
+                                    <Input
+                                        value={isObject ? '[objeto]' : p.value}
+                                        readOnly={isObject}
+                                        onChange={(e) =>
+                                            setPairs((prev) =>
+                                                prev.map((x) =>
+                                                    x.id === p.id
+                                                        ? {
+                                                              ...x,
+                                                              value: e.target
+                                                                  .value,
+                                                          }
+                                                        : x
+                                                )
+                                            )
+                                        }
+                                        className={`text-xs ${
+                                            isObject
+                                                ? 'pr-16 font-mono text-amber-700 dark:text-amber-300'
+                                                : ''
+                                        }`}
+                                    />
+                                    {isObject && (
+                                        <Badge
+                                            onClick={() => openObjectEditor(p)}
+                                            className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer bg-amber-500 text-white hover:bg-amber-600"
+                                        >
+                                            objeto
+                                        </Badge>
+                                    )}
+                                </div>
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() =>
+                                        setPairs((prev) =>
+                                            prev.filter((x) => x.id !== p.id)
+                                        )
+                                    }
+                                    className="text-red-500 hover:text-red-600"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                            </div>
+                        )
+                    })}
                     <Button
                         size="sm"
                         variant="outline"
-                        onClick={addPair}
+                        onClick={() =>
+                            setPairs((p) => [
+                                ...p,
+                                { id: crypto.randomUUID(), key: '', value: '' },
+                            ])
+                        }
                         className="mt-1 border-amber-600 bg-amber-500 text-white hover:bg-amber-600 hover:text-white"
                     >
                         <Plus className="mr-1 h-3.5 w-3.5" /> Agregar parámetro
                     </Button>
                 </div>
-            ) : (
-                <Textarea
-                    value={localData.body || ''}
-                    onChange={(e) => handleChange('body', e.target.value)}
-                    placeholder='{"field_167":"${SECTOR}","data":{"gestionId":"${TX_GESTIONID}"}}'
-                    className="font-mono text-xs"
-                    rows={8}
-                />
+            )}
+
+            {/* 🧩 Editor modal para objetos */}
+            {editingObject && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-lg rounded-xl bg-white p-4 shadow-xl dark:bg-zinc-900">
+                        <Label className="text-sm font-semibold text-amber-600">
+                            Detalle: {editingObject.key}
+                        </Label>
+                        <Textarea
+                            value={objectEditorValue}
+                            disabled
+                            rows={12}
+                            spellCheck={false}
+                            className="mt-2 font-mono text-xs"
+                        />
+                        <div className="mt-3 flex justify-end gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setEditingObject(null)}
+                            >
+                                Cancelar
+                            </Button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )

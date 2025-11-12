@@ -58,11 +58,21 @@ export function useNodeConnections(nodeId?: string, debug = false) {
     const createConnection = (targetId: string, handleId?: string) => {
         if (!nodeId) return
 
+        console.log('createConnection', `${targetId} - ${handleId}`)
+
         const sourceNode = nodes.find((n) => n.id === nodeId)
         const targetNode = nodes.find((n) => n.id === targetId)
         if (!sourceNode || !targetNode) return
 
-        const simpleHandles = ['onTrue', 'onFalse', 'onError', 'in', 'out']
+        const simpleHandles = [
+            'onTrue',
+            'onFalse',
+            'onError',
+            'onTimeOut',
+            'onTimeOutError',
+            'in',
+            'out',
+        ]
         const isSimple = simpleHandles.includes(handleId ?? '')
         const variantType = getVariantType(nodeId)
 
@@ -101,6 +111,10 @@ export function useNodeConnections(nodeId?: string, debug = false) {
         if (handleId === 'onTrue') color = '#22c55e'
         else if (handleId === 'onFalse') color = '#ef4444'
         else if (handleId === 'onError') color = '#facc15'
+        else if (handleId === 'onTimeOut')
+            color = '#0ea5e9' // 🟦 Nuevo
+        else if (handleId === 'onTimeOutError')
+            color = '#8b5cf6' // 🟪 Nuevo
         else if (variantType === 'list') color = '#0ea5e9'
         else if (variantType === 'quick_reply') color = '#8b5cf6'
         else if (variantType === 'GETDATA') color = '#f59e0b'
@@ -129,7 +143,15 @@ export function useNodeConnections(nodeId?: string, debug = false) {
     const removeConnection = (targetId: string, handleId?: string) => {
         if (!nodeId) return
         const variantType = getVariantType(nodeId)
-        const simpleHandles = ['onTrue', 'onFalse', 'onError', 'in', 'out']
+        const simpleHandles = [
+            'onTrue',
+            'onFalse',
+            'onError',
+            'onTimeOut',
+            'onTimeOutError',
+            'in',
+            'out',
+        ]
         const isSimple = simpleHandles.includes(handleId ?? '')
         const globalHandleId = isSimple
             ? handleId

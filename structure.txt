@@ -1,6 +1,7 @@
 Listado de rutas de carpetas
 El n�mero de serie del volumen es 0A55-6B00
 D:.
+�   .dockerignore
 �   .env.local
 �   .gitignore
 �   .hintrc
@@ -10,13 +11,21 @@ D:.
 �   Dockerfile
 �   eslint.config.mjs
 �   next-env.d.ts
-�   next.config.ts
+�   next.config.mjs
+�   package-lock.json
 �   package.json
 �   postcss.config.mjs
 �   prettier.config.js
 �   README.md
 �   structure.txt
 �   tsconfig.json
+�   
++---.vscode
+�       launch.json
+�       
++---Docker
+�       BuildAndPush-Docker.ps1
+�       
 +---public
 �       favicon.ico
 �       file.svg
@@ -47,7 +56,6 @@ D:.
     �   �   �   FormDerivateNode.tsx
     �   �   �   FormEndNode.tsx
     �   �   �   FormGenerateTokenNode.tsx
-    �   �   �   FormMenuNode.tsx
     �   �   �   FormMySQLQueryNode.tsx
     �   �   �   FormNoOpNode.tsx
     �   �   �   FormSaveRecordNode.tsx
@@ -77,7 +85,6 @@ D:.
     �   �       DerivateNode.tsx
     �   �       EndNode.tsx
     �   �       GenerateTokenNode.tsx
-    �   �       GetDataCompleteNode.tsx
     �   �       MenuNode.tsx
     �   �       MySQLQueryNode.tsx
     �   �       NoOpNode.tsx
